@@ -7,7 +7,7 @@ test('discover supports search, categories, details, navigation and themes', asy
   await expect(page.getByText('Read-only preview')).toBeVisible();
   await expect(page.locator('.mod-card')).toHaveCount(12);
   await page.getByRole('searchbox', { name: 'Search mods' }).fill('Steamodded');
-  await expect(page.locator('.mod-card')).toHaveCount(2);
+  await expect(page.locator('.mod-card')).toHaveCount(1);
   await page.getByRole('button', { name: 'Details for Steamodded' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'What you’ll need' })).toBeVisible();

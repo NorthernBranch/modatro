@@ -1,0 +1,40 @@
+name: Submit a mod
+description: Submit author-approved metadata and an upstream distribution source.
+title: '[Catalogue] '
+body:
+  - type: input
+    id: identity
+    attributes:
+      label: Stable author/slug ID
+    validations:
+      required: true
+  - type: input
+    id: repository
+    attributes:
+      label: Author repository and optional modatro.json URL
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Authorship or permission evidence
+      description: Identify your author account, or provide permission/licence evidence for review. A public repository alone is insufficient.
+    validations:
+      required: true
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Submission permissions
+      options:
+        - label: I am the author or have permission to submit this mod.
+          required: true
+        - label: I permit Modatro to display the submitted metadata.
+          required: true
+        - label: I permit Modatro to direct users to and download from the configured source.
+          required: true
+        - label: I have the right to supply every included description and image for catalogue display.
+          required: true
+        - label: I understand that I may request removal later.
+          required: true
+        - label: I understand that Modatro takes no ownership and requires no copyright transfer.
+          required: true

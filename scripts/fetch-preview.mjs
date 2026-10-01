@@ -21,9 +21,7 @@ const mods = await Promise.all(
     const response = await fetch(`${base}/meta.json`);
     if (!response.ok) throw Error(`${folder}: ${response.status}`);
     const metadata = await response.json();
-    const desc = await fetch(`${base}/description.md`);
-    if (!desc.ok) throw Error(`${folder}: description ${desc.status}`);
-    return { folder, metadata, description: await desc.text() };
+    return { folder, metadata };
   }),
 );
 await writeFile(

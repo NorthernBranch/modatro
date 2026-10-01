@@ -1,5 +1,6 @@
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { StateSchema, type AppState } from '../../src/shared/model';
 import { UserError } from './errors';
@@ -7,7 +8,7 @@ import { atomicWrite, canonicalDirectory, exists, readSmall, safeDestination } f
 
 export class Storage {
   state: AppState = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     settings: { theme: 'dark', setupComplete: false },
     installations: [],
   };
@@ -32,7 +33,33 @@ export class Storage {
     const file = this.file('data/state.json');
     if (await exists(file)) {
       try {
-        this.state = StateSchema.parse(JSON.parse(await readSmall(file, 20 * 1024 * 1024)));
+        const original = await readSmall(file, 20 * 1024 * 1024);
+        this.state = StateSchema.parse(JSON.parse(original));
+        if (this.state.schemaVersion === 1) {
+          let backup = await safeDestination(this.root, 'data/state-v1.backup.json');
+          if (await exists(backup)) {
+            const previous = await readSmall(backup, 20 * 1024 * 1024);
+            StateSchema.parse(JSON.parse(previous));
+            if (previous !== original)
+              backup = await safeDestination(
+                this.root,
+                `data/state-v1-${createHash('sha256').update(original).digest('hex').slice(0, 16)}.backup.json`,
+              );
+          }
+          if (!(await exists(backup))) await atomicWrite(backup, original);
+          const migrated = StateSchema.parse({
+            ...this.state,
+            schemaVersion: 2,
+            installations: this.state.installations.map((record) => ({
+              ...record,
+              provenance: record.provenance ?? {
+                sourceType: record.adopted ? 'external' : 'legacy',
+              },
+            })),
+          });
+          await atomicWrite(file, JSON.stringify(migrated, null, 2));
+          this.state = migrated;
+        }
       } catch {
         this.safetyError =
           'Modatro’s saved installation records could not be verified. File changes are locked to protect your mods. Keep the data folder and backups, and use diagnostics to investigate.';
@@ -47,7 +74,7 @@ export class Storage {
   }
   async save(next: AppState) {
     this.assertSafe();
-    const checked = StateSchema.parse(next);
+    const checked = StateSchema.parse({ ...next, schemaVersion: 2 });
     try {
       await atomicWrite(
         await safeDestination(this.root, 'data/state.json'),

@@ -15,7 +15,7 @@ import { z } from 'zod';
 import { RelativePath, RootSchema } from '../src/shared/model';
 import { ModatroApplication } from './application';
 import { errorReply, UserError } from './services/errors';
-import { contained, exists } from './services/files';
+import { contained, exists, safeDestination } from './services/files';
 import { launchModdedMac } from './services/launch';
 
 // Isolate Chromium's profile and the single-instance lock as well as service
@@ -167,6 +167,7 @@ void app
         .object({
           id: z.string().max(200),
           action: z.enum(['install', 'update', 'uninstall', 'disable', 'enable', 'adopt']),
+          confirmationToken: z.uuid().optional(),
           decisions: z
             .array(
               z.object({
@@ -179,9 +180,43 @@ void app
             .optional(),
         })
         .strict(),
-      (request) => application.action(request.id, request.action, request.decisions),
+      (request) =>
+        application.action(
+          request.id,
+          request.action,
+          request.decisions,
+          request.confirmationToken,
+        ),
     );
     handle('cancel', z.undefined(), async () => application.installer.cancel());
+    handle('previewPlan', z.string().max(200), (id) => application.previewPlan(id));
+    handle('openModFolder', z.string().max(200), async (id) => {
+      const local = (await application.snapshot()).localMods.find((mod) => mod.id === id);
+      if (!local)
+        throw new UserError('This installed mod is no longer present. Refresh and try again.');
+      const record = application.storage.state.installations.find((mod) => mod.modId === id);
+      const root = record?.disabled
+        ? application.storage.file('disabled')
+        : record?.files.every((file) => file.root === 'game')
+          ? application.storage.state.settings.gamePath
+          : application.storage.state.settings.modsPath;
+      if (!root) throw new UserError('The Mods folder is not configured.');
+      const file =
+        record?.disabled || record?.files.every((file) => file.root === 'game')
+          ? record.files[0]?.path
+          : local.folderName;
+      if (!file) throw new UserError('This mod has no recorded location.');
+      let folder = await safeDestination(root, file);
+      if (
+        record?.disabled ||
+        record?.files.every((file) => file.root === 'game') ||
+        file.endsWith('.lua')
+      )
+        folder = path.dirname(folder);
+      if (!(await exists(folder))) throw new UserError('The mod folder no longer exists.');
+      const error = await shell.openPath(folder);
+      if (error) throw new UserError('The mod folder could not be opened.', undefined, error);
+    });
     handle('openFolder', z.enum(['game', 'mods', 'logs', 'backups', 'cache']), async (kind) => {
       const settings = application.storage.state.settings;
       const folder =

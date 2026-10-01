@@ -37,12 +37,20 @@ import type {
   ConflictDecision,
   ModAction,
   ModDefinition,
+  InstallPlan,
   OperationReport,
   Progress,
   Reply,
   Snapshot,
 } from './shared/model';
 import { eligibility, plainText, requirements } from './shared/presentation';
+import {
+  allowedDescription,
+  approvalLabel,
+  automationReason,
+  sourceType,
+  sourceLabel,
+} from './shared/trust';
 
 type Page = 'discover' | 'installed' | 'updates' | 'prerequisites' | 'settings';
 const navigation: { id: Page; label: string; icon: typeof Compass }[] = [
@@ -67,11 +75,15 @@ export function App() {
   const [operationReport, setOperationReport] = useState<OperationReport>();
   const [setup, setSetup] = useState(false);
   const [about, setAbout] = useState(false);
+  const [inspectedPlan, setInspectedPlan] = useState<InstallPlan>();
+  useEffect(() => setInspectedPlan(undefined), [selected?.id]);
   const [confirmation, setConfirmation] = useState<{
     id: string;
     action: ModAction;
     title: string;
     mod?: ModDefinition;
+    token?: string;
+    plan?: InstallPlan;
   }>();
   const [conflictAction, setConflictAction] = useState<{ id: string; action: ModAction }>();
   const [decisions, setDecisions] = useState<ConflictDecision[]>([]);
@@ -140,6 +152,13 @@ export function App() {
   useEffect(() => {
     if (!selected) setRequirementTrail([]);
   }, [selected]);
+  useEffect(() => {
+    setSelected((previous) =>
+      previous
+        ? (snapshot?.catalogue.mods.find((mod) => mod.id === previous.id) ?? previous)
+        : undefined,
+    );
+  }, [snapshot]);
   function reviewRequirement(mod: ModDefinition) {
     if (selected && selected.id !== mod.id) setRequirementTrail((trail) => [...trail, selected]);
     setSelected(mod);
@@ -181,7 +200,12 @@ export function App() {
     setDetectionMessage(message);
     setNotification(message);
   }
-  async function perform(id: string, action: ModAction, choices?: ConflictDecision[]) {
+  async function perform(
+    id: string,
+    action: ModAction,
+    choices?: ConflictDecision[],
+    token?: string,
+  ) {
     if (configuring) return;
     setError(undefined);
     setConfirmation(undefined);
@@ -196,7 +220,7 @@ export function App() {
         enable: 'Enabling mod',
         adopt: 'Adopting mod',
       }[action],
-      () => api.action(id, action, choices),
+      () => api.action(id, action, choices, token),
       {
         group: 'configuration',
         failureMessage:
@@ -221,7 +245,16 @@ export function App() {
         }[action],
       );
     } else if (reply && !reply.ok) {
-      setConflictAction({ id, action });
+      if (reply.error.confirmation) {
+        setError(undefined);
+        setConfirmation({
+          id,
+          action,
+          title: snapshot?.catalogue.mods.find((mod) => mod.id === id)?.title ?? id,
+          token: reply.error.confirmation.token,
+          plan: reply.error.confirmation.plan,
+        });
+      } else setConflictAction({ id, action });
       setDecisions(
         (reply.error.conflicts ?? []).map((c) => ({ root: c.root, path: c.path, action: 'keep' })),
       );
@@ -248,12 +281,7 @@ export function App() {
   }
   function requestAction(id: string, action: ModAction, title: string, mod?: ModDefinition) {
     if (configuring || !snapshot) return;
-    if (
-      action === 'uninstall' ||
-      mod?.installation.type === 'game-replacement' ||
-      id === 'prerequisite:Lovely'
-    )
-      setConfirmation({ id, action, title, mod });
+    if (action === 'uninstall') setConfirmation({ id, action, title, mod });
     else if (action === 'adopt') setConfirmation({ id, action, title });
     else void perform(id, action);
   }
@@ -264,7 +292,7 @@ export function App() {
   const gameReady = snapshot?.validation?.valid ?? false;
 
   function buttonFor(mod: ModDefinition, compact = false) {
-    const local = installed.find((m) => m.id === mod.id),
+    const local = installed.find((m) => m.id === mod.id || m.catalogueId === mod.id),
       reason = snapshot ? eligibility(mod, snapshot) : 'Loading…';
     const active = working && progress?.modId === mod.id;
     if (active)
@@ -304,6 +332,24 @@ export function App() {
         >
           <TriangleAlert size={14} />
           Check files
+        </button>
+      );
+    if (local && !local.managed)
+      return (
+        <button
+          className="button button-secondary"
+          onClick={() => {
+            setSelected(undefined);
+            setPage('installed');
+          }}
+        >
+          Installed externally
+        </button>
+      );
+    if (automationReason(mod, !!local?.managed) || (snapshot?.trust && !snapshot.trust.fresh))
+      return (
+        <button className="button button-secondary" onClick={() => setSelected(mod)} title={reason}>
+          View availability
         </button>
       );
     return (
@@ -518,6 +564,18 @@ export function App() {
               setSelected={setSelected}
               requestAction={requestAction}
               setPage={setPage}
+              openModFolder={
+                api.openModFolder
+                  ? async (id) => {
+                      await run(`folder:mod:${id}`, 'Opening mod folder', () =>
+                        api.openModFolder!(id),
+                      );
+                    }
+                  : undefined
+              }
+              openLink={openLink}
+              folderPending={(id) => requests.isPending(`folder:mod:${id}`)}
+              projectPending={(url) => requests.isPending(`link:${url}`)}
             />
           )}
           {snapshot && page === 'prerequisites' && (
@@ -569,11 +627,54 @@ export function App() {
                 by {selected.author} <span>Version {selected.version}</span>
               </p>
               <p>
-                {plainText(selected.description) ||
+                {plainText(allowedDescription(selected)) ||
                   'A community-made Balatro mod. Visit the repository for more information.'}
               </p>
             </div>
           </div>
+          <section className="detail-provenance">
+            <h3>Source and provenance</h3>
+            <dl className="version-facts">
+              <div>
+                <dt>Catalogue status</dt>
+                <dd>{approvalLabel(selected)}</dd>
+              </div>
+              <div>
+                <dt>Source</dt>
+                <dd>
+                  {selected.repositoryUrl
+                    ? new URL(selected.repositoryUrl).pathname.slice(1)
+                    : 'Not recorded'}
+                </dd>
+              </div>
+              <div>
+                <dt>Download source</dt>
+                <dd>
+                  {sourceLabel(
+                    selected.releaseSource?.sourceType ?? sourceType(selected.downloadUrl),
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>Managed by Modatro</dt>
+                <dd>
+                  {installed.some((local) => local.id === selected.id && local.managed)
+                    ? 'Yes'
+                    : 'No'}
+                </dd>
+              </div>
+              {selected.licence && (
+                <div>
+                  <dt>Licence (informational)</dt>
+                  <dd>{selected.licence}</dd>
+                </div>
+              )}
+            </dl>
+            <p className="muted-text">
+              Author approval concerns catalogue inclusion. Modatro does not certify third-party
+              code as safe.
+            </p>
+          </section>
           <section className="detail-requirements">
             <h3>What you’ll need</h3>
             {requirements(selected, snapshot).length ? (
@@ -635,6 +736,48 @@ export function App() {
             </button>
           </section>
           <div className="detail-install">
+            {api.previewPlan && (
+              <>
+                <AsyncButton
+                  className="text-button"
+                  pending={requests.isPending('plan')}
+                  pendingLabel="Inspecting download…"
+                  disabled={configuring || !!eligibility(selected, snapshot)}
+                  onClick={() =>
+                    void run(
+                      'plan',
+                      'Inspecting install plan',
+                      () => api.previewPlan!(selected.id),
+                      { group: 'configuration' },
+                    ).then((reply) => {
+                      setProgress(undefined);
+                      if (reply?.ok) setInspectedPlan(reply.value);
+                    })
+                  }
+                >
+                  Preview file changes
+                </AsyncButton>
+                {inspectedPlan?.modId === selected.id && (
+                  <details open>
+                    <summary>
+                      File changes · Create {inspectedPlan.create.length} · Replace{' '}
+                      {inspectedPlan.replace.length} · Remove {inspectedPlan.remove.length}
+                    </summary>
+                    <ul>
+                      {(['create', 'replace', 'remove'] as const).flatMap((operation) =>
+                        inspectedPlan[operation].map((file) => (
+                          <li key={`${operation}:${file.root}:${file.path}`}>
+                            <code>
+                              {operation}: {file.root}/{file.path}
+                            </code>
+                          </li>
+                        )),
+                      )}
+                    </ul>
+                  </details>
+                )}
+              </>
+            )}
             <div>
               <ShieldCheck size={17} />
               <span>
@@ -660,7 +803,12 @@ export function App() {
                 <ExternalLink size={15} />
                 Repository
               </AsyncButton>
-              {eligibility(selected, snapshot) ? (
+              {eligibility(selected, snapshot) &&
+              !automationReason(
+                selected,
+                installed.some((local) => local.id === selected.id && local.managed),
+              ) &&
+              snapshot.trust?.fresh !== false ? (
                 <button
                   className="button button-primary"
                   onClick={() => {
@@ -834,14 +982,25 @@ export function App() {
                 ? 'Modatro will inspect and record the existing files before managing them. Future uninstall removes these recorded files only; changes will be protected.'
                 : 'This installation changes files in your Balatro game directory. Modatro will back up existing files before replacing them.'}
           </p>
-          {confirmation.mod?.installation.type === 'game-replacement' && (
-            <ul className="replacement-files">
-              {confirmation.mod.installation.files.map((f) => (
-                <li key={f.destination}>
-                  <code>{f.destination}</code>
-                </li>
-              ))}
-            </ul>
+          {confirmation.plan && (
+            <details open>
+              <summary>
+                View file changes · Create {confirmation.plan.create.length} · Replace{' '}
+                {confirmation.plan.replace.length} · Remove {confirmation.plan.remove.length}
+              </summary>
+              <ul className="replacement-files">
+                {(['create', 'replace', 'remove'] as const).flatMap((operation) =>
+                  confirmation.plan![operation].map((file) => (
+                    <li key={`${operation}:${file.root}:${file.path}`}>
+                      <code>
+                        {operation}: {file.root}/{file.path}
+                      </code>
+                    </li>
+                  )),
+                )}
+              </ul>
+              <p>Files marked “replace” will be backed up before the transaction commits.</p>
+            </details>
           )}
           <div className="dialog-footer">
             <button className="button button-secondary" onClick={() => setConfirmation(undefined)}>
@@ -849,7 +1008,9 @@ export function App() {
             </button>
             <button
               className={`button ${confirmation.action === 'uninstall' ? 'button-danger' : 'button-primary'}`}
-              onClick={() => void perform(confirmation.id, confirmation.action)}
+              onClick={() =>
+                void perform(confirmation.id, confirmation.action, undefined, confirmation.token)
+              }
             >
               {confirmation.action === 'uninstall'
                 ? 'Uninstall'
@@ -1028,14 +1189,20 @@ export function App() {
               ))}
           </dl>
           <p className="dialog-description">
-            Modatro is an independent community project. It is not affiliated with Balatro,
-            LocalThunk, or Playstack.
+            Modatro is an independent community project and is not affiliated with, endorsed by, or
+            sponsored by LocalThunk or Playstack. Mod authors retain ownership of their mods.
+            Modatro downloads directly from upstream sources and does not claim ownership. Authors
+            may request removal; existing user copies are never remotely deleted.
           </p>
           <div className="about-links">
             {[
               ['Balatro Mod Index', 'https://github.com/skyline69/balatro-mod-index'],
               ['Lovely', 'https://github.com/ethangreen-dev/lovely-injector'],
               ['Steamodded', 'https://github.com/Steamodded/smods'],
+              [
+                'Content and removal policy',
+                'https://github.com/NorthernBranch/modatro/blob/main/docs/content-policy.md',
+              ],
             ].map(([label, url]) => (
               <AsyncButton
                 className="text-button"

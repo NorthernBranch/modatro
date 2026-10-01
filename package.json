@@ -21,9 +21,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "icon": "node scripts/generate-icon.mjs",
-    "check": "prettier --check . && tsc --noEmit && vitest run && vite build && node scripts/build-electron.mjs",
+    "check": "prettier --check . && node scripts/compile-catalogue.mjs --check && tsc --noEmit && vitest run && vite build && node scripts/build-electron.mjs",
     "package": "tsc --noEmit && vite build && node scripts/build-electron.mjs && electron-builder",
-    "package:dir": "tsc --noEmit && vite build && node scripts/build-electron.mjs && electron-builder --dir"
+    "package:dir": "tsc --noEmit && vite build && node scripts/build-electron.mjs && electron-builder --dir",
+    "catalogue:build": "node scripts/compile-catalogue.mjs",
+    "catalogue:check": "node scripts/compile-catalogue.mjs --check"
   },
   "dependencies": {
     "lucide-react": "^0.577.0",
@@ -85,6 +87,22 @@
       "allowToChangeInstallationDirectory": true,
       "perMachine": false
     },
-    "publish": null
-  }
+    "publish": null,
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Game",
+      "artifactName": "Modatro-${version}-${arch}.${ext}",
+      "maintainer": "Modatro contributors",
+      "executableName": "modatro",
+      "syncDesktopName": true
+    },
+    "deb": {
+      "compression": "gz"
+    }
+  },
+  "homepage": "https://github.com/NorthernBranch/modatro",
+  "desktopName": "modatro.desktop"
 }

@@ -37,6 +37,9 @@ pnpm format
 pnpm check
 ```
 
+Git's `.gitattributes` and Prettier enforce LF line endings on every platform,
+including Windows. Binary assets retain their original bytes.
+
 `pnpm check` verifies formatting, runs strict TypeScript checks and the backend test
 suite, then builds the renderer, main process and preload. `pnpm test` runs the backend
 suite on its own.
@@ -71,13 +74,53 @@ pnpm build
 pnpm exec electron-builder --win --x64 --publish never
 ```
 
+On Linux (x64, including Steam Deck):
+
+```sh
+pnpm build
+pnpm exec electron-builder --linux --x64 --publish never
+```
+
+This produces an AppImage and a DEB. CI runs browser and packaged Electron smoke
+tests under Xvfb on Linux. Keep Electron's sandbox enabled in production and tests.
+
 Installers are written to `release/`. Signing requires platform credentials; local
-builds without them are unsigned. CI validates the project and uploads installer
-artifacts without publishing a release.
+builds without them are unsigned. CI checks and packages Windows x64, Apple Silicon
+and Intel macOS installers, plus Linux AppImage and DEB packages. Pull requests and manual workflow runs upload build
+artifacts. Successful pushes to `main` also publish an automated preview release
+with every platform's installers and SHA-256 checksums.
 
 To smoke-test an unpacked application, point `MODATRO_PACKAGED_EXECUTABLE` at its
 executable and run `pnpm exec playwright test tests/desktop.spec.ts`. The test still
 uses isolated application data.
+
+## Publishing releases
+
+Every push to `main` publishes a preview after all platform checks pass. Its unique
+tag includes the package version, workflow run number and commit, for example
+`v0.1.2-build.42.aaaaaaa`. A push does not change `package.json` automatically.
+
+For a named release, update `package.json` to the intended version, commit the change,
+and push a matching `v<version>` tag. The workflow rejects tags whose version differs
+from `package.json`. Versions with a prerelease suffix remain previews; other version
+tags publish a release marked as latest. Preview builds from `main` do not replace it.
+
+The release job uses GitHub's built-in token with `contents: write`; no personal
+access token is required. It uploads all installers and checksums to a draft before
+publishing. Retry a failed workflow to finish its draft; a completed release keeps
+its published downloads when retried. Signing and macOS notarization still require
+separate platform credentials.
+
+## Catalogue contributions
+
+Follow the [catalogue submission rules](catalogue/README.md) and
+[third-party content policy](docs/content-policy.md). Author approval, display,
+installation and update permission are separate from file integrity checks.
+Never infer consent from archived index inclusion or a public repository.
+
+After editing catalogue entries or restriction feeds, run `pnpm catalogue:build`,
+commit the generated files, and run `pnpm catalogue:check`. Keep removals append-only
+and increment feed revisions when changing restrictions.
 
 ## Pull requests and bug reports
 

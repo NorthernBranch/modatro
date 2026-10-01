@@ -7,13 +7,13 @@ declare global {
     modatro?: ModatroApi;
   }
 }
-const previewMods: ModDefinition[] = preview.mods.map(({ folder, metadata, description }) =>
+const previewMods: ModDefinition[] = preview.mods.map(({ folder, metadata }) =>
   ModSchema.parse({
     id: folder,
     title: metadata.title,
     author: metadata.author,
     version: metadata.version,
-    description,
+    approvalStatus: 'legacy-index',
     repositoryUrl: metadata.repo,
     downloadUrl: metadata.downloadURL,
     categories: metadata.categories.map(
@@ -93,6 +93,7 @@ const previewApi: ModatroApi = {
   action: desktopOnly,
   cancel: desktopOnly,
   openFolder: desktopOnly,
+  openModFolder: desktopOnly,
   launch: desktopOnly,
   diagnostics: async () => ({
     ok: true,

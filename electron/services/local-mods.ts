@@ -1,11 +1,18 @@
 import * as fs from 'node:fs/promises';
 import { z } from 'zod';
-import type { LocalMod, ModDefinition, Prerequisite } from '../../src/shared/model';
+import {
+  ModSchema,
+  type LocalMod,
+  type ModDefinition,
+  type Prerequisite,
+} from '../../src/shared/model';
 import { exists, hashFile, readSmall, safeDestination } from './files';
 import { catalogueMatches, dependencyId, inspectMetadata, parseLuaHeader } from './metadata';
 import { remoteJson } from './network';
 import { Logger, Storage } from './storage';
 import { hasUpdate } from './versions';
+import { automationReason } from '../../src/shared/trust';
+import type { CatalogueTrust } from './trust';
 
 export interface PrerequisiteProvider {
   getInstalledVersion(): Promise<string | undefined>;
@@ -37,6 +44,7 @@ export class InstalledModsService {
   constructor(
     private storage: Storage,
     private logger: Logger,
+    private trust?: CatalogueTrust,
   ) {}
   roots(): Record<'game' | 'mods' | 'disabled', string> {
     return {
@@ -65,6 +73,28 @@ export class InstalledModsService {
         }
       }
       const latest = catalogue.find((m) => m.id === record.modId);
+      const historical = this.trust?.apply(
+        ModSchema.parse({
+          id: record.modId,
+          title: record.title,
+          author: 'Not recorded',
+          version: record.modVersion,
+          downloadUrl:
+            record.provenance?.downloadUrl ??
+            record.source ??
+            'https://github.com/NorthernBranch/modatro',
+          repositoryUrl: record.provenance?.repositoryUrl,
+          categories: [],
+          prerequisites: [],
+        }),
+      );
+      const updateReason = latest
+        ? automationReason(latest, true)
+        : 'No catalogue update source is available. Your installed copy has not been changed.';
+      const warning =
+        latest || historical
+          ? this.trust?.blockedReason((latest ?? historical)!, record.modVersion)
+          : undefined;
       mods.push({
         id: record.modId,
         title: record.title,
@@ -74,11 +104,25 @@ export class InstalledModsService {
         canAdopt: false,
         problems,
         dependencies: record.dependencies,
+        metadataId: record.metadataId,
+        provenance: record.provenance ?? { sourceType: record.adopted ? 'external' : 'legacy' },
+        repositoryUrl: record.provenance?.repositoryUrl ?? latest?.repositoryUrl,
+        availabilityReason:
+          historical?.approvalStatus === 'opted-out' || historical?.approvalStatus === 'blocked'
+            ? historical.policyReason
+            : updateReason,
+        releaseWarning: warning
+          ? `This installed version (${record.modVersion}) has been flagged as unsafe or broken: ${warning}. Your files have not been changed.`
+          : undefined,
+        canDisable: record.files.every(
+          (file) => file.operation === 'created' && file.root !== 'game',
+        ),
+        files: record.files.map(({ root, path, operation }) => ({ root, path, operation })),
         state: problems.length
           ? 'broken'
           : record.disabled
             ? 'disabled'
-            : latest && hasUpdate(record.modVersion, latest.version)
+            : latest && !updateReason && hasUpdate(record.modVersion, latest.version)
               ? 'update-available'
               : 'installed',
       });
@@ -123,7 +167,17 @@ export class InstalledModsService {
               managed: false,
               folderName: entry.name,
               canAdopt:
-                entry.isDirectory() && !!meta && catalogueMatches(meta, catalogue).length === 1,
+                !!meta?.id &&
+                catalogueMatches(meta, catalogue).length <= 1 &&
+                !state.installations.some(
+                  (record) => record.metadataId?.toLowerCase() === meta.id!.toLowerCase(),
+                ),
+              catalogueId:
+                meta && catalogueMatches(meta, catalogue).length === 1
+                  ? catalogueMatches(meta, catalogue)[0]!.id
+                  : undefined,
+              metadataId: meta?.id,
+              dependencies: meta?.requirements,
               problems: [],
             });
         } catch (e) {
@@ -144,16 +198,23 @@ export class InstalledModsService {
       }
     }
     let lovelyInstalled = false,
-      lovelyVersion: string | undefined;
+      lovelyVersion: string | undefined,
+      lovelyMatches = 0;
     if (roots.game && (await exists(roots.game))) {
-      const dll = process.platform === 'win32' ? ['winmm.dll', 'version.dll'] : ['liblovely.dylib'];
+      const dll = (await fs.readdir(roots.game)).filter((name) =>
+        ['win32', 'linux'].includes(process.platform)
+          ? /\.dll$/i.test(name)
+          : /\.dylib$/i.test(name),
+      );
+      if (dll.length > 200) dll.length = 200;
       for (const filename of dll) {
         try {
           const target = await safeDestination(roots.game, filename);
           if (!(await exists(target))) continue;
           const managed = state.installations.find(
             (r) =>
-              r.modId === 'Lovely' && r.files.some((f) => f.root === 'game' && f.path === filename),
+              (r.modId === 'Lovely' || r.metadataId === 'Lovely') &&
+              r.files.some((f) => f.root === 'game' && f.path === filename),
           );
           // Binary export/embedded symbol evidence is required for unknown DLLs.
           const handle = await fs.open(target, 'r');
@@ -165,15 +226,15 @@ export class InstalledModsService {
             await handle.close();
           }
           const magic = bytes.subarray(0, 4).toString('hex');
-          const nativeLibrary =
-            process.platform === 'win32'
-              ? bytes.subarray(0, 2).toString() === 'MZ'
-              : ['cffaedfe', 'cefaedfe', 'feedfacf', 'feedface', 'cafebabe', 'bebafeca'].includes(
-                  magic,
-                );
+          const nativeLibrary = ['win32', 'linux'].includes(process.platform)
+            ? bytes.subarray(0, 2).toString() === 'MZ'
+            : ['cffaedfe', 'cefaedfe', 'feedfacf', 'feedface', 'cafebabe', 'bebafeca'].includes(
+                magic,
+              );
           const ownedFile = managed?.files.find((f) => f.root === 'game' && f.path === filename);
           const verifiedRecord = ownedFile && (await hashFile(target)) === ownedFile.installedHash;
           if (nativeLibrary && (verifiedRecord || /lovely/i.test(bytes.toString('latin1')))) {
+            lovelyMatches++;
             lovelyInstalled = true;
             // A record cannot prove the version of an externally replaced binary.
             lovelyVersion = verifiedRecord ? managed?.modVersion : undefined;
@@ -183,6 +244,7 @@ export class InstalledModsService {
         }
       }
     }
+    if (lovelyMatches > 1) lovelyVersion = undefined;
     detected.set('Lovely', { installed: lovelyInstalled, version: lovelyVersion });
     const prerequisites: Prerequisite[] = upstreams.map((upstream) => ({
       id: upstream.id,
@@ -196,8 +258,15 @@ export class InstalledModsService {
         upstream.id === 'Lovely'
           ? process.platform === 'darwin'
             ? `${process.arch === 'arm64' ? 'For this Apple Silicon Mac, download lovely-aarch64-apple-darwin.tar.gz.' : 'For this Intel Mac, download lovely-x86_64-apple-darwin.tar.gz.'} Place liblovely.dylib beside Balatro.app using the official instructions. Modatro launches the validated game executable with Lovely; it never executes the downloaded launcher script or bypasses macOS security.`
-            : 'Use the official Windows release. Place winmm.dll beside Balatro.exe. Modatro detects Lovely from library evidence; its version may remain unknown.'
+            : process.platform === 'linux'
+              ? 'Steam Deck / Linux with Proton: install the official Windows Lovely ZIP beside Balatro.exe. Set Steam launch options to WINEDLLOVERRIDES="winmm=n,b" %command%, then launch through Steam. Mods live in Balatro’s Proton prefix. An external library’s version may remain unknown.'
+              : 'Use the official Windows release. Place winmm.dll beside Balatro.exe. Modatro detects Lovely from library evidence; its version may remain unknown.'
           : undefined,
+      provenance: state.installations.find(
+        (record) =>
+          dependencyId(record.metadataId ?? record.modId.split(/[@/]/).pop() ?? '') ===
+            upstream.id && !record.disabled,
+      )?.provenance,
     }));
     for (const [id, info] of detected)
       if (!prerequisites.some((p) => p.id === id))
@@ -208,6 +277,18 @@ export class InstalledModsService {
           installedVersion: info.version,
           sourceUrl: 'https://github.com/skyline69/balatro-mod-index',
         });
+    for (const local of mods)
+      if (
+        !local.managed &&
+        local.metadataId &&
+        mods.filter((other) => other.metadataId?.toLowerCase() === local.metadataId!.toLowerCase())
+          .length > 1
+      ) {
+        local.canAdopt = false;
+        local.problems.push(
+          'Multiple installed copies have this identity. Resolve the duplicate before adoption.',
+        );
+      }
     return { mods, prerequisites };
   }
   async checkLatest() {

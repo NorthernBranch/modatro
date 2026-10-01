@@ -23,6 +23,10 @@ interface Props {
   setSelected: Dispatch<SetStateAction<ModDefinition | undefined>>;
   requestAction: (id: string, action: ModAction, title: string, mod?: ModDefinition) => void;
   setPage: (page: 'discover') => void;
+  openModFolder?: (id: string) => Promise<void>;
+  openLink?: (url: string) => Promise<void>;
+  folderPending?: (id: string) => boolean;
+  projectPending?: (url: string) => boolean;
 }
 export function InstalledPage({
   page,
@@ -36,6 +40,10 @@ export function InstalledPage({
   setSelected,
   requestAction,
   setPage,
+  openModFolder,
+  openLink,
+  folderPending,
+  projectPending,
 }: Props) {
   return (
     <>
@@ -65,10 +73,16 @@ export function InstalledPage({
             <LocalRow
               key={local.id}
               local={local}
-              mod={mods.find((m) => m.id === local.id)}
+              mod={mods.find(
+                (m) => m.id === (local.catalogueId ?? local.id) && m.permissions?.display !== false,
+              )}
               working={working}
               onDetails={(mod) => setSelected(mod)}
               onAction={(action, mod) => requestAction(local.id, action, local.title, mod)}
+              onOpenFolder={openModFolder ? () => void openModFolder(local.id) : undefined}
+              onOpenProject={openLink ? (url) => void openLink(url) : undefined}
+              folderPending={folderPending?.(local.id)}
+              projectPending={local.repositoryUrl ? projectPending?.(local.repositoryUrl) : false}
             />
           ))}
         </div>

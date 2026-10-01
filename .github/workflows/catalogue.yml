@@ -1,0 +1,39 @@
+name: Validate catalogue
+
+on:
+  push:
+    branches: [main]
+    paths:
+      [
+        'catalogue/**',
+        'src/shared/**',
+        'scripts/catalogue-build.ts',
+        'scripts/compile-catalogue.mjs',
+        '.github/workflows/catalogue.yml',
+      ]
+  pull_request:
+    paths:
+      [
+        'catalogue/**',
+        'src/shared/**',
+        'scripts/catalogue-build.ts',
+        'scripts/compile-catalogue.mjs',
+        '.github/workflows/catalogue.yml',
+      ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: pnpm/action-setup@v6
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm catalogue:check

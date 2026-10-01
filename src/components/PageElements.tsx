@@ -1,7 +1,8 @@
-import { Layers3, Search, Sparkles } from 'lucide-react';
+import { Layers3, Search, Sparkles, FolderOpen } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { LocalMod, ModAction, ModDefinition } from '../shared/model';
 import { ModArt } from './ModArt';
+import { AsyncButton } from './AsyncButton';
 export function PageHeading({
   eyebrow,
   title,
@@ -73,12 +74,20 @@ export function LocalRow({
   working,
   onDetails,
   onAction,
+  onOpenFolder,
+  onOpenProject,
+  folderPending,
+  projectPending,
 }: {
   local: LocalMod;
   mod?: ModDefinition;
   working: boolean;
   onDetails: (mod: ModDefinition) => void;
   onAction: (action: ModAction, mod?: ModDefinition) => void;
+  onOpenFolder?: () => void;
+  onOpenProject?: (url: string) => void;
+  folderPending?: boolean;
+  projectPending?: boolean;
 }) {
   return (
     <article className="local-row">
@@ -99,6 +108,49 @@ export function LocalRow({
           <span>·</span>
           {local.managed ? 'Managed by Modatro' : 'Installed externally'}
         </p>
+        {local.availabilityReason && <p className="muted-text">{local.availabilityReason}</p>}
+        {local.releaseWarning && <p role="status">{local.releaseWarning}</p>}
+        {local.managed && (
+          <details>
+            <summary>Source and file record</summary>
+            <p>
+              Source:{' '}
+              {local.provenance?.sourceType === 'external'
+                ? 'Installed externally; adopted by Modatro'
+                : !local.provenance || local.provenance.sourceType === 'legacy'
+                  ? 'Legacy installation'
+                  : local.provenance.sourceType}
+            </p>
+            {local.provenance?.downloadUrl && <p>Download: {local.provenance.downloadUrl}</p>}
+            {local.provenance?.releaseTag && <p>Release: {local.provenance.releaseTag}</p>}
+            {local.provenance?.commitSha && <p>Commit: {local.provenance.commitSha}</p>}
+            {local.provenance?.downloadedAt && (
+              <p>Downloaded: {new Date(local.provenance.downloadedAt).toLocaleString()}</p>
+            )}
+            <p>
+              Archive SHA-256: <code>{local.provenance?.sha256 ?? 'Not recorded'}</code>
+            </p>
+            {local.files && (
+              <>
+                <p>
+                  Recorded files:{' '}
+                  {local.files.filter((file) => file.operation === 'created').length} created;{' '}
+                  {local.files.filter((file) => file.operation === 'replaced').length} replaced.
+                </p>
+                <ul>
+                  {local.files.map((file) => (
+                    <li key={`${file.root}:${file.path}`}>
+                      <code>
+                        {file.root}/{file.path}
+                      </code>{' '}
+                      · {file.operation}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </details>
+        )}
         {local.problems.length > 0 && (
           <details>
             <summary>
@@ -134,7 +186,13 @@ export function LocalRow({
           <>
             <button
               className="button button-secondary"
-              disabled={working || local.state === 'broken'}
+              disabled={
+                working ||
+                local.state === 'broken' ||
+                (local.state !== 'update-available' &&
+                  local.state !== 'disabled' &&
+                  local.canDisable === false)
+              }
               onClick={() =>
                 onAction(
                   local.state === 'update-available'
@@ -170,6 +228,28 @@ export function LocalRow({
           </button>
         ) : (
           <span className="muted-text">Managed externally</span>
+        )}
+        {onOpenFolder && (
+          <AsyncButton
+            className="text-button"
+            disabled={working}
+            pending={folderPending}
+            pendingLabel="Opening folder…"
+            onClick={onOpenFolder}
+          >
+            <FolderOpen size={14} />
+            Open mod folder
+          </AsyncButton>
+        )}
+        {local.repositoryUrl && onOpenProject && (
+          <AsyncButton
+            className="text-button"
+            pending={projectPending}
+            pendingLabel="Opening…"
+            onClick={() => onOpenProject(local.repositoryUrl!)}
+          >
+            Open project page
+          </AsyncButton>
         )}
       </div>
     </article>

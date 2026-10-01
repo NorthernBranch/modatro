@@ -12,10 +12,12 @@ async function fixture() {
 afterEach(async () => {
   for (const root of roots.splice(0)) await fs.rm(root, { recursive: true, force: true });
 });
-const libraryName = process.platform === 'win32' ? 'winmm.dll' : 'liblovely.dylib';
+const libraryName = ['win32', 'linux'].includes(process.platform) ? 'winmm.dll' : 'liblovely.dylib';
 function lovelyBinary(extra = '') {
   return Buffer.concat([
-    process.platform === 'win32' ? Buffer.from('MZ') : Buffer.from('cffaedfe', 'hex'),
+    ['win32', 'linux'].includes(process.platform)
+      ? Buffer.from('MZ')
+      : Buffer.from('cffaedfe', 'hex'),
     Buffer.from(`lovely_injector_fixture${extra}`),
   ]);
 }
@@ -46,6 +48,17 @@ it('rejects an unrelated or non-native file merely named like Lovely', async () 
   await put(path.join(f.game, libraryName), 'not a library, lovely');
   const scan = await new InstalledModsService(f.storage, f.logger).scan([]);
   expect(scan.prerequisites.find((p) => p.id === 'Lovely')?.installed).toBe(false);
+});
+it('detects positive Lovely evidence under a changed library filename', async () => {
+  const f = await fixture();
+  const filename =
+    process.platform === 'darwin' ? 'renamed-injector.dylib' : 'renamed-injector.dll';
+  await fs.writeFile(path.join(f.game, filename), lovelyBinary());
+  expect(
+    (await new InstalledModsService(f.storage, f.logger).scan([])).prerequisites.find(
+      (p) => p.id === 'Lovely',
+    )?.installed,
+  ).toBe(true);
 });
 it('offers adoption only for a unique catalogue match in a directory', async () => {
   const f = await fixture();

@@ -5,6 +5,7 @@ type Behavior = 'success' | 'hold' | 'reject' | 'error';
 interface MockRequests {
   state: Snapshot;
   calls: Record<string, number>;
+  actions: { id: string; action: string; token?: string }[];
   behavior: Record<string, Behavior>;
   finish: (method: string, reply?: Reply<unknown>) => void;
   reject: (method: string) => void;
@@ -75,6 +76,7 @@ async function mockDesktop(page: Page, state = fixture(), behavior: Record<strin
         state,
         behavior,
         calls: {},
+        actions: [],
         finish(method, reply) {
           const request = pending.get(method);
           if (!request) throw new Error(`No pending request: ${method}`);
@@ -128,7 +130,11 @@ async function mockDesktop(page: Page, state = fixture(), behavior: Record<strin
           if (reply.ok) control.state = reply.value;
           return reply;
         },
-        action: () => call('action', control.state),
+        action: (id, action, _decisions, token) => {
+          control.actions.push({ id, action, token });
+          return call('action', control.state);
+        },
+        openModFolder: () => call('openModFolder', undefined),
         importDefinition: () => call('importDefinition', control.state),
         launch: () => call('launch', undefined),
         cancel: () => call('cancel', undefined),
@@ -692,9 +698,156 @@ test('archive-discovered Lovely requirements open the Windows replacement confir
     }),
   );
   await page.getByRole('dialog').getByRole('button', { name: 'Install Lovely' }).click();
+  await page.evaluate(() =>
+    window.requestsTest.finish('action', {
+      ok: false,
+      error: {
+        message: 'Review changes',
+        confirmation: {
+          token: 'confirmation-token',
+          plan: {
+            modId: 'Lovely',
+            version: '0.9.2',
+            create: [{ root: 'game', path: 'winmm.dll' }],
+            replace: [],
+            remove: [],
+            prerequisites: [],
+            conflicts: [],
+          },
+        },
+      },
+    }),
+  );
   await expect(page.getByRole('dialog')).toHaveCount(1);
   await expect(
     page.getByRole('dialog').getByRole('button', { name: 'Back up & install' }),
   ).toBeVisible();
-  expect(await page.evaluate(() => window.requestsTest.calls.action)).toBe(1);
+  expect(await page.evaluate(() => window.requestsTest.calls.action)).toBe(2);
+});
+
+test('author removal hides new installs and preserves local uninstall controls', async ({
+  page,
+}) => {
+  const state = fixture();
+  const definition = state.catalogue.mods[0]!;
+  definition.approvalStatus = 'opted-out';
+  definition.permissions = { display: true, install: false, update: false };
+  definition.policyReason = 'The author requested removal. Your installation has not been changed.';
+  state.localMods.push({
+    id: definition.id,
+    title: definition.title,
+    managed: true,
+    state: 'installed',
+    folderName: 'fixture',
+    canAdopt: false,
+    problems: [],
+    availabilityReason: definition.policyReason,
+  });
+  await mockDesktop(page, state);
+  await expect(page.getByRole('button', { name: 'Install', exact: true })).toHaveCount(0);
+  await page
+    .getByRole('navigation')
+    .getByRole('button', { name: /^Installed/ })
+    .click();
+  await expect(
+    page.getByText('The author requested removal. Your installation has not been changed.'),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Uninstall', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Update', exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => window.requestsTest.calls.action ?? 0)).toBe(0);
+});
+test('unapproved artwork and descriptions use neutral cards with honest legacy labels', async ({
+  page,
+}) => {
+  const state = fixture();
+  const definition = state.catalogue.mods[0]!;
+  definition.iconUrl = 'https://github.com/tests/mod/unauthorized.png';
+  definition.description = 'Unapproved copied description';
+  await mockDesktop(page, state);
+  await expect(page.locator('.mod-card img')).toHaveCount(0);
+  await expect(page.getByText('Unapproved copied description')).toHaveCount(0);
+  await expect(page.getByText('Legacy index', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Details for Fixture mod' }).click();
+  await expect(page.getByRole('dialog')).toContainText('mutable branch');
+  await expect(page.getByRole('dialog')).toContainText('tests/mod');
+});
+test('offline trust data disables new downloads while showing cache freshness', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.trust = { fresh: false, error: 'Connect and refresh removal checks.' };
+  state.catalogue.stale = true;
+  state.catalogue.fetchedAt = '2026-09-30T18:42:00Z';
+  await mockDesktop(page, state);
+  await expect(page.getByRole('button', { name: 'Install', exact: true })).toHaveCount(0);
+  await expect(page.getByText(/Showing catalogue from/)).toBeVisible();
+  await page.getByRole('button', { name: 'View availability' }).click();
+  await expect(page.getByRole('dialog')).toContainText('Connect and refresh removal checks.');
+  expect(await page.evaluate(() => window.requestsTest.calls.action ?? 0)).toBe(0);
+});
+test('external mods are identified as installed and require explicit adoption', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.localMods.push({
+    id: 'external:Manual',
+    catalogueId: 'fixture',
+    title: 'Fixture mod',
+    version: '0.9.0',
+    managed: false,
+    state: 'unmanaged',
+    folderName: 'Manual',
+    canAdopt: true,
+    problems: [],
+  });
+  await mockDesktop(page, state);
+  await expect(page.getByRole('button', { name: 'Installed externally' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Install', exact: true })).toHaveCount(0);
+  await page
+    .getByRole('navigation')
+    .getByRole('button', { name: /^Installed/ })
+    .click();
+  await page.getByRole('button', { name: 'Adopt into Modatro' }).click();
+  expect(await page.evaluate(() => window.requestsTest.calls.action ?? 0)).toBe(0);
+  await page.getByRole('dialog').getByRole('button', { name: 'Adopt existing files' }).click();
+  expect(await page.evaluate(() => window.requestsTest.actions)).toEqual([
+    { id: 'external:Manual', action: 'adopt' },
+  ]);
+});
+test('shows the server-generated file plan and returns its confirmation token', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.catalogue.mods[0]!.installation = {
+    type: 'game-replacement',
+    files: [{ source: 'patch.lua', destination: 'game.lua' }],
+  };
+  await mockDesktop(page, state, { action: 'hold' });
+  await page.getByRole('button', { name: 'Install', exact: true }).click();
+  await page.evaluate(() => {
+    window.requestsTest.finish('action', {
+      ok: false,
+      error: {
+        message: 'Review actual changes',
+        confirmation: {
+          token: 'actual-plan-token',
+          plan: {
+            modId: 'fixture',
+            version: '1.0.0',
+            create: [],
+            replace: [{ root: 'game', path: 'game.lua', previousHash: 'a'.repeat(64) }],
+            remove: [],
+            prerequisites: [],
+            conflicts: [],
+          },
+        },
+      },
+    });
+    window.requestsTest.behavior.action = 'success';
+  });
+  await expect(page.getByRole('dialog')).toContainText('replace: game/game.lua');
+  await page.getByRole('dialog').getByRole('button', { name: 'Back up & install' }).click();
+  expect((await page.evaluate(() => window.requestsTest.actions)).at(-1)?.token).toBe(
+    'actual-plan-token',
+  );
 });

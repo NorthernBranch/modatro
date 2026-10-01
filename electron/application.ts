@@ -12,15 +12,17 @@ import {
   type Settings,
   type Snapshot,
 } from '../src/shared/model';
-import { BalatroModIndexRepository } from './services/catalogue';
+import { ModatroCatalogueRepository } from './services/catalogue';
 import { GameDetectionService, LaunchService } from './services/detection';
 import { UserError } from './services/errors';
-import { contained, exists, readSmall } from './services/files';
+import { contained, exists, readSmall, safeDestination } from './services/files';
 import { ModInstaller } from './services/installer';
 import { InstalledModsService } from './services/local-mods';
 import { remoteJson } from './services/network';
 import { Logger, Storage } from './services/storage';
 import { TransactionEngine } from './services/transaction';
+import { CatalogueTrust } from './services/trust';
+import { allowedDescription } from '../src/shared/trust';
 
 export class ModatroApplication {
   readonly storage: Storage;
@@ -28,11 +30,13 @@ export class ModatroApplication {
   readonly detection = new GameDetectionService();
   readonly launch = new LaunchService();
   readonly local: InstalledModsService;
-  readonly repository: BalatroModIndexRepository;
+  readonly repository: ModatroCatalogueRepository;
+  readonly trust: CatalogueTrust;
   readonly transactions: TransactionEngine;
   readonly installer: ModInstaller;
   private candidates: GameCandidate[] = [];
   private custom: ModDefinition[] = [];
+  private unavailableSources: Record<string, string> = {};
   private initialized = false;
   private discoveryError?: string;
   private publishing?: Promise<void>;
@@ -47,8 +51,11 @@ export class ModatroApplication {
   ) {
     this.storage = new Storage(dataRoot);
     this.logger = new Logger(this.storage, os.homedir());
-    this.local = new InstalledModsService(this.storage, this.logger);
-    this.repository = new BalatroModIndexRepository(this.storage, this.logger, () => {
+    this.trust = new CatalogueTrust(this.storage, this.logger, remoteJson, () => {
+      if (this.initialized) void this.publish();
+    });
+    this.local = new InstalledModsService(this.storage, this.logger, this.trust);
+    this.repository = new ModatroCatalogueRepository(this.storage, this.logger, () => {
       if (this.initialized) void this.publish();
     });
     this.transactions = new TransactionEngine(this.storage, this.logger);
@@ -60,12 +67,23 @@ export class ModatroApplication {
       this.logger,
       progress,
       async () => (await this.snapshot()).prerequisites,
+      (mod, update) => this.trust.assertAllowed(mod, update),
     );
   }
   async initialize() {
     await this.storage.initialize();
+    await this.trust.initialize();
     if (!this.storage.safetyError) await this.transactions.recover();
     await this.repository.loadCache();
+    try {
+      this.unavailableSources =
+        (await this.storage.read(
+          'data/unavailable-sources.json',
+          z.record(z.string(), z.string()),
+        )) ?? {};
+    } catch {
+      await this.logger.log('source-status.invalid');
+    }
     try {
       this.custom = (await this.storage.read('data/custom-mods.json', z.array(ModSchema))) ?? [];
     } catch {
@@ -94,13 +112,28 @@ export class ModatroApplication {
     });
   }
   backgroundRefresh() {
-    void Promise.all([this.repository.refresh(), this.local.checkLatest()])
+    void Promise.all([this.trust.refresh(), this.repository.refresh(), this.local.checkLatest()])
       .then(() => this.publish())
       .catch((e) => this.logger.log('background.failed', String(e)));
   }
   allMods(): ModDefinition[] {
     const ids = new Set(this.custom.map((m) => m.id));
-    return [...this.custom, ...this.repository.catalogue.mods.filter((m) => !ids.has(m.id))];
+    return [...this.custom, ...this.repository.catalogue.mods.filter((m) => !ids.has(m.id))].map(
+      (mod) => {
+        // Keep the original record identity when a native entry replaces an archived index ID.
+        const existing = this.storage.state.installations.find((record) =>
+          mod.legacyIds?.includes(record.modId),
+        );
+        return this.trust.apply({
+          ...mod,
+          id: existing?.modId ?? mod.id,
+          legacyIds: existing ? [...new Set([mod.id, ...(mod.legacyIds ?? [])])] : mod.legacyIds,
+          description: allowedDescription(mod),
+          unavailableReason:
+            this.unavailableSources[existing?.modId ?? mod.id] ?? mod.unavailableReason,
+        });
+      },
+    );
   }
   async snapshot(): Promise<Snapshot> {
     const gamePath = this.storage.state.settings.gamePath;
@@ -128,6 +161,7 @@ export class ModatroApplication {
       safetyError: this.storage.safetyError,
       discoveryError: this.discoveryError,
       operationReport: this.operationReport,
+      trust: { ...this.trust.state, fresh: this.trust.isFresh() },
     };
   }
   async publish() {
@@ -148,7 +182,12 @@ export class ModatroApplication {
     }
   }
   async refresh() {
-    await Promise.all([this.repository.refresh(), this.local.checkLatest()]);
+    await Promise.all([this.trust.refresh(), this.repository.refresh(), this.local.checkLatest()]);
+    // An explicit refresh allows a fresh upstream check on the next attempt.
+    if (!this.repository.catalogue.stale && this.trust.isFresh()) {
+      this.unavailableSources = {};
+      await this.storage.write('data/unavailable-sources.json', {});
+    }
     return this.snapshot();
   }
   async launchGame(modded: boolean, start: (snapshot: Snapshot) => Promise<void>) {
@@ -201,7 +240,7 @@ export class ModatroApplication {
         const modsPath =
           state.settings.modsPath ??
           (await this.detection.validateMods(
-            this.detection.defaultModsPath(),
+            this.detection.defaultModsPath(validation.canonicalPath),
             validation.canonicalPath,
             true,
           ));
@@ -236,7 +275,12 @@ export class ModatroApplication {
       return this.snapshot();
     });
   }
-  async action(id: string, action: ModAction, decisions: ConflictDecision[] = []) {
+  async action(
+    id: string,
+    action: ModAction,
+    decisions: ConflictDecision[] = [],
+    confirmationToken?: string,
+  ) {
     this.operationReport = undefined;
     const mods = this.allMods();
     if (action === 'uninstall')
@@ -246,18 +290,25 @@ export class ModatroApplication {
     else if (action === 'adopt') {
       const external = (await this.snapshot()).localMods.find((m) => m.id === id && m.canAdopt);
       if (!external) throw new UserError('This external mod could not be confidently identified.');
-      const location = path.join(this.storage.state.settings.modsPath!, external.folderName);
-      const { catalogueMatches, inspectMetadata } = await import('./services/metadata');
-      const metadata = await inspectMetadata(location);
+      const location = await safeDestination(
+        this.storage.state.settings.modsPath!,
+        external.folderName,
+      );
+      const { catalogueMatches, inspectMetadata, parseLuaHeader } =
+        await import('./services/metadata');
+      const metadata = external.folderName.endsWith('.lua')
+        ? parseLuaHeader(await readSmall(location))
+        : await inspectMetadata(location);
+      if (!metadata) throw new UserError('This external mod has no supported identity metadata.');
       const matches = catalogueMatches(metadata, mods);
-      if (matches.length !== 1)
+      if (matches.length > 1)
         throw new UserError(
           'The existing mod matches multiple catalogue entries. Adoption is blocked.',
         );
-      await this.installer.adopt(external.folderName, matches[0]!);
+      await this.installer.adopt(external.folderName, matches[0]);
     } else {
       let mod = mods.find((m) => m.id === id);
-      if (!mod && id === 'prerequisite:Lovely' && process.platform === 'win32') {
+      if (!mod && id === 'prerequisite:Lovely' && ['win32', 'linux'].includes(process.platform)) {
         if (
           this.storage.state.settings.gamePath &&
           (await exists(path.join(this.storage.state.settings.gamePath, 'version.dll')))
@@ -268,7 +319,13 @@ export class ModatroApplication {
         const release = z
           .object({
             tag_name: z.string(),
-            assets: z.array(z.object({ name: z.string(), browser_download_url: z.url() })),
+            assets: z.array(
+              z.object({
+                name: z.string(),
+                browser_download_url: z.url(),
+                digest: z.string().nullable().optional(),
+              }),
+            ),
           })
           .parse(
             await remoteJson(
@@ -288,6 +345,12 @@ export class ModatroApplication {
           categories: ['Technical'],
           downloadUrl: asset.browser_download_url,
           repositoryUrl: 'https://github.com/ethangreen-dev/lovely-injector',
+          approvalStatus: 'legacy-index',
+          releaseSource: {
+            sourceType: 'release-asset',
+            releaseTag: release.tag_name,
+            sha256: /^sha256:([a-f0-9]{64})$/.exec(asset.digest ?? '')?.[1],
+          },
           prerequisites: [],
           installation: {
             type: 'game-replacement',
@@ -303,7 +366,17 @@ export class ModatroApplication {
         this.custom = [...this.custom.filter((m) => m.id !== mod!.id), mod];
         await this.storage.write('data/custom-mods.json', this.custom);
       }
-      await this.installer.install(mod, action === 'update' || !!existing);
+      try {
+        await this.installer.install(mod, action === 'update' || !!existing, confirmationToken);
+      } catch (error) {
+        if (error instanceof UserError && [404, 410].includes(error.statusCode ?? 0)) {
+          this.unavailableSources[mod.id] =
+            'The original download source is no longer available. Your installed copy has not been changed. Refresh to check again.';
+          await this.storage.write('data/unavailable-sources.json', this.unavailableSources);
+          await this.publish();
+        }
+        throw error;
+      }
     }
     return this.snapshot();
   }
@@ -318,5 +391,17 @@ export class ModatroApplication {
     await this.storage.write('data/custom-mods.json', this.custom);
     await this.logger.log('custom-mod.import', { id: definition.id });
     return this.snapshot();
+  }
+  async previewPlan(id: string) {
+    const mod = this.allMods().find((entry) => entry.id === id);
+    if (!mod) throw new UserError('This mod has no current catalogue definition.');
+    const plan = await this.installer.install(
+      mod,
+      this.storage.state.installations.some((record) => record.modId === id),
+      undefined,
+      true,
+    );
+    if (!plan) throw new UserError('The install plan could not be prepared.');
+    return plan;
   }
 }

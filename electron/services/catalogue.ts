@@ -3,6 +3,9 @@ import { Catalogue, HttpsUrl, ModDefinition, ModSchema, SafeName } from '../../s
 import { UserError } from './errors';
 import { remoteJson, remoteText } from './network';
 import { Logger, Storage } from './storage';
+import { NativeCatalogueSchema } from '../../src/shared/catalogue-schema';
+import { allowedDescription, sourceType } from '../../src/shared/trust';
+import { readAuthorManifest } from './distribution';
 const SourceSchema = z.object({
   title: z.string().min(1),
   author: z.string().min(1),
@@ -49,7 +52,7 @@ export function sourceId(folder: string): string {
 export function normalizeMod(
   folder: string,
   metadata: unknown,
-  description?: string,
+  _description?: string,
 ): ModDefinition {
   const s = SourceSchema.parse(metadata);
   const prerequisites = [];
@@ -68,7 +71,8 @@ export function normalizeMod(
     categories: s.categories.map(normalizeCategory),
     sourceCategories: s.categories,
     prerequisites,
-    description,
+    approvalStatus: 'legacy-index',
+    releaseSource: { sourceType: sourceType(s.downloadURL) },
     updatedAt: s['last-updated'],
     installation: { type: 'auto' },
   });
@@ -104,10 +108,24 @@ export class BalatroModIndexRepository implements ModRepository {
     try {
       const current = await this.storage.read('catalogue-cache/catalogue.json', CacheSchema);
       const cache = current ?? (await this.storage.read('cache/catalogue.json', CacheSchema));
-      if (cache) this.catalogue = { ...cache, stale: true, refreshing: false };
+      if (cache)
+        this.catalogue = {
+          ...cache,
+          mods: cache.mods.map((mod) => ({
+            ...mod,
+            approvalStatus: mod.approvalStatus ?? 'legacy-index',
+            description: allowedDescription(mod),
+          })),
+          stale: true,
+          refreshing: false,
+        };
       // Preserve the offline catalogue from versions that shared Electron's
       // Cache directory. Leave Chromium's files and the legacy copy untouched.
-      if (cache && !current) await this.storage.write('catalogue-cache/catalogue.json', cache);
+      if (cache)
+        await this.storage.write('catalogue-cache/catalogue.json', {
+          ...cache,
+          mods: this.catalogue.mods,
+        });
     } catch (e) {
       await this.logger.log('catalogue.cache.invalid', String(e));
       this.catalogue.error =
@@ -150,7 +168,6 @@ export class BalatroModIndexRepository implements ModRepository {
         throw new UserError(
           'The downloaded catalogue is empty or incomplete. Keeping the previous catalogue.',
         );
-      const paths = new Set(tree.tree.map((e) => e.path));
       let rejected = 0;
       const mods = await mapConcurrent(entries, 6, async (entry) => {
         const folder = entry.path.split('/')[1]!;
@@ -158,11 +175,8 @@ export class BalatroModIndexRepository implements ModRepository {
         // Transport failures abort the entire refresh; a malformed individual
         // record becomes unavailable without concealing a partial download.
         const raw = await this.text(`${base}/meta.json`);
-        const description = paths.has(`mods/${folder}/description.md`)
-          ? await this.text(`${base}/description.md`)
-          : undefined;
         try {
-          return normalizeMod(folder, JSON.parse(raw), description);
+          return normalizeMod(folder, JSON.parse(raw));
         } catch (e) {
           rejected++;
           await this.logger.log('catalogue.mod.invalid', {
@@ -209,6 +223,111 @@ export class BalatroModIndexRepository implements ModRepository {
       };
       await this.logger.log('catalogue.refresh.failed', String(e));
     } finally {
+      this.changed();
+    }
+  }
+}
+
+export class NativeModRepository implements ModRepository {
+  catalogue: Catalogue = { mods: [], stale: true, refreshing: false, rejected: 0 };
+  constructor(
+    private storage: Storage,
+    private logger: Logger,
+    private json = remoteJson,
+    private endpoint = 'https://raw.githubusercontent.com/NorthernBranch/modatro/main/catalogue/index.json',
+    private verifyEnvelope: (payload: unknown) => Promise<unknown> = async (payload) => payload,
+  ) {}
+  async getMods() {
+    return this.catalogue.mods;
+  }
+  async loadCache() {
+    try {
+      const cache = await this.storage.read(
+        'catalogue-cache/native.json',
+        CacheSchema.extend({ mods: z.array(ModSchema) }),
+      );
+      if (cache) this.catalogue = { ...cache, stale: true, refreshing: false };
+    } catch {
+      this.catalogue.error = 'The native catalogue cache could not be verified.';
+    }
+  }
+  async refresh() {
+    this.catalogue.refreshing = true;
+    try {
+      const data = NativeCatalogueSchema.parse(
+        await this.verifyEnvelope(await this.json(this.endpoint)),
+      );
+      const mods = await mapConcurrent(data.mods, 6, async (entry) => {
+        const definition = ModSchema.parse({
+          ...entry,
+          approvalStatus: entry.approvalStatus ?? 'pending-review',
+          downloadUrl: entry.downloadUrl ?? entry.repositoryUrl ?? entry.manifestUrl,
+        });
+        return readAuthorManifest(definition, this.json);
+      });
+      const cache = { schemaVersion: 1, mods, fetchedAt: new Date().toISOString(), rejected: 0 };
+      await this.storage.write('catalogue-cache/native.json', cache);
+      this.catalogue = { ...cache, stale: false, refreshing: false };
+    } catch (error) {
+      this.catalogue = {
+        ...this.catalogue,
+        stale: true,
+        refreshing: false,
+        error: error instanceof Error ? error.message : 'The native catalogue could not refresh.',
+      };
+      await this.logger.log('catalogue.native.failed', String(error));
+    }
+  }
+}
+
+export class ModatroCatalogueRepository implements ModRepository {
+  readonly legacy: BalatroModIndexRepository;
+  readonly native: NativeModRepository;
+  private refreshing?: Promise<void>;
+  constructor(
+    storage: Storage,
+    logger: Logger,
+    private changed: () => void = () => {},
+  ) {
+    this.legacy = new BalatroModIndexRepository(storage, logger, changed);
+    this.native = new NativeModRepository(storage, logger);
+  }
+  get catalogue(): Catalogue {
+    const native = this.native.catalogue,
+      legacy = this.legacy.catalogue;
+    const replacements = new Set(
+      native.mods
+        .flatMap((mod) => [mod.id, ...(mod.legacyIds ?? [])])
+        .map((id) => id.toLowerCase()),
+    );
+    return {
+      mods: [
+        ...native.mods,
+        ...legacy.mods.filter((mod) => !replacements.has(mod.id.toLowerCase())),
+      ],
+      fetchedAt: [native.fetchedAt, legacy.fetchedAt].filter((v): v is string => !!v).sort()[0],
+      stale: native.stale || legacy.stale,
+      refreshing: !!this.refreshing,
+      rejected: native.rejected + legacy.rejected,
+      error: [native.error, legacy.error].filter(Boolean).join('\n') || undefined,
+    };
+  }
+  async getMods() {
+    return this.catalogue.mods;
+  }
+  async loadCache() {
+    await Promise.all([this.native.loadCache(), this.legacy.loadCache()]);
+  }
+  async refresh() {
+    if (this.refreshing) return this.refreshing;
+    this.refreshing = Promise.all([this.native.refresh(), this.legacy.refresh()]).then(
+      () => undefined,
+    );
+    this.changed();
+    try {
+      await this.refreshing;
+    } finally {
+      this.refreshing = undefined;
       this.changed();
     }
   }

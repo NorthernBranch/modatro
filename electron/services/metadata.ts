@@ -7,6 +7,7 @@ import {
   type ModDefinition,
 } from '../../src/shared/model';
 import { UserError } from './errors';
+import { AuthorManifestSchema } from '../../src/shared/catalogue-schema';
 import { exists, readPrefix, readSmall, safeDestination, walkFiles } from './files';
 const Manifest = z.object({
   id: z.string().optional(),
@@ -30,10 +31,13 @@ export function catalogueMatches(
   catalogue: ModDefinition[],
 ): ModDefinition[] {
   if (!metadata.id) return [];
-  return catalogue.filter(
-    (mod) =>
-      metadata.id!.toLowerCase() === mod.id.split('@').pop()?.toLowerCase() ||
-      metadata.name?.toLowerCase() === mod.title.toLowerCase(),
+  return catalogue.filter((mod) =>
+    [
+      mod.metadataId,
+      mod.id,
+      mod.id.split(/[@/]/).pop(),
+      ...(mod.legacyIds ?? []).map((id) => id.split(/[@/]/).pop()),
+    ].some((id) => id?.toLowerCase() === metadata.id!.toLowerCase()),
   );
 }
 export function dependencyId(id: string): string {
@@ -123,10 +127,26 @@ export function parseLuaHeader(text: string): ModMetadata | undefined {
 }
 export async function inspectMetadata(root: string): Promise<ModMetadata> {
   const results: ModMetadata[] = [];
+  let authorMetadata: ModMetadata | undefined;
   for (const entry of await fs.readdir(root, { withFileTypes: true })) {
     if (!entry.isFile()) continue;
     const file = path.join(root, entry.name);
-    if (entry.name.endsWith('.json')) {
+    if (entry.name === 'modatro.json') {
+      const manifest = AuthorManifestSchema.parse(JSON.parse(await readSmall(file)));
+      authorMetadata = {
+        id: manifest.id,
+        name: manifest.name,
+        version: manifest.version,
+        requirements: Object.entries(manifest.requirements).map(([id, versionConstraint]) => ({
+          id: dependencyId(id),
+          displayName: id,
+          versionConstraint,
+          required: true,
+        })),
+        conflicts: [],
+      };
+    }
+    if (entry.name.endsWith('.json') && entry.name !== 'modatro.json') {
       let raw: unknown;
       try {
         raw = JSON.parse(await readSmall(file));
@@ -171,6 +191,13 @@ export async function inspectMetadata(root: string): Promise<ModMetadata> {
       const header = parseLuaHeader(await readPrefix(file));
       if (header) results.push(header);
     }
+  }
+  if (authorMetadata) {
+    if (results.some((result) => result.version && result.version !== authorMetadata!.version))
+      throw new UserError('The author manifest and loader metadata declare different versions.');
+    results.push(
+      results.some((result) => result.id) ? { ...authorMetadata, id: undefined } : authorMetadata,
+    );
   }
   const identities = new Set(results.map((m) => m.id).filter(Boolean));
   if (identities.size > 1)

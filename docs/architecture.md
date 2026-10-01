@@ -10,19 +10,22 @@ esbuild bundles the main process and preload; electron-builder creates installer
 contract. The renderer receives normalized data through the preload bridge. Downloads,
 archives, filesystem access and repository retrieval run in the main process.
 
-| Layer                                   | Responsibility                                                                |
-| --------------------------------------- | ----------------------------------------------------------------------------- |
-| `src/pages` and `src/components`        | Discovery, the local collection, prerequisites, settings and dialogs          |
-| `electron/preload.ts`                   | Explicit typed methods for each IPC operation                                 |
-| `electron/main.ts`                      | Windows, protocol handling, IPC validation, native dialogs and launch actions |
-| `electron/application.ts`               | Service orchestration, snapshots, settings and imported definitions           |
-| `GameDetectionService`                  | Steam discovery, platform validation and separate game/Mods roots             |
-| `BalatroModIndexRepository`             | Commit-pinned index retrieval, normalization and caching                      |
-| `InstalledModsService`                  | Local scanning, file integrity and prerequisite evidence                      |
-| `GitHubPrerequisiteProvider`            | Latest prerequisite release checks                                            |
-| Installation strategies                 | Mod-root detection, standalone Lua files and explicit game-file mappings      |
-| `ModInstaller`                          | Staging, dependency checks, file plans and installation records               |
-| `TransactionEngine` and `BackupService` | Backups, commits, rollback and startup recovery                               |
+| Layer                                                  | Responsibility                                                                   |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `src/pages` and `src/components`                       | Discovery, the local collection, prerequisites, settings and dialogs             |
+| `electron/preload.ts`                                  | Explicit typed methods for each IPC operation                                    |
+| `electron/main.ts`                                     | Windows, protocol handling, IPC validation, native dialogs and launch actions    |
+| `electron/application.ts`                              | Service orchestration, snapshots, settings and imported definitions              |
+| `GameDetectionService`                                 | Steam discovery, platform validation and separate game/Mods roots                |
+| `BalatroModIndexRepository`                            | Commit-pinned index retrieval, normalization and caching                         |
+| `NativeModRepository` and `ModatroCatalogueRepository` | Compiled native index, author manifests and legacy-ID continuity                 |
+| `CatalogueTrust`                                       | Independent persistent revocations/release blocks and fresh-download eligibility |
+| `ArtifactHistory`                                      | Archive provenance, supplied checksums and immutable-release change detection    |
+| `InstalledModsService`                                 | Local scanning, file integrity and prerequisite evidence                         |
+| `GitHubPrerequisiteProvider`                           | Latest prerequisite release checks                                               |
+| Installation strategies                                | Mod-root detection, standalone Lua files and explicit game-file mappings         |
+| `ModInstaller`                                         | Staging, dependency checks, file plans and installation records                  |
+| `TransactionEngine` and `BackupService`                | Backups, commits, rollback and startup recovery                                  |
 
 The renderer uses a sandbox with context isolation and no Node integration. IPC
 handlers validate the sender and input at runtime. External navigation and permissions
@@ -31,13 +34,29 @@ are restricted in the main process.
 ## Catalogue retrieval
 
 The repository adapter reads the Balatro Mod Index's commit, Git tree and raw metadata.
-All entries in a refresh come from the selected commit. Descriptions are displayed as
-text. GitHub HTML is not scraped.
+All legacy entries in a refresh come from the selected commit and are labelled
+`legacy-index`. Unapproved legacy descriptions are not retrieved or displayed.
+Native entries can refer to an author-controlled `modatro.json`. Identity, repository,
+permissions, supported strategies and paths are validated; index and manifest permissions
+are intersected. Neither GitHub HTML nor README content is scraped.
 
 A transport failure or incomplete tree preserves the previous catalogue. A malformed
 individual entry appears as unavailable. Validated catalogues are saved in
 `catalogue-cache/`, separate from Electron's browser cache. Legacy catalogues in
 `cache/` are read and copied to the new location without deleting browser data.
+
+Revocations and blocked releases use independent versioned feeds. Each successful
+feed applies even if the catalogue or the other feed fails. Previously observed
+restrictions persist and cannot be removed by an older or incomplete feed. A fresh
+check is required before download and again before commit; local uninstall and
+enable/disable do not require network access. The renderer receives the same applied
+policy used by the installer.
+
+Distribution resolution prefers a matching published ZIP asset, then a release/tag
+archive, then a commit-pinned branch archive. Other mutable sources are labelled
+honestly. Downloads are checked against the declared repository or explicit source
+approval and the existing HTTPS host allowlist. SHA-256 history persists separately
+from installation records, so uninstalling a mod does not forget a changed release.
 
 ## File operations
 
@@ -59,6 +78,22 @@ the final two steps. A failure before that marker restores verified before-image
 and removes files created by the transaction. A subsequent external edit blocks
 rollback rather than being overwritten.
 
+Downloaded provenance records the requested and final URL, repository, source type,
+tag/commit, download time and archive SHA-256. A previously observed immutable artifact
+or supplied checksum cannot be silently replaced. Game-file changes require a short-lived
+confirmation token tied to the actual plan and file hashes. A changed plan requires
+another review. Advanced users can inspect a staged plan without committing it.
+
+External adoption is a local baseline operation: identified folders and standalone
+Lua files are hashed without being downloaded or rewritten. Unique catalogue matches
+can provide future updates; otherwise local-only IDs preserve management without
+invented provenance. Updates to adopted mods retain their existing directory.
+
+State schema 1 migrates to schema 2 only after a verified backup of the original
+JSON is saved. Missing provenance becomes `legacy` or `external`. Ownership, backup
+paths and transaction markers remain intact; failed migration leaves the original
+state recoverable and locks further file changes.
+
 Startup recovery validates prepared journals against saved settings and previous
 state before applying them. Corrupt state, mismatched roots, changed files or invalid
 backups lock file operations and preserve the recovery data.
@@ -76,6 +111,11 @@ and alternate data streams. ZIP extraction also checks duplicate paths, case col
 CRC integrity, file counts, sizes and expansion ratios. Download redirects are checked
 against the HTTPS GitHub host allowlist.
 
+Standard archives containing installer executables or shell scripts are classified
+as unsupported for automation. Modatro never executes downloaded installation code.
+Lovely libraries require native-format and embedded identity evidence; dependency
+detection scans library capabilities rather than relying on one filename.
+
 Dependency declarations come from index flags and supported structured metadata or
 Steamodded headers. An archive can add requirements before any destination changes.
 Unspecified versions remain unspecified; unsupported constraints remain unknown.
@@ -90,6 +130,18 @@ resource limits.
 Add regression coverage for changes to ownership, backups, dependency checks or
 recovery. The [contributor guide](../CONTRIBUTING.md) describes the test suites and
 isolated desktop test environment.
+
+The [catalogue source tree](../catalogue/README.md) includes JSON schemas, a compiler,
+submission/removal rules and CI validation. A verifier boundary before native parsing
+allows future signed envelopes; signature verification is not implemented yet.
+
+## Linux integration
+
+The Linux app runs natively and packages as x64 AppImage and DEB. Game operations target
+Steam's Windows Balatro through Proton, including Flatpak Steam and additional library
+roots. The suggested Mods directory is the selected library's compatibility prefix;
+users can select an existing prefix in another library. Game launch uses Steam's fixed
+app URI and the user's configured Lovely override; Modatro never edits Steam settings.
 
 ## Application updates
 

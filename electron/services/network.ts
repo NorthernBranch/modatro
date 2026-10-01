@@ -44,7 +44,13 @@ export async function safeFetch(url: string, signal?: AbortSignal): Promise<Resp
       throw new UserError(
         response.status === 403 || response.status === 429
           ? 'GitHub’s request limit was reached. Your cached catalogue is still available; try refreshing later.'
-          : `The server returned ${response.status}. Try again later.`,
+          : response.status === 404 || response.status === 410
+            ? 'The original download source is no longer available. Your installed copy has not been changed.'
+            : `The server returned ${response.status}. Try again later.`,
+        undefined,
+        undefined,
+        undefined,
+        response.status,
       );
     }
     return response;
@@ -73,6 +79,7 @@ export async function remoteText(url: string): Promise<string> {
   return (await boundedBody(await safeFetch(url), 100000)).toString('utf8');
 }
 export class DownloadService {
+  finalUrl?: string;
   constructor(private directory: string) {}
   async download(
     url: string,
@@ -83,6 +90,7 @@ export class DownloadService {
       final = part.replace('.part', '.download');
     try {
       const response = await safeFetch(url, signal);
+      this.finalUrl = response.url || url;
       if (/text\/html/i.test(response.headers.get('content-type') ?? '')) {
         await response.body?.cancel();
         throw new UserError(

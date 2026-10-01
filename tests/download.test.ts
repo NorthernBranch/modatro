@@ -32,7 +32,7 @@ describe('download boundaries', () => {
       'fetch',
       vi.fn(async () => new Response('bad', { status: 404 })),
     );
-    await expect(safeFetch('https://github.com/a/b')).rejects.toThrow('404');
+    await expect(safeFetch('https://github.com/a/b')).rejects.toThrow('no longer available');
   });
   it('rejects HTML downloads and cleans failed temporary files', async () => {
     const root = await tempRoot();

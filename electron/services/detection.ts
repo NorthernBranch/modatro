@@ -37,7 +37,7 @@ export class GameDetectionService {
     private platform: NodeJS.Platform = process.platform,
     private home = os.homedir(),
   ) {}
-  defaultModsPath(): string {
+  defaultModsPath(gamePath?: string): string {
     if (this.platform === 'win32') {
       const roaming = process.env.APPDATA;
       if (!roaming)
@@ -45,6 +45,24 @@ export class GameDetectionService {
           'Windows did not provide an AppData directory. Choose a Mods directory in Settings.',
         );
       return path.join(roaming, 'Balatro', 'Mods');
+    }
+    if (this.platform === 'linux') {
+      const steam = gamePath
+        ? path.resolve(gamePath, '..', '..')
+        : path.join(this.home, '.local', 'share', 'Steam', 'steamapps');
+      return path.join(
+        steam,
+        'compatdata',
+        BALATRO_APP_ID,
+        'pfx',
+        'drive_c',
+        'users',
+        'steamuser',
+        'AppData',
+        'Roaming',
+        'Balatro',
+        'Mods',
+      );
     }
     return path.join(this.home, 'Library', 'Application Support', 'Balatro', 'Mods');
   }
@@ -100,7 +118,7 @@ export class GameDetectionService {
       if (
         result.detectedPlatform &&
         ((this.platform === 'darwin') !== (result.detectedPlatform === 'macos') ||
-          !['darwin', 'win32'].includes(this.platform))
+          !['darwin', 'win32', 'linux'].includes(this.platform))
       )
         result.problems.push({
           code: 'wrong-platform',
@@ -121,7 +139,7 @@ export class GameDetectionService {
   async validateMods(selected: string, gamePath?: string, create = false): Promise<string> {
     // Create only the well-known default automatically; overrides must already exist.
     if (!(await exists(selected))) {
-      if (!create || path.resolve(selected) !== path.resolve(this.defaultModsPath()))
+      if (!create || path.resolve(selected) !== path.resolve(this.defaultModsPath(gamePath)))
         throw new UserError('Choose an existing Mods directory.');
       let ancestor = path.resolve(selected);
       while (!(await exists(ancestor))) ancestor = path.dirname(ancestor);
@@ -136,7 +154,13 @@ export class GameDetectionService {
     if (
       real === home ||
       real === path.parse(real).root ||
-      (!contained(home, real) && this.platform !== 'win32')
+      (!contained(home, real) &&
+        this.platform !== 'win32' &&
+        !(
+          this.platform === 'linux' &&
+          gamePath &&
+          path.resolve(real) === path.resolve(this.defaultModsPath(gamePath))
+        ))
     )
       throw new UserError('Choose a dedicated Mods folder, rather than a home or system folder.');
     if (gamePath && (contained(gamePath, real) || contained(real, gamePath)))
@@ -150,10 +174,25 @@ export class GameDetectionService {
     const roots =
       this.platform === 'darwin'
         ? [path.join(this.home, 'Library', 'Application Support', 'Steam')]
-        : [
-            path.join(process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)', 'Steam'),
-            path.join(process.env.ProgramFiles ?? 'C:\\Program Files', 'Steam'),
-          ];
+        : this.platform === 'linux'
+          ? [
+              path.join(this.home, '.local', 'share', 'Steam'),
+              path.join(this.home, '.steam', 'steam'),
+              path.join(
+                this.home,
+                '.var',
+                'app',
+                'com.valvesoftware.Steam',
+                '.local',
+                'share',
+                'Steam',
+              ),
+              path.join(this.home, '.var', 'app', 'com.valvesoftware.Steam', '.steam', 'steam'),
+            ]
+          : [
+              path.join(process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)', 'Steam'),
+              path.join(process.env.ProgramFiles ?? 'C:\\Program Files', 'Steam'),
+            ];
     if (this.platform === 'win32') {
       try {
         const { stdout } = await exec(
@@ -208,7 +247,7 @@ export class LaunchService {
       if (
         process.platform === 'win32'
           ? /"Balatro\.exe"/i.test(stdout)
-          : /Balatro\.app\/Contents\/MacOS\/love|(?:^|\/)Balatro(?:\s|$)/im.test(stdout)
+          : /Balatro\.app\/Contents\/MacOS\/love|(?:^|\/)Balatro(?:\.exe)?(?:\s|$)/im.test(stdout)
       )
         throw new UserError(
           'Close Balatro before changing mods or prerequisites, then check again.',

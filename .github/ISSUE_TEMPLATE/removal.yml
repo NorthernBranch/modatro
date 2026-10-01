@@ -1,0 +1,32 @@
+name: Request removal of my mod or content
+description: Authors and rights holders can request removal without giving a reason.
+title: '[Removal] '
+body:
+  - type: input
+    id: mod-id
+    attributes:
+      label: Mod ID
+      description: The catalogue ID, or the mod name if the ID is unknown.
+    validations:
+      required: true
+  - type: input
+    id: repository
+    attributes:
+      label: Source repository or original work
+    validations:
+      required: true
+  - type: textarea
+    id: ownership
+    attributes:
+      label: Evidence of authorship or control
+      description: A matching repository-owner account or upstream confirmation is sufficient. For copyright complaints, identify the content and original work. Do not share private credentials.
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: Reason (optional)
+      description: You do not need to justify requesting removal.
+  - type: markdown
+    attributes:
+      value: Once verified, removal blocks future Modatro installations and updates. Existing user copies are not remotely deleted or changed.

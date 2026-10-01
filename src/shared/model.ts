@@ -24,6 +24,40 @@ export const RelativePath = z
       v.split('/').every((s) => SafeName.safeParse(s).success),
     'Unsafe relative path',
   );
+// Native catalogue identities may be author/slug; filesystem names remain separate.
+export const ModId = z.union([
+  SafeName,
+  z
+    .string()
+    .max(200)
+    .regex(/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/)
+    .refine((v) => v.split('/').every((part) => SafeName.safeParse(part).success)),
+]);
+export const ApprovalStatus = z.enum([
+  'author-approved',
+  'legacy-index',
+  'community-submitted',
+  'pending-review',
+  'opted-out',
+  'blocked',
+]);
+export const PermissionsSchema = z.object({
+  display: z.boolean(),
+  install: z.boolean(),
+  update: z.boolean(),
+});
+export const ReleaseSourceSchema = z.object({
+  sourceType: z.enum(['release-asset', 'tag', 'commit', 'branch', 'other']),
+  releaseTag: z.string().max(200).optional(),
+  commitSha: z
+    .string()
+    .regex(/^[a-f0-9]{40}$/)
+    .optional(),
+  sha256: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
+});
 export const HttpsUrl = z.url().refine((v) => {
   const u = new URL(v);
   return u.protocol === 'https:' && !u.username && !u.password;
@@ -48,7 +82,7 @@ export const InstallationSchema = z.discriminatedUnion('type', [
 ]);
 export type InstallationDefinition = z.infer<typeof InstallationSchema>;
 export const ModSchema = z.object({
-  id: SafeName,
+  id: ModId,
   title: z.string().min(1).max(200),
   author: z.string().min(1).max(200),
   version: z.string().min(1).max(100),
@@ -62,6 +96,19 @@ export const ModSchema = z.object({
   installation: InstallationSchema.default({ type: 'auto' }),
   unavailableReason: z.string().optional(),
   updatedAt: z.number().optional(),
+  approvalStatus: ApprovalStatus.optional(),
+  approvalEvidence: HttpsUrl.optional(),
+  permissions: PermissionsSchema.optional(),
+  manifestUrl: HttpsUrl.optional(),
+  metadataId: z.string().min(1).max(200).optional(),
+  legacyIds: z.array(ModId).max(20).optional(),
+  releaseSource: ReleaseSourceSchema.optional(),
+  licence: z.string().max(200).optional(),
+  descriptionProvenance: z.enum(['author-supplied', 'licensed', 'factual']).optional(),
+  iconUrl: HttpsUrl.optional(),
+  iconUsageApproved: z.boolean().optional(),
+  distributionApproved: z.boolean().optional(),
+  policyReason: z.string().optional(),
 });
 export type ModDefinition = z.infer<typeof ModSchema>;
 export type DependencyState = 'satisfied' | 'missing' | 'outdated' | 'incompatible' | 'unknown';
@@ -79,6 +126,7 @@ export interface Prerequisite {
   latestError?: string;
   sourceUrl: string;
   instructions?: string;
+  provenance?: InstallationSource;
 }
 export interface ValidationProblem {
   code: string;
@@ -106,6 +154,20 @@ export type Settings = z.infer<typeof SettingsSchema>;
 export const RootSchema = z.enum(['mods', 'game', 'disabled']);
 export type FileRoot = z.infer<typeof RootSchema>;
 export const HashSchema = z.string().regex(/^[a-f0-9]{64}$/);
+export const InstallationSourceSchema = z.object({
+  sourceType: z.enum(['release-asset', 'tag', 'commit', 'branch', 'other', 'legacy', 'external']),
+  repositoryUrl: HttpsUrl.optional(),
+  downloadUrl: HttpsUrl.optional(),
+  finalUrl: HttpsUrl.optional(),
+  releaseTag: z.string().max(200).optional(),
+  commitSha: z
+    .string()
+    .regex(/^[a-f0-9]{40}$/)
+    .optional(),
+  downloadedAt: z.iso.datetime().optional(),
+  sha256: HashSchema.optional(),
+});
+export type InstallationSource = z.infer<typeof InstallationSourceSchema>;
 export const InstalledFileSchema = z.object({
   root: RootSchema,
   path: RelativePath,
@@ -117,13 +179,14 @@ export const InstalledFileSchema = z.object({
 export type InstalledFileRecord = z.infer<typeof InstalledFileSchema>;
 export const RecordSchema = z
   .object({
-    modId: SafeName,
+    modId: ModId,
     title: z.string(),
     modVersion: z.string(),
     installedAt: z.iso.datetime(),
     files: z.array(InstalledFileSchema).min(1),
     dependencies: z.array(DependencySchema),
-    source: HttpsUrl,
+    source: HttpsUrl.optional(),
+    provenance: InstallationSourceSchema.optional(),
     disabled: z.boolean().default(false),
     adopted: z.boolean().default(false),
     folderName: SafeName,
@@ -140,7 +203,7 @@ export const RecordSchema = z
 export type InstallationRecord = z.infer<typeof RecordSchema>;
 export const StateSchema = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.union([z.literal(1), z.literal(2)]),
     settings: SettingsSchema,
     installations: z.array(RecordSchema),
     lastTransaction: z.string().optional(),
@@ -175,6 +238,19 @@ export interface LocalMod {
   canAdopt: boolean;
   problems: string[];
   dependencies?: DependencyRequirement[];
+  catalogueId?: string;
+  metadataId?: string;
+  provenance?: InstallationSource;
+  availabilityReason?: string;
+  releaseWarning?: string;
+  repositoryUrl?: string;
+  canDisable?: boolean;
+  files?: Pick<InstalledFileRecord, 'root' | 'path' | 'operation'>[];
+}
+export interface TrustState {
+  checkedAt?: string;
+  fresh: boolean;
+  error?: string;
 }
 export interface Catalogue {
   mods: ModDefinition[];
@@ -199,6 +275,7 @@ export interface Snapshot {
   discoveryError?: string;
   preview?: boolean;
   operationReport?: OperationReport;
+  trust?: TrustState;
 }
 export interface OperationReport {
   title: string;
@@ -230,6 +307,7 @@ export interface AppError {
   conflicts?: FileConflict[];
   requirements?: DependencyStatus[];
   retryable?: boolean;
+  confirmation?: { token: string; plan: InstallPlan };
 }
 export type Reply<T> = { ok: true; value: T } | { ok: false; error: AppError };
 export type ModAction = 'install' | 'update' | 'uninstall' | 'disable' | 'enable' | 'adopt';
@@ -263,9 +341,16 @@ export interface ModatroApi {
   choosePath(kind: 'game' | 'mods'): Promise<Reply<Snapshot>>;
   selectCandidate(path: string): Promise<Reply<Snapshot>>;
   saveSettings(settings: Pick<Settings, 'theme' | 'setupComplete'>): Promise<Reply<Snapshot>>;
-  action(id: string, action: ModAction, decisions?: ConflictDecision[]): Promise<Reply<Snapshot>>;
+  action(
+    id: string,
+    action: ModAction,
+    decisions?: ConflictDecision[],
+    confirmationToken?: string,
+  ): Promise<Reply<Snapshot>>;
   cancel(): Promise<Reply<void>>;
+  previewPlan?(id: string): Promise<Reply<InstallPlan>>;
   openFolder(kind: 'game' | 'mods' | 'logs' | 'backups' | 'cache'): Promise<Reply<void>>;
+  openModFolder?(id: string): Promise<Reply<void>>;
   openLink(url: string): Promise<Reply<void>>;
   launch(modded: boolean): Promise<Reply<void>>;
   diagnostics(): Promise<Reply<string>>;

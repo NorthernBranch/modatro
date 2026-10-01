@@ -1,0 +1,314 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "pattern": "^[a-zA-Z0-9_@.+ -]+$"
+        },
+        {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[a-zA-Z0-9_.-]+\\/[a-zA-Z0-9_.-]+$"
+        }
+      ]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 30000
+    },
+    "repositoryUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "downloadUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "categories": {
+      "maxItems": 30,
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sourceCategories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "folderName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "^[a-zA-Z0-9_@.+ -]+$"
+    },
+    "prerequisites": {
+      "maxItems": 100,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "versionConstraint": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "displayName", "required"],
+        "additionalProperties": false
+      }
+    },
+    "installation": {
+      "default": {
+        "type": "auto"
+      },
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "auto"
+            }
+          },
+          "required": ["type"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "standard"
+            },
+            "sourceRoot": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          },
+          "required": ["type"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "single-file"
+            }
+          },
+          "required": ["type"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "lovely-patch"
+            }
+          },
+          "required": ["type"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "game-replacement"
+            },
+            "files": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  "destination": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  }
+                },
+                "required": ["source", "destination"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["type", "files"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "unsupported"
+            },
+            "instructions": {
+              "type": "string"
+            }
+          },
+          "required": ["type"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "unavailableReason": {
+      "type": "string"
+    },
+    "updatedAt": {
+      "type": "number"
+    },
+    "approvalStatus": {
+      "type": "string",
+      "enum": [
+        "author-approved",
+        "legacy-index",
+        "community-submitted",
+        "pending-review",
+        "opted-out",
+        "blocked"
+      ]
+    },
+    "approvalEvidence": {
+      "type": "string",
+      "format": "uri"
+    },
+    "permissions": {
+      "type": "object",
+      "properties": {
+        "display": {
+          "type": "boolean"
+        },
+        "install": {
+          "type": "boolean"
+        },
+        "update": {
+          "type": "boolean"
+        }
+      },
+      "required": ["display", "install", "update"],
+      "additionalProperties": false
+    },
+    "manifestUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "metadataId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "legacyIds": {
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[a-zA-Z0-9_@.+ -]+$"
+          },
+          {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^[a-zA-Z0-9_.-]+\\/[a-zA-Z0-9_.-]+$"
+          }
+        ]
+      }
+    },
+    "releaseSource": {
+      "type": "object",
+      "properties": {
+        "sourceType": {
+          "type": "string",
+          "enum": ["release-asset", "tag", "commit", "branch", "other"]
+        },
+        "releaseTag": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "commitSha": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": ["sourceType"],
+      "additionalProperties": false
+    },
+    "licence": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "descriptionProvenance": {
+      "type": "string",
+      "enum": ["author-supplied", "licensed", "factual"]
+    },
+    "iconUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "iconUsageApproved": {
+      "type": "boolean"
+    },
+    "distributionApproved": {
+      "type": "boolean"
+    },
+    "policyReason": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "author",
+    "version",
+    "categories",
+    "prerequisites",
+    "installation",
+    "permissions"
+  ],
+  "additionalProperties": false
+}

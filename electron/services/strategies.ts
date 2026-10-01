@@ -4,6 +4,7 @@ import { RelativePath, SafeName } from '../../src/shared/model';
 import { UserError } from './errors';
 import { exists, readSmall, safeDestination, walkFiles } from './files';
 import { detectModRoot, inspectMetadata, parseLuaHeader } from './metadata';
+import { defaultFolder } from '../../src/shared/trust';
 export interface InstallContext {
   mod: ModDefinition;
   staging: string;
@@ -19,7 +20,7 @@ export interface InstallationStrategy {
   plan(context: InstallContext): Promise<StrategyFile[]>;
 }
 function folder(mod: ModDefinition): string {
-  return SafeName.parse(mod.folderName ?? mod.id);
+  return SafeName.parse(defaultFolder(mod));
 }
 export class StandardModStrategy implements InstallationStrategy {
   canHandle({ mod, directFile }: InstallContext) {
@@ -41,6 +42,19 @@ export class StandardModStrategy implements InstallationStrategy {
     )
       throw new UserError('The specified mod folder could not be identified.');
     const files = await walkFiles(root);
+    if (
+      files.some(
+        (file) =>
+          /\.(?:exe|msi|bat|cmd|ps1|sh|command)$/i.test(file) ||
+          file
+            .toLowerCase()
+            .split('/')
+            .some((part) => part.endsWith('.app')),
+      )
+    )
+      throw new UserError(
+        'This archive contains an external installer or script. Automatic installation is unsupported; view the upstream instructions.',
+      );
     if (!files.length) throw new UserError('This mod folder is empty.');
     return files
       .filter(

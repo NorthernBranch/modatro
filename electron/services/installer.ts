@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import type {
@@ -7,6 +7,7 @@ import type {
   FileConflict,
   FileRoot,
   InstallationRecord,
+  InstallationSource,
   InstalledFileRecord,
   InstallPlan,
   ModDefinition,
@@ -39,6 +40,10 @@ import { Logger, Storage } from './storage';
 import { selectStrategy } from './strategies';
 import { TransactionEngine, type Change } from './transaction';
 import { evaluateDependencies } from './versions';
+import { automationReason, defaultFolder } from '../../src/shared/trust';
+import { ArtifactHistory } from './artifacts';
+import { resolveDistribution } from './distribution';
+import { AuthorManifestSchema } from '../../src/shared/catalogue-schema';
 
 export interface PreparedInstallation {
   plan: InstallPlan;
@@ -48,9 +53,11 @@ export interface PreparedInstallation {
   dependencies: DependencyStatus[];
   metadataId?: string;
   previous?: InstallationRecord;
+  provenance?: InstallationSource;
 }
 export class ModInstaller {
   private abort?: AbortController;
+  private confirmation?: { token: string; fingerprint: string; expires: number };
   constructor(
     private storage: Storage,
     readonly transactions: TransactionEngine,
@@ -59,6 +66,7 @@ export class ModInstaller {
     private logger: Logger,
     private progress: (event: Progress) => void,
     private getPrerequisites: () => Promise<Prerequisite[]>,
+    private verifyTrust?: (mod: ModDefinition, update: boolean) => Promise<void>,
   ) {}
   cancel() {
     this.abort?.abort();
@@ -97,14 +105,15 @@ export class ModInstaller {
     )
       throw new UserError('The Mods folder has moved. Select it again.');
   }
-  async install(input: ModDefinition, update = false) {
+  async install(input: ModDefinition, update = false, confirmationToken?: string, inspect = false) {
     return this.transactions.locked(async () => {
       await this.guard();
-      const mod = ModSchema.parse(input);
-      if (mod.unavailableReason || mod.installation.type === 'unsupported')
-        throw new UserError(
-          mod.unavailableReason ?? 'Automatic installation is not supported for this mod yet.',
-        );
+      let mod = ModSchema.parse(input);
+      await this.verifyTrust?.(mod, update);
+      mod = this.verifyTrust ? await resolveDistribution(mod) : mod;
+      const reason = automationReason(mod, update);
+      if (reason) throw new UserError(reason);
+      await this.verifyTrust?.(mod, update);
       const previous = this.storage.state.installations.find((r) => r.modId === mod.id);
       if (previous && !update)
         throw new UserError('This mod is already managed by Modatro. Use Update instead.');
@@ -123,12 +132,20 @@ export class ModInstaller {
       try {
         this.progress({ modId: mod.id, phase: 'downloading', percent: 0 });
         await this.logger.log('download.start', { modId: mod.id });
-        download = await new DownloadService(this.storage.file('downloads')).download(
-          mod.downloadUrl,
-          abort.signal,
-          (percent) => this.progress({ modId: mod.id, phase: 'downloading', percent }),
+        const downloader = new DownloadService(this.storage.file('downloads'));
+        download = await downloader.download(mod.downloadUrl, abort.signal, (percent) =>
+          this.progress({ modId: mod.id, phase: 'downloading', percent }),
         );
-        await this.logger.log('download.complete', { modId: mod.id });
+        const provenance = await new ArtifactHistory(this.storage, this.logger).verify(
+          mod,
+          await hashFile(download),
+        );
+        provenance.finalUrl = downloader.finalUrl ?? mod.downloadUrl;
+        await this.logger.log('download.complete', {
+          modId: mod.id,
+          version: mod.version,
+          ...provenance,
+        });
         this.progress({ modId: mod.id, phase: 'validating' });
         const directFile = new URL(mod.downloadUrl).pathname.endsWith('.lua');
         if (directFile) await atomicCopy(download, path.join(stage, 'mod.lua'));
@@ -136,6 +153,7 @@ export class ModInstaller {
         abort.signal.throwIfAborted();
         this.progress({ modId: mod.id, phase: 'planning' });
         const prepared = await this.plan(mod, stage, directFile);
+        prepared.provenance = provenance;
         if (prepared.plan.conflicts.length)
           throw new UserError(
             'This mod conflicts with existing files. No files were changed.',
@@ -150,7 +168,31 @@ export class ModInstaller {
             { requirements: unmet },
           );
         abort.signal.throwIfAborted();
+        await this.verifyTrust?.(prepared.mod, update);
         await this.guard();
+        if (inspect) return this.inspectablePlan(prepared.plan);
+        if (prepared.changes.some((change) => change.root === 'game')) {
+          const visible = this.inspectablePlan(prepared.plan);
+          const fingerprint = createHash('sha256')
+            .update(JSON.stringify({ update, ...visible }))
+            .digest('hex');
+          if (
+            !confirmationToken ||
+            confirmationToken !== this.confirmation?.token ||
+            fingerprint !== this.confirmation.fingerprint ||
+            Date.now() > this.confirmation.expires
+          ) {
+            const token = randomUUID();
+            this.confirmation = { token, fingerprint, expires: Date.now() + 10 * 60 * 1000 };
+            throw new UserError(
+              'Review the actual game-file changes before continuing.',
+              undefined,
+              undefined,
+              { confirmation: { token, plan: visible } },
+            );
+          }
+          this.confirmation = undefined;
+        }
         this.abort = undefined;
         this.progress({ modId: mod.id, phase: 'backing-up' });
         await this.logger.log('install.plan', {
@@ -160,6 +202,16 @@ export class ModInstaller {
           remove: prepared.plan.remove.length,
         });
         await this.commitPrepared(prepared);
+        await this.logger.log('install.complete', {
+          modId: mod.id,
+          version: prepared.mod.version,
+          provenance,
+          strategy: prepared.mod.installation.type,
+          filesCreated: prepared.plan.create.map((f) => `${f.root}/${f.path}`),
+          filesReplaced: prepared.plan.replace.map((f) => `${f.root}/${f.path}`),
+          transaction: this.storage.state.lastTransaction,
+          result: 'committed',
+        });
         this.progress({ modId: mod.id, phase: 'complete', percent: 100 });
       } catch (e) {
         await this.logger.log('install.failed', { modId: mod.id, error: String(e) });
@@ -171,6 +223,19 @@ export class ModInstaller {
       }
     });
   }
+  private inspectablePlan(plan: InstallPlan): InstallPlan {
+    const file = ({ root, path, hash }: { root: FileRoot; path: string; hash?: string }) => ({
+      root,
+      path,
+      hash,
+    });
+    return {
+      ...plan,
+      create: plan.create.map(file),
+      replace: plan.replace.map((f) => ({ ...file(f), previousHash: f.previousHash })),
+      remove: plan.remove.map(file),
+    };
+  }
   async plan(
     input: ModDefinition,
     staging: string,
@@ -179,11 +244,38 @@ export class ModInstaller {
     let mod = ModSchema.parse(input);
     const previous = this.storage.state.installations.find((r) => r.modId === mod.id),
       roots = this.roots();
+    if (previous?.adopted)
+      mod = ModSchema.parse({ ...mod, folderName: previous.folderName.replace(/\.lua$/, '') });
     const strategy = selectStrategy({ mod, staging, directFile });
     const files = await strategy.plan({ mod, staging, directFile });
+    if (mod.id === 'Lovely' && mod.installation.type === 'game-replacement') {
+      const library = files.find(
+        (file) => file.root === 'game' && /\.(?:dll|dylib|so)$/i.test(file.path),
+      );
+      if (!library || files.length !== 1)
+        throw new UserError(
+          'Lovely’s package layout has changed. Automatic updating is temporarily unsupported; use the official instructions.',
+        );
+      const bytes = await fs.readFile(library.source);
+      const nativeFormat =
+        bytes.subarray(0, 2).toString() === 'MZ' ||
+        [
+          'cffaedfe',
+          'cefaedfe',
+          'feedfacf',
+          'feedface',
+          'cafebabe',
+          'bebafeca',
+          '7f454c46',
+        ].includes(bytes.subarray(0, 4).toString('hex'));
+      if (!nativeFormat || !/lovely/i.test(bytes.subarray(0, 16 * 1024 * 1024).toString('latin1')))
+        throw new UserError(
+          'The downloaded Lovely library could not be positively identified. No game files were changed.',
+        );
+    }
     const stageRoot = await canonicalDirectory(staging);
     let requirements = mod.prerequisites;
-    let metadataId: string | undefined;
+    let metadataId: string | undefined = mod.metadataId;
     if (mod.installation.type !== 'game-replacement') {
       const root = directFile
         ? staging
@@ -193,10 +285,48 @@ export class ModInstaller {
       const metadata = directFile
         ? parseLuaHeader(await readSmall(path.join(staging, 'mod.lua')))
         : await inspectMetadata(root);
+      const authorManifest = path.join(root, 'modatro.json');
+      if (await exists(authorManifest)) {
+        const manifest = AuthorManifestSchema.parse(
+          JSON.parse(await readSmall(await safeDestination(root, 'modatro.json'))),
+        );
+        if (
+          manifest.id !== mod.id &&
+          manifest.id !== mod.metadataId &&
+          manifest.id !== metadata?.id &&
+          !mod.legacyIds?.includes(manifest.id)
+        )
+          throw new UserError('The downloaded author manifest identifies a different mod.');
+        const update = !!previous;
+        if (!manifest.permissions.display || !manifest.permissions[update ? 'update' : 'install'])
+          throw new UserError('The author manifest does not permit this installation or update.');
+        requirements = mergeRequirements(
+          requirements,
+          Object.entries(manifest.requirements).map(([id, versionConstraint]) => ({
+            id: dependencyId(id),
+            displayName: id,
+            versionConstraint,
+            required: true,
+          })),
+        );
+        if (manifest.installation.type === 'manual-install-required')
+          throw new UserError(
+            'The author requires manual installation. View the project’s instructions.',
+          );
+      }
       metadataId = metadata?.id;
       // A structured version describes the files being installed more precisely
       // than a catalogue entry whose URL may point at a moving branch.
-      if (metadata?.version) mod = ModSchema.parse({ ...mod, version: metadata.version });
+      if (metadata?.version) {
+        if (
+          ['release-asset', 'tag'].includes(mod.releaseSource?.sourceType ?? '') &&
+          metadata.version.replace(/^v/, '') !== mod.version.replace(/^v/, '')
+        )
+          throw new UserError(
+            'The downloaded metadata version differs from the published release. Automatic installation has been stopped.',
+          );
+        mod = ModSchema.parse({ ...mod, version: metadata.version });
+      }
       requirements = mergeRequirements(requirements, metadata?.requirements ?? []);
       const paths = await walkFiles(root);
       if (
@@ -330,7 +460,7 @@ export class ModInstaller {
       dependencies,
       metadataId,
       previous,
-      folderName: SafeName.parse(mod.folderName ?? mod.id),
+      folderName: SafeName.parse(defaultFolder(mod)),
     };
   }
   async commitPrepared(prepared: PreparedInstallation) {
@@ -356,6 +486,7 @@ export class ModInstaller {
           }),
         ),
         source: prepared.mod.downloadUrl,
+        provenance: prepared.provenance ?? { sourceType: 'legacy' },
         folderName: prepared.folderName,
         transactionId: journal.id,
         metadataId: prepared.metadataId ?? prepared.previous?.metadataId,
@@ -643,34 +774,37 @@ export class ModInstaller {
       }
     });
   }
-  async adopt(externalFolder: string, mod: ModDefinition) {
+  async adopt(externalFolder: string, mod?: ModDefinition) {
     return this.transactions.locked(async () => {
       await this.guard();
       SafeName.parse(externalFolder);
-      if (this.storage.state.installations.some((r) => r.modId === mod.id))
+      if (mod && this.storage.state.installations.some((r) => r.modId === mod.id))
         throw new UserError('This catalogue entry is already managed.');
       const roots = this.roots(),
         folder = await safeDestination(roots.mods, externalFolder);
-      if (!(await fs.lstat(folder)).isDirectory())
-        throw new UserError('Only identified mod folders can be adopted in this release.');
-      const metadata = await inspectMetadata(folder);
+      const info = await fs.lstat(folder);
+      const metadata = info.isDirectory()
+        ? await inspectMetadata(folder)
+        : info.isFile() && externalFolder.endsWith('.lua')
+          ? parseLuaHeader(await readSmall(folder))
+          : undefined;
       if (
-        !metadata.id ||
-        !(
-          metadata.name?.toLowerCase() === mod.title.toLowerCase() ||
-          metadata.id.toLowerCase() === mod.id.split('@').pop()?.toLowerCase()
-        )
+        !metadata?.id ||
+        (mod &&
+          !(
+            metadata.id.toLowerCase() ===
+            (mod.metadataId ?? mod.id.split(/[@/]/).pop())?.toLowerCase()
+          ))
       )
         throw new UserError('The existing mod’s identity does not match this catalogue entry.');
-      const files = await walkFiles(folder);
+      const files = info.isDirectory() ? await walkFiles(folder) : [externalFolder];
+      const ownedPath = (file: string) => (info.isDirectory() ? `${externalFolder}/${file}` : file);
       const owned = await Promise.all(
         files.map(async (f) => ({
           root: 'mods' as const,
-          path: `${externalFolder}/${f}`,
+          path: ownedPath(f),
           operation: 'created' as const,
-          installedHash: await hashFile(
-            await safeDestination(roots.mods, `${externalFolder}/${f}`),
-          ),
+          installedHash: await hashFile(await safeDestination(roots.mods, ownedPath(f))),
         })),
       );
       if (
@@ -684,24 +818,30 @@ export class ModInstaller {
       )
         throw new UserError('Some files already belong to another managed mod.');
       const record = RecordSchema.parse({
-        modId: mod.id,
-        title: mod.title,
+        modId:
+          mod?.id ??
+          `local@${createHash('sha256').update(externalFolder).digest('hex').slice(0, 20)}`,
+        title: mod?.title ?? metadata.name ?? metadata.id,
         modVersion: metadata.version ?? 'Unknown',
         installedAt: new Date().toISOString(),
         files: owned,
-        dependencies: mergeRequirements(mod.prerequisites, metadata.requirements),
-        source: mod.downloadUrl,
+        dependencies: mergeRequirements(mod?.prerequisites ?? [], metadata.requirements),
+        provenance: { sourceType: 'external', repositoryUrl: mod?.repositoryUrl },
         adopted: true,
         disabled: false,
         folderName: externalFolder,
         transactionId: randomUUID(),
         metadataId: metadata.id,
       });
+      // Adoption records a baseline without changing files. Recheck before taking ownership.
+      for (const file of owned)
+        if ((await hashFile(await safeDestination(roots.mods, file.path))) !== file.installedHash)
+          throw new UserError('The external mod changed during adoption. Refresh and try again.');
       await this.storage.save({
         ...this.storage.state,
         installations: [...this.storage.state.installations, record],
       });
-      await this.logger.log('adoption.complete', { modId: mod.id, files: owned.length });
+      await this.logger.log('adoption.complete', { modId: record.modId, files: owned.length });
     });
   }
   private async cleanupEmptyDirectories(files: { root: FileRoot; path: string }[]) {

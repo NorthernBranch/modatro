@@ -26,7 +26,8 @@ export function PrerequisiteAction({
   const matches = snapshot.catalogue.mods.filter(
     (mod) =>
       mod.title.toLowerCase() === requirement.id.toLowerCase() ||
-      mod.id.split('@').pop()?.toLowerCase() === requirement.id.toLowerCase(),
+      (mod.metadataId ?? mod.id.split(/[@/]/).pop())?.toLowerCase() ===
+        requirement.id.toLowerCase(),
   );
   const mod = matches.length === 1 ? matches[0] : undefined;
   const status = evaluateDependency(requirement, snapshot.prerequisites);
@@ -34,7 +35,7 @@ export function PrerequisiteAction({
   if (snapshot.preview) return null;
   if (
     requirement.id === 'Lovely' &&
-    snapshot.platform === 'win32' &&
+    ['win32', 'linux'].includes(snapshot.platform) &&
     (!prerequisite?.installed ||
       snapshot.localMods.some((mod) => mod.managed && mod.id === 'Lovely'))
   )
@@ -43,7 +44,12 @@ export function PrerequisiteAction({
         className="button button-primary"
         pending={requests.isPending('mod-action')}
         pendingLabel="Installing Lovely…"
-        disabled={busy || !snapshot.validation?.valid || !!snapshot.safetyError}
+        disabled={
+          busy ||
+          !snapshot.validation?.valid ||
+          !!snapshot.safetyError ||
+          snapshot.trust?.fresh === false
+        }
         onClick={() =>
           requestAction(
             'prerequisite:Lovely',

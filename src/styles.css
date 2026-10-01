@@ -1303,6 +1303,7 @@ details > p {
 }
 .local-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 13px;
   align-items: center;
 }
@@ -1546,6 +1547,23 @@ details > p {
   border-radius: 9px;
   padding: 17px;
   margin-top: 25px;
+}
+.detail-provenance {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.detail-install details {
+  margin-top: 12px;
+  max-height: 240px;
+  overflow: auto;
+}
+.local-row-info details p {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.local-row-info details code {
+  overflow-wrap: anywhere;
 }
 .detail-install > div:first-child {
   display: flex;

@@ -25,6 +25,7 @@ import { ModArt } from '../components/ModArt';
 import { EmptyState } from '../components/PageElements';
 import type { AppError, ModDefinition, Snapshot } from '../shared/model';
 import { plainText } from '../shared/presentation';
+import { allowedDescription, approvalLabel } from '../shared/trust';
 interface Props {
   snapshot?: Snapshot;
   searchRef: RefObject<HTMLInputElement | null>;
@@ -43,7 +44,11 @@ export function DiscoverPage({
   refreshing,
   setError,
 }: Props) {
-  const mods = snapshot?.catalogue.mods ?? [];
+  const mods = (snapshot?.catalogue.mods ?? []).filter(
+    (mod) =>
+      mod.permissions?.display !== false &&
+      !['opted-out', 'blocked'].includes(mod.approvalStatus ?? 'legacy-index'),
+  );
   const installed = snapshot?.localMods ?? [];
   const updates = installed.filter((m) => m.state === 'update-available');
   const defaultCategories = [
@@ -66,7 +71,7 @@ export function DiscoverPage({
   const visible = mods.filter(
     (mod) =>
       (!query ||
-        `${mod.title} ${mod.author} ${plainText(mod.description)}`
+        `${mod.title} ${mod.author} ${plainText(allowedDescription(mod))}`
           .toLowerCase()
           .includes(query.toLowerCase())) &&
       (category === 'All mods' || mod.categories.includes(category)) &&
@@ -169,6 +174,9 @@ export function DiscoverPage({
               {snapshot.catalogue.error
                 ? 'You’re browsing saved mods. The catalogue could not be refreshed.'
                 : 'Showing your saved catalogue while we check for updates.'}
+              {snapshot.catalogue.fetchedAt
+                ? ` Showing catalogue from ${new Date(snapshot.catalogue.fetchedAt).toLocaleString()}.`
+                : ' No successful refresh recorded.'}
             </span>
             {snapshot.catalogue.error && (
               <button
@@ -184,6 +192,15 @@ export function DiscoverPage({
                 Details
               </button>
             )}
+          </div>
+        )}
+        {snapshot?.trust && !snapshot.trust.fresh && (
+          <div className="banner subtle" role="status">
+            <Info size={16} />
+            <span>
+              {snapshot.trust.error ??
+                'Checking catalogue removals and release restrictions. Install and Update will become available after verification.'}
+            </span>
           </div>
         )}
         <div className="catalogue-controls">
@@ -279,7 +296,7 @@ export function DiscoverPage({
           <span>
             {snapshot?.preview
               ? 'Preview from the Balatro Mod Index'
-              : 'From the Balatro Mod Index'}
+              : 'From Modatro and legacy catalogue sources'}
             <ExternalLink size={11} />
           </span>
         </div>
@@ -311,9 +328,10 @@ export function DiscoverPage({
                     <span title={`Version ${mod.version}`}>{mod.version}</span>
                   </div>
                   <p className="mod-description">
-                    {plainText(mod.description) ||
+                    {plainText(allowedDescription(mod)) ||
                       'Explore this community-made addition to Balatro.'}
                   </p>
+                  <span className="muted-text">{approvalLabel(mod)}</span>
                   <div className="requirement-badges">
                     {mod.prerequisites.length ? (
                       mod.prerequisites.slice(0, 2).map((p) => (

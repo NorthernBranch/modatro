@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "example/example-mod",
+  "name": "Example Mod",
+  "author": "ExampleAuthor",
+  "version": "1.4.0",
+  "permissions": { "display": true, "install": true, "update": true },
+  "distribution": {
+    "repository": "https://github.com/example/example-mod",
+    "releaseUrl": "https://github.com/example/example-mod/releases/download/v1.4.0/example.zip",
+    "sourceType": "release-asset",
+    "releaseTag": "v1.4.0"
+  },
+  "requirements": { "lovely": ">=0.9.0", "steamodded": ">=1.0.0" },
+  "installation": { "type": "mods-directory", "folder": "ExampleMod" },
+  "description": "An example of author-controlled catalogue metadata."
+}

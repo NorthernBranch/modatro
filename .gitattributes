@@ -1,0 +1,12 @@
+# Keep checked-out source identical on Windows, macOS and Linux.
+* text=auto eol=lf
+
+# Binary assets and non-runnable executable fixtures must keep their exact bytes.
+*.png binary
+*.ico binary
+*.icns binary
+*.exe binary
+*.dll binary
+*.dmg binary
+*.zip binary
+*.gz binary

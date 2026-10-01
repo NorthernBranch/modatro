@@ -1,5 +1,6 @@
 import { evaluateDependencies, hasUpdate } from './dependencies';
 import type { DependencyStatus, ModDefinition, Snapshot } from './model';
+import { automationReason } from './trust';
 export function plainText(markdown = ''): string {
   return markdown
     .replace(/<[^>]*>/g, '')
@@ -28,6 +29,13 @@ export function requirements(mod: ModDefinition, snapshot: Snapshot): Dependency
 export function eligibility(mod: ModDefinition, snapshot: Snapshot): string | undefined {
   if (snapshot.preview) return 'Open the desktop app to install';
   if (snapshot.safetyError) return 'File changes are locked';
+  const managed = snapshot.localMods.some((local) => local.id === mod.id && local.managed);
+  const policy = automationReason(mod, managed);
+  if (policy) return policy;
+  if (snapshot.trust && !snapshot.trust.fresh)
+    return (
+      snapshot.trust.error ?? 'Connect and refresh removal and release checks before installing.'
+    );
   if (mod.unavailableReason) return 'Metadata unavailable';
   if (mod.installation.type === 'unsupported') return 'Automatic install not supported';
   if (!snapshot.validation?.valid || !snapshot.settings.modsPath)

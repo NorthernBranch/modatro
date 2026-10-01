@@ -91,6 +91,26 @@ export function PrerequisitesPage({
                       </dd>
                     </div>
                   </dl>
+                  {prerequisite.provenance && (
+                    <details>
+                      <summary>Installed source</summary>
+                      <p>{prerequisite.provenance.repositoryUrl ?? 'Repository not recorded'}</p>
+                      <p>
+                        {prerequisite.provenance.downloadUrl ??
+                          'Installed externally; download not recorded'}
+                      </p>
+                      <p>
+                        Release:{' '}
+                        {prerequisite.provenance.releaseTag ??
+                          prerequisite.provenance.commitSha ??
+                          'Not recorded'}
+                      </p>
+                      <p>
+                        Archive SHA-256:{' '}
+                        <code>{prerequisite.provenance.sha256 ?? 'Not recorded'}</code>
+                      </p>
+                    </details>
+                  )}
                   {prerequisite.latestError && (
                     <p role="status" className="muted-text">
                       {prerequisite.latestError}.{' '}
