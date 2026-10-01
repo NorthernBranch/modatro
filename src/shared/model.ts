@@ -1,0 +1,275 @@
+import { z } from 'zod';
+
+export const SafeName = z
+  .string()
+  .min(1)
+  .max(120)
+  .regex(/^[a-zA-Z0-9_@.+ -]+$/)
+  .refine(
+    (v) =>
+      !/^\.+$/.test(v) &&
+      !/[. ]$/.test(v) &&
+      !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(v),
+    'Unsafe filename',
+  );
+export const RelativePath = z
+  .string()
+  .min(1)
+  .max(1024)
+  .refine(
+    (v) =>
+      !v.includes('\\') &&
+      !v.includes('\0') &&
+      !v.startsWith('/') &&
+      v.split('/').every((s) => SafeName.safeParse(s).success),
+    'Unsafe relative path',
+  );
+export const HttpsUrl = z.url().refine((v) => {
+  const u = new URL(v);
+  return u.protocol === 'https:' && !u.username && !u.password;
+}, 'Only HTTPS links are supported');
+export const DependencySchema = z.object({
+  id: z.string().min(1),
+  displayName: z.string().min(1),
+  versionConstraint: z.string().optional(),
+  required: z.boolean(),
+});
+export type DependencyRequirement = z.infer<typeof DependencySchema>;
+export const InstallationSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('auto') }),
+  z.object({ type: z.literal('standard'), sourceRoot: RelativePath.optional() }),
+  z.object({ type: z.literal('single-file') }),
+  z.object({ type: z.literal('lovely-patch') }),
+  z.object({
+    type: z.literal('game-replacement'),
+    files: z.array(z.object({ source: RelativePath, destination: RelativePath })).min(1),
+  }),
+  z.object({ type: z.literal('unsupported'), instructions: z.string().optional() }),
+]);
+export type InstallationDefinition = z.infer<typeof InstallationSchema>;
+export const ModSchema = z.object({
+  id: SafeName,
+  title: z.string().min(1).max(200),
+  author: z.string().min(1).max(200),
+  version: z.string().min(1).max(100),
+  description: z.string().max(30000).optional(),
+  repositoryUrl: HttpsUrl.optional(),
+  downloadUrl: HttpsUrl,
+  categories: z.array(z.string()).max(30),
+  sourceCategories: z.array(z.string()).optional(),
+  folderName: SafeName.optional(),
+  prerequisites: z.array(DependencySchema).max(100),
+  installation: InstallationSchema.default({ type: 'auto' }),
+  unavailableReason: z.string().optional(),
+  updatedAt: z.number().optional(),
+});
+export type ModDefinition = z.infer<typeof ModSchema>;
+export type DependencyState = 'satisfied' | 'missing' | 'outdated' | 'incompatible' | 'unknown';
+export interface DependencyStatus extends DependencyRequirement {
+  state: DependencyState;
+  installedVersion?: string;
+  reason: string;
+}
+export interface Prerequisite {
+  id: string;
+  displayName: string;
+  installed: boolean;
+  installedVersion?: string;
+  latestVersion?: string;
+  latestError?: string;
+  sourceUrl: string;
+  instructions?: string;
+}
+export interface ValidationProblem {
+  code: string;
+  message: string;
+}
+export interface PathValidationResult {
+  valid: boolean;
+  canonicalPath?: string;
+  detectedPlatform?: 'windows' | 'macos';
+  detectedVersion?: string;
+  problems: ValidationProblem[];
+  warnings: ValidationProblem[];
+}
+export interface GameCandidate {
+  path: string;
+  validation: PathValidationResult;
+}
+export const SettingsSchema = z.object({
+  gamePath: z.string().optional(),
+  modsPath: z.string().optional(),
+  theme: z.enum(['dark', 'light', 'system']).default('dark'),
+  setupComplete: z.boolean().default(false),
+});
+export type Settings = z.infer<typeof SettingsSchema>;
+export const RootSchema = z.enum(['mods', 'game', 'disabled']);
+export type FileRoot = z.infer<typeof RootSchema>;
+export const HashSchema = z.string().regex(/^[a-f0-9]{64}$/);
+export const InstalledFileSchema = z.object({
+  root: RootSchema,
+  path: RelativePath,
+  operation: z.enum(['created', 'replaced']),
+  installedHash: HashSchema,
+  originalHash: HashSchema.optional(),
+  backupPath: RelativePath.optional(),
+});
+export type InstalledFileRecord = z.infer<typeof InstalledFileSchema>;
+export const RecordSchema = z
+  .object({
+    modId: SafeName,
+    title: z.string(),
+    modVersion: z.string(),
+    installedAt: z.iso.datetime(),
+    files: z.array(InstalledFileSchema).min(1),
+    dependencies: z.array(DependencySchema),
+    source: HttpsUrl,
+    disabled: z.boolean().default(false),
+    adopted: z.boolean().default(false),
+    folderName: SafeName,
+    transactionId: z.string(),
+    metadataId: z.string().optional(),
+  })
+  .superRefine((r, ctx) => {
+    if (new Set(r.files.map((f) => `${f.root}:${f.path.toLowerCase()}`)).size !== r.files.length)
+      ctx.addIssue({ code: 'custom', message: 'Duplicate owned files' });
+    for (const f of r.files)
+      if (f.operation === 'replaced' && (!f.backupPath || !f.originalHash))
+        ctx.addIssue({ code: 'custom', message: 'Replacement is missing its original backup' });
+  });
+export type InstallationRecord = z.infer<typeof RecordSchema>;
+export const StateSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    settings: SettingsSchema,
+    installations: z.array(RecordSchema),
+    lastTransaction: z.string().optional(),
+  })
+  .superRefine((s, ctx) => {
+    const owners = s.installations.flatMap((r) =>
+      r.files.map((f) => `${f.root}:${f.path.toLowerCase()}`),
+    );
+    if (
+      new Set(owners).size !== owners.length ||
+      new Set(s.installations.map((r) => r.modId)).size !== s.installations.length
+    )
+      ctx.addIssue({ code: 'custom', message: 'Conflicting installation ownership' });
+  });
+export type AppState = z.infer<typeof StateSchema>;
+export type ModState =
+  | 'not-installed'
+  | 'installed'
+  | 'disabled'
+  | 'update-available'
+  | 'installing'
+  | 'updating'
+  | 'broken'
+  | 'unmanaged';
+export interface LocalMod {
+  id: string;
+  title: string;
+  version?: string;
+  state: ModState;
+  managed: boolean;
+  folderName: string;
+  canAdopt: boolean;
+  problems: string[];
+  dependencies?: DependencyRequirement[];
+}
+export interface Catalogue {
+  mods: ModDefinition[];
+  fetchedAt?: string;
+  stale: boolean;
+  refreshing: boolean;
+  error?: string;
+  rejected: number;
+}
+export interface Snapshot {
+  settings: Settings;
+  validation?: PathValidationResult;
+  catalogue: Catalogue;
+  localMods: LocalMod[];
+  prerequisites: Prerequisite[];
+  candidates: GameCandidate[];
+  platform: string;
+  arch: string;
+  appVersion: string;
+  electronVersion: string;
+  safetyError?: string;
+  discoveryError?: string;
+  preview?: boolean;
+  operationReport?: OperationReport;
+}
+export interface OperationReport {
+  title: string;
+  retainedFiles: string[];
+  cleanupProblems: string[];
+}
+export interface Progress {
+  modId: string;
+  phase:
+    | 'downloading'
+    | 'validating'
+    | 'planning'
+    | 'backing-up'
+    | 'installing'
+    | 'rolling-back'
+    | 'complete';
+  percent?: number;
+}
+export interface FileConflict {
+  root: FileRoot;
+  path: string;
+  reason: string;
+  owner?: string;
+  canRestore: boolean;
+}
+export interface AppError {
+  message: string;
+  details?: string;
+  conflicts?: FileConflict[];
+  requirements?: DependencyStatus[];
+  retryable?: boolean;
+}
+export type Reply<T> = { ok: true; value: T } | { ok: false; error: AppError };
+export type ModAction = 'install' | 'update' | 'uninstall' | 'disable' | 'enable' | 'adopt';
+export interface ConflictDecision {
+  root: FileRoot;
+  path: string;
+  action: 'keep' | 'restore';
+}
+export interface PlannedFile {
+  root: FileRoot;
+  path: string;
+  source?: string;
+  hash?: string;
+}
+export interface PlannedReplacement extends PlannedFile {
+  previousHash: string;
+}
+export interface InstallPlan {
+  modId: string;
+  version: string;
+  create: PlannedFile[];
+  replace: PlannedReplacement[];
+  remove: PlannedFile[];
+  prerequisites: DependencyStatus[];
+  conflicts: FileConflict[];
+}
+export interface ModatroApi {
+  snapshot(): Promise<Reply<Snapshot>>;
+  refresh(): Promise<Reply<Snapshot>>;
+  detect(): Promise<Reply<Snapshot>>;
+  choosePath(kind: 'game' | 'mods'): Promise<Reply<Snapshot>>;
+  selectCandidate(path: string): Promise<Reply<Snapshot>>;
+  saveSettings(settings: Pick<Settings, 'theme' | 'setupComplete'>): Promise<Reply<Snapshot>>;
+  action(id: string, action: ModAction, decisions?: ConflictDecision[]): Promise<Reply<Snapshot>>;
+  cancel(): Promise<Reply<void>>;
+  openFolder(kind: 'game' | 'mods' | 'logs' | 'backups' | 'cache'): Promise<Reply<void>>;
+  openLink(url: string): Promise<Reply<void>>;
+  launch(modded: boolean): Promise<Reply<void>>;
+  diagnostics(): Promise<Reply<string>>;
+  importDefinition(): Promise<Reply<Snapshot>>;
+  onProgress(callback: (progress: Progress) => void): () => void;
+  onSnapshot(callback: (snapshot: Snapshot) => void): () => void;
+}

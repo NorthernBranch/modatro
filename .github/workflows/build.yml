@@ -1,0 +1,59 @@
+name: Test and build installers
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win --x64
+            artifact: windows-x64
+            executable: release/win-unpacked/Modatro.exe
+          - os: macos-latest
+            target: --mac --arm64
+            artifact: macos-arm64
+            executable: release/mac-arm64/Modatro.app/Contents/MacOS/Modatro
+          - os: macos-15-intel
+            target: --mac --x64
+            artifact: macos-x64
+            executable: release/mac/Modatro.app/Contents/MacOS/Modatro
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: pnpm/action-setup@v6
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm exec install-electron
+      - run: pnpm exec playwright install chromium
+      - run: pnpm test:ui
+      - name: Package review artifacts
+        run: pnpm exec electron-builder ${{ matrix.target }} --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Verify packaged desktop startup
+        run: pnpm exec playwright test tests/desktop.spec.ts
+        env:
+          MODATRO_PACKAGED_EXECUTABLE: ${{ github.workspace }}/${{ matrix.executable }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Modatro-${{ matrix.artifact }}
+          path: |
+            release/*.exe
+            release/*.dmg
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,15 @@
+{
+  "id": "example-replacement",
+  "title": "Example file replacement (template)",
+  "author": "Replace with the real author",
+  "version": "1.0.0",
+  "description": "Template only. Replace the download URL and exact archive mappings before importing. Modatro will display the files before installation and back up existing originals.",
+  "downloadUrl": "https://github.com/EXAMPLE/REPLACE-ME/releases/download/v1.0.0/mod.zip",
+  "repositoryUrl": "https://github.com/EXAMPLE/REPLACE-ME",
+  "categories": ["Resource Packs"],
+  "prerequisites": [],
+  "installation": {
+    "type": "game-replacement",
+    "files": [{ "source": "release/foo.lua", "destination": "foo.lua" }]
+  }
+}

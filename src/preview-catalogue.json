@@ -1,0 +1,230 @@
+{
+  "fetchedAt": "2026-10-01T09:51:07.486Z",
+  "mods": [
+    {
+      "folder": "Blazingulag@Prism",
+      "metadata": {
+        "title": "Prism",
+        "requires-steamodded": true,
+        "requires-talisman": false,
+        "categories": [
+          "Content"
+        ],
+        "author": "Blazingulag",
+        "repo": "https://github.com/blazingulag/Prism",
+        "downloadURL": "https://github.com/blazingulag/Prism/archive/refs/heads/main.zip",
+        "folderName": "Prism",
+        "automatic-version-check": true,
+        "version": "aba0b4d",
+        "last-updated": 1786660271
+      },
+      "description": "Prism is a content mod that aims to enrich the Balatro experience while maintaining the vanilla feel\n\n# Content\n\nThe mod currently adds:\n- A brand new Consumable type: Myth Cards\n- Over 30 new Jokers\n- New Enhancements and Seals\n- New Decks with matching Card Sleeves (Requires [CardSlevees](https://github.com/larswijn/CardSleeves))\n- And much more\n\nYou can see a more detailed list of additions in the mods [Wiki](https://balatromods.miraheze.org/wiki/Prism)\n\n# Requirements\n- [Steamodded](https://github.com/Steamopollys/Steamodded)\n- [Lovely](https://github.com/ethangreen-dev/lovely-injector)\n\n# Known Issues\n- Using the mod together with Codex Arcanum will crash the game, using [Redux Arcanum](https://github.com/jumbocarrot0/Redux-Arcanum) instead fixes the issue\n\n# Credits\n- Chinese localization by 姓氏是个毛 and VisJoker\n- Spanish localization by Frander\n- Vietnamese localization by Shinosan\n"
+    },
+    {
+      "folder": "Aikoyori@Aikoyoris-Shenanigans",
+      "metadata": {
+        "title": "Aikoyori's Shenanigans",
+        "requires-steamodded": true,
+        "requires-talisman": false,
+        "categories": [
+          "Content"
+        ],
+        "author": "Aikoyori",
+        "repo": "https://github.com/Aikoyori/Balatro-Aikoyoris-Shenanigans",
+        "downloadURL": "https://github.com/Aikoyori/Balatro-Aikoyoris-Shenanigans/archive/refs/heads/stable.zip",
+        "automatic-version-check": true,
+        "version": "5310373",
+        "last-updated": 1787329244
+      },
+      "description": "Basically a content mod where I add whatever I feel like adding.\r\n\r\nThe thumbnail is still not doing this mod's justice because there are way more than what's there.\r\n\r\n## What does it have?\r\n\r\nThis mod features (as of time writing this)\r\n- 50+ Jokers and!\r\n- At least three unique new mechanics never before seen in Balatro!\r\n- Literally play Scrabble in Balatro\r\n- 11 Planet Cards and at least 25 consumables (I ain't putting the exact numbers)!\r\n- Two Balance Mode for either a Balanced experience or number go up mode\r\n- 40+ Boss Blinds\r\n- 10+ Card Enhancements\r\n- 6 Decks\r\n- Hardcore Challenge Mode (for those looking to test their mod set)\r\n- A lot of cross-mod content! (I am looking for more cross-mod so if you make a mod please let me know!)\r\n- More to come!\r\n\r\n## What, what?\r\nYes, that's right, this mod features a \"Balance\" system (which is basically just Cryptid gameset in disguise) \r\nwhere you can pick the number you want to play with depending on your mood!\r\n\r\n> Note: Absurd Balance (the likes of Cryptid) requires [Talisman](https://github.com/SpectralPack/Talisman) to be installed. Talisman is not essential if you want to play Adequate (Vanilla) Balance\r\n\r\n## But...\r\nThat's not it. This mod features a bunch of cross-mod content already from the likes of More Fluff, Card Sleeves, Partners, and more!\r\n\r\n## I haven't even said a thing yet\r\nOh.\r\n\r\n## I wanted to ask if I can spell swear words when playing the so called Scrabble?\r\nThat's for you to find out! Download now!\r\n\r\n## What if I have more questions?\r\nFeel free to ask in [Discord Server](https://discord.gg/JVg8Bynm7k) for the mod or open an issue!\r\n\r\n## Credits\r\n`@larantula_l` on Discord for their art contributions\r\n`@eggymari` on Discord for their ?????? Joker Art\r\n\r\n@nh_6574 for his Card UI code \r\n\r\nBalatro Discord for everything else"
+    },
+    {
+      "folder": "Steamodded@smods",
+      "metadata": {
+        "title": "Steamodded",
+        "requires-steamodded": false,
+        "requires-talisman": false,
+        "categories": [
+          "Technical"
+        ],
+        "author": "Steamodded",
+        "repo": "https://github.com/Steamodded/smods",
+        "downloadURL": "https://github.com/Steamodded/smods/archive/refs/tags/26.829.0.zip",
+        "automatic-version-check": true,
+        "version": "26.829.0",
+        "last-updated": 1788038614
+      },
+      "description": "# Steamodded - A Balatro ModLoader\n\n## Introduction\n\nSteamodded is a mod loader and injector for the game Balatro. Much like the [LÖVE framework](https://love2d.org/wiki/Main_Page) itself, it is built using [Lua](https://www.lua.org/). It is made with modularity and extensibility in mind, providing a large selection of APIs and other features to facilitate bringing your ideas to life.\n\n\n## Features\n\nDocumentation for this project is currently incomplete. A collection of documentation pages and guides that are currently available can be found [here](https://github.com/Steamopollys/Steamodded/wiki).\n\n## Contributing\n\nThis project is open for contribution; feel free to open a pull request. If you are adding new features, providing documentation is highly appreciated.\n\n## License\n\nThis project is licensed under the GNU General Public License. This ensures that the software is free to use, modify, and distribute. For more details, click [here](https://github.com/Steamopollys/Steamodded/actions?tab=GPL-3.0-1-ov-file)\n"
+    },
+    {
+      "folder": "BakersDozenBagels@Bakery",
+      "metadata": {
+        "title": "Bakery",
+        "requires-steamodded": true,
+        "requires-talisman": false,
+        "categories": [
+          "Content",
+          "Joker",
+          "Miscellaneous"
+        ],
+        "author": "BakersDozenBagels",
+        "repo": "https://github.com/BakersDozenBagels/BalatroBakery",
+        "downloadURL": "https://github.com/BakersDozenBagels/BalatroBakery/archive/refs/heads/main.zip",
+        "automatic-version-check": true,
+        "version": "6feee82",
+        "last-updated": 1786463470
+      },
+      "description": "# Bakery\n\nWelcome into the Bakery! This mod contains a bunch of miscellaneous content additions, mostly focusing on unique one-off mechanics. It's intended to be balanced like vanilla. This mod receives pretty frequent updates, from new content to minor bugfixes.\n"
+    },
+    {
+      "folder": "Aure@SixSuits",
+      "metadata": {
+        "title": "Six Suits",
+        "requires-steamodded": true,
+        "requires-talisman": false,
+        "categories": [
+          "Content"
+        ],
+        "author": "Aure",
+        "repo": "https://github.com/Aurelius7309/SixSuits",
+        "downloadURL": "https://github.com/Aurelius7309/SixSuits/archive/refs/heads/master.zip",
+        "automatic-version-check": true,
+        "version": "d2044ee"
+      },
+      "description": "# Six Suits\nThis mod adds the Star and Moon suits to the game, along with the Spectrum hand type *(which comes with some hidden hands)* and 7 new jokers.\n> Code by Aure\n> Art by Crimson Heart"
+    },
+    {
+      "folder": "DigitalDetective47@NextAntePreview",
+      "metadata": {
+        "title": "Next Ante Preview",
+        "requires-steamodded": true,
+        "requires-talisman": false,
+        "categories": [
+          "Quality of Life"
+        ],
+        "author": "DigitalDetective47",
+        "repo": "https://github.com/DigitalDetective47/next-ante-preview",
+        "downloadURL": "https://github.com/DigitalDetective47/next-ante-preview/archive/refs/heads/main.zip",
+        "automatic-version-check": true,
+        "version": "86f76df",
+        "last-updated": 1757369749
+      },
+      "description": "# Next Ante Preview\n\nShows a preview of the next ante on the Boss Blind's cash out screen, so that you don't have to always click Run Info after going into the shop.\n"
+    },
+    {
+      "folder": "AmazinDooD@ScrollableDescriptions",
+      "metadata": {
+        "title": "ScrollableDescriptions",
+        "requires-steamodded": true,
+        "requires-talisman": false,
+        "categories": [
+          "Quality of Life",
+          "Miscellaneous"
+        ],
+        "author": "AmazinDooD",
+        "repo": "https://github.com/AmazinDooD/ScrollableDescriptions",
+        "downloadURL": "https://github.com/AmazinDooD/ScrollableDescriptions/archive/refs/heads/main.zip",
+        "version": "dc846b4",
+        "automatic-version-check": true,
+        "fixed-release-tag-updates": false,
+        "last-updated": 1784221402
+      },
+      "description": "# Has this ever happened to you?\nYou want to play a Balatro mod, but the description of a card is too long to fit on your screen!\n\nWell that's exactly what happened to me, and that prompted me to make a mod to fix it. So I did!\n\nJust simply:\n1. Download this mod\n2. Launch Balatro\n3. Use the arrow keys (by default) to move any description text around the screen, and use Home (again, by default) to return it to its original position\n4. Open the mod's settings page to change the keybinds or scroll distance\n5. Congratulations!\n\n# ScrollableDescriptions\nA Balatro mod that allows you to move the description text of cards. Useful when the text is too long to fit on your screen.\n\nCredit to real-niacat for polishing and improving my code!\n"
+    },
+    {
+      "folder": "CeruleanK@SharpCards",
+      "metadata": {
+        "title": "Sharp Cards",
+        "requires-steamodded": true,
+        "requires-talisman": false,
+        "categories": [
+          "Quality of Life"
+        ],
+        "author": "CeruleanKay",
+        "repo": "https://github.com//CeruleanKay/sharpcards",
+        "downloadURL": "https://github.com/CeruleanKay/sharpcards/releases/latest/download/v1.0.0.zip",
+        "folderName": "SharpCards",
+        "version": "1.0.0",
+        "automatic-version-check": false
+      },
+      "description": "Enhanced 2x detail textures for vanilla. Subtle design changes for the higher resolution make cards clearer and easier to read.\n"
+    },
+    {
+      "folder": "Breezebuilder@SystemClock",
+      "metadata": {
+        "title": "SystemClock",
+        "requires-steamodded": false,
+        "requires-talisman": false,
+        "categories": [
+          "Quality of Life",
+          "Miscellaneous"
+        ],
+        "author": "Breezebuilder",
+        "repo": "https://github.com/Breezebuilder/SystemClock",
+        "downloadURL": "https://github.com/Breezebuilder/SystemClock/releases/download/v1.7.1/SystemClock-v1.7.1.zip",
+        "automatic-version-check": false,
+        "version": "v1.7.1"
+      },
+      "description": "# Local time in-game! \n\nSystemClock adds a draggable, resizable, customisable clock to the game screen.<br>\nIt includes 5 editable presets and supports a variety of time formats, UI styles, and color options.<br>\nKeep track of time - don't fall into the Black Hole."
+    },
+    {
+      "folder": "CampfireCollective@ExtraCredit",
+      "metadata": {
+        "title": "ExtraCredit",
+        "requires-steamodded": true,
+        "requires-talisman": false,
+        "categories": [
+          "Joker",
+          "Content"
+        ],
+        "author": "CampfireCollective",
+        "repo": "https://github.com/GuilloryCraft/ExtraCredit",
+        "downloadURL": "https://github.com/GuilloryCraft/ExtraCredit/archive/refs/heads/main.zip",
+        "automatic-version-check": true,
+        "version": "1321784",
+        "last-updated": 1781426184
+      },
+      "description": "# Extra Credit\nA small-scale vanilla-style content mod for Balatro University.\n\n## Features\n\n- 45 jokers with new effects and art :)\n\n- 3 cool new decks too!\n\n## Credits\n\nMade by CampfireCollective and Balatro University Community.\n"
+    },
+    {
+      "folder": "ECLA17@PixelPerfect",
+      "metadata": {
+        "title": "pixelperfect",
+        "requires-steamodded": true,
+        "requires-talisman": true,
+        "categories": [
+          "Content"
+        ],
+        "author": "ecla17",
+        "repo": "https://github.com/MacPlayz12/Pixel-Perfect",
+        "downloadURL": "https://github.com/MacPlayz12/Pixel-Perfect/releases/latest/download/pixelperfect.zip",
+        "folderName": "pixelperfect",
+        "version": "releasev3",
+        "automatic-version-check": true,
+        "last-updated": 1760206815
+      },
+      "description": "A (un)balanced balatro mod made in jokerforge through pain, suffering, and peanut butter.\r\nrequires steammodded and talisman"
+    },
+    {
+      "folder": "ABGamma@Brainstorm-Rerolled",
+      "metadata": {
+        "title": "Brainstorm-Rerolled",
+        "requires-steamodded": false,
+        "requires-talisman": false,
+        "categories": [
+          "Content",
+          "Technical",
+          "Miscellaneous"
+        ],
+        "author": "OceanRamen and ABGamma",
+        "repo": "https://github.com/ABGamma/Brainstorm-Rerolled/",
+        "downloadURL": "https://github.com/ABGamma/Brainstorm-Rerolled/releases/latest/download/Brainstorm-Rerolled.zip",
+        "folderName": "Brainstorm-Rerolled",
+        "version": "Brainstorm-Rerolled-1.0.2-alpha",
+        "automatic-version-check": true,
+        "last-updated": 1767287568
+      },
+      "description": "# Brainstorm Rerolled\nThis is a fork of both [Brainstorm](https://github.com/OceanRamen/Brainstorm) created by [OceanRamen](https://github.com/OceanRamen) as well as [Immolate](https://github.com/SpectralPack/Immolate) please give credit to them as I have simply modified the hard work they did\n\n# /!\\ Not compatible with macOS /!\\\n\n## Description\nThis repository houses both the code for the brainstorm mod as well as the code for the C++ version of the Immolate seed finder. If you would like to create your own filters simply \nadd the code to the Immolate.cpp file, update the brainstorm endpoints to include whatever you need and then build it. This will generate a dll\nthat you can then place in the mods folder of balatro. The brainstorm mod will automatically detect the dll and use it, though you will need to update the brainstorm.lua and ui.lua \nin order to properly use your new options\n\n## Features\n### Save-States\nBrainstorm has the capability to save up to 5 save-states through the use of in-game key binds. \n> To create a save-state: Hold `z + 1-5`\n> To load a save-state:\tHold `x + 1-5`\n\nEach number from 0 - 5 corresponds to a save slot. To overwrite an old save, simply create a new save-state in it's slot. \n\n### Fast Rerolling\nBrainstorm allows for super-fast rerolling through the use of an in-game key bind. \n> To fast-roll:\tPress `Ctrl + r`\n\n### Auto-Rerolling\nBrainstorm can automatically reroll for parameters as specified by the user.\nYou can edit the Auto-Reroll parameters in the Brainstorm in-game settings page.\n> To Auto-Reroll:\tPress `Ctrl + a`\n\n### Various Filters\nIn addition to the original filters from brainstorm I have added a few more filters that can help facilitate Crimson Bean or simply an easy early game  \n\nANTE 8 BEAN: This ensures you get a Turtle Bean within the first 150 items in the shop  \nLATE BURGLAR: This ensures there is a burglar within the first 50-150 cards in the ante 6, 7, or 8 shop  \nRETCON: This ensures that the retcon voucher appears before or in ante 8  \nEARLY COPY + MONEY: This ensures that between the shop and the packs in ante 1 you get a brainstorm, blueprint, and some form of money generation\n\n### Custom Filtering\nI have added some basic code and an example to go off of to create custom filters. I have set it up so that custom filters will override any other selected filter to avoid crashes. If you want to use\nthe mod as originally created simply keep the custom filters set to \"No Filter\". If you want to create your own custom filters you will need to edit immolate.cpp and immolate.hpp to add your custom filter similar to how I added the \"Negative Blueprint\" filter\nonce added there you can build it and then copy the resulting dll into the brainstorm mod folder. Then you need to update the ui.lua and brainstorm.lua too add your new filter to the list.\n\n#### Adding Custom Filters\n1. Open immolate.hpp\n\t1. Add the name of your new filter to `enum class customFilters`\n\t1. Add a new case in `inline std::string filterToString(customFilters f)` for your new filter\n\t1. add a new if statement in `inline customFilters stringToFilter(std::string i)` for your new filter\n1. Open immolate.cpp\n\t1. Add a new case in the switch statement for your filter to `long filter(Instance inst)`\n\t1. Add corresponding code inside of that case for your custom filter\n1. Save and build the C++ code and copy the resulting dll into the brainstorm mod folder\n1. Open ui.lua\n\t1. Add a new entry to the `local custom_filter_list` corresponding to your new filter\n\t1. Add a new entry to the `local custom_filter_keys` corresponding to your new filter\n1. Save ui.lua and run the game\n1. Your new filter should now be usable in the brainstorm settings"
+    }
+  ]
+}
