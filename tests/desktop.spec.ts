@@ -55,9 +55,29 @@ test('desktop has an isolated renderer, working preload and validated IPC', asyn
     if (reply.ok) {
       expect(reply.value.preview).toBeUndefined();
       expect(reply.value.settings.gamePath).toBeUndefined();
+      const pkg = JSON.parse(await fs.readFile(path.resolve('package.json'), 'utf8'));
+      expect(reply.value.appVersion).toBe(pkg.version);
     }
     const invalidLink = await page.evaluate(() => window.modatro!.openLink('file:///etc/passwd'));
     expect(invalidLink.ok).toBe(false);
+    const unsupportedConsent = await page.evaluate(() =>
+      window.modatro!.action('fixture', 'install', undefined, undefined, [
+        { id: 'Talisman', versionConstraint: '>=1.0.0' },
+      ]),
+    );
+    expect(unsupportedConsent.ok).toBe(false);
+    if (!unsupportedConsent.ok)
+      expect(unsupportedConsent.error.details).toContain('acceptedUnverified');
+    const loaderConsent = await page.evaluate(() =>
+      window.modatro!.action('fixture', 'install', undefined, undefined, [
+        { id: 'Lovely', versionConstraint: '>=1.0.0' },
+      ]),
+    );
+    expect(loaderConsent.ok).toBe(false);
+    if (!loaderConsent.ok)
+      expect(loaderConsent.error.message).toBe(
+        'This mod is not in the validated catalogue. Refresh and try again.',
+      );
     await page.getByRole('button', { name: 'Browse for now' }).click();
     await expect(page.getByRole('heading', { name: 'Make the game your own.' })).toBeVisible();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();

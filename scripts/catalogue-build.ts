@@ -5,6 +5,7 @@ import {
   NativeCatalogueSchema,
   NativeEntrySchema,
   AuthorManifestSchema,
+  CatalogueOverridesSchema,
 } from '../src/shared/catalogue-schema';
 import { BlockedReleasesSchema, RevocationsSchema, sourceType } from '../src/shared/trust';
 import { validateRemoteUrl } from '../electron/services/network';
@@ -50,6 +51,9 @@ export async function compileCatalogue(root: string, check = false) {
   BlockedReleasesSchema.parse(
     JSON.parse(await fs.readFile(path.join(root, 'blocked-releases.json'), 'utf8')),
   );
+  CatalogueOverridesSchema.parse(
+    JSON.parse(await fs.readFile(path.join(root, 'overrides.json'), 'utf8')),
+  );
   const file = path.join(root, 'index.json');
   const existing = check
     ? NativeCatalogueSchema.parse(JSON.parse(await fs.readFile(file, 'utf8')))
@@ -73,6 +77,7 @@ export async function compileCatalogue(root: string, check = false) {
       manifest: AuthorManifestSchema,
       revocations: RevocationsSchema,
       'blocked-releases': BlockedReleasesSchema,
+      overrides: CatalogueOverridesSchema,
     })) {
       await fs.writeFile(
         path.join(root, 'schema', `${name}.schema.json`),

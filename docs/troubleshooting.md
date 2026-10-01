@@ -18,6 +18,29 @@ normally under `%APPDATA%\Modatro` on Windows or
 lowercase folder name `modatro`. Linux uses Electron's application-data directory
 under `$XDG_CONFIG_HOME` or `~/.config/`, normally `modatro` or `Modatro`.
 
+## macOS says Modatro is damaged
+
+Earlier preview packages could retain an incomplete Electron signature after
+packaging. The app could start in a development smoke test while failing macOS's
+signature checks once downloaded. Updated builds sign the complete app, including
+nested frameworks and helper apps, and verify that signature before publication.
+
+Download a newly built DMG from the project's Releases page, choose the correct
+architecture, quit Modatro and replace the app in Applications. Keep application
+data and backups. Compare the download with that release's `SHA256SUMS.txt`; a matching
+checksum establishes download integrity, not an Apple-verified publisher.
+
+Check the release's signing status. An ad-hoc preview is not notarized and may still
+be blocked by Gatekeeper. For a valid preview from this project's release that you
+choose to trust, Apple's documented **System Settings → Privacy & Security → Open
+Anyway** procedure may be available after attempting to open it. This does not
+repair an invalid signature. If the alert remains “damaged,” report the release tag,
+architecture and macOS version and use a Developer ID signed, notarized build when
+one is available.
+
+See [Apple's explanation of downloaded-app alerts](https://support.apple.com/en-gb/102445)
+and [Modatro release signing](signing.md).
+
 ## Balatro was not found
 
 **Find automatically** shows **Finding Balatro…** while checking Steam libraries.
@@ -41,7 +64,15 @@ Open **Prerequisites**, follow the linked project instructions, and choose
 official instructions.
 
 Installed status and version compatibility are separate checks. If a mod requires a
-specific version and the local files do not prove it, Modatro blocks the installation.
+specific version and the local files do not prove it, Modatro asks you to check it.
+Thunderstore package versions and loader versions are separate: adopting an external
+copy does not prove which registry package it came from. **Install catalogue release**
+records that package version without guessing; existing edits are still protected.
+For installed Lovely and Steamodded versions that cannot be verified, installing,
+updating or enabling a mod offers **Proceed at my own risk**. Continuing may cause
+crashes or prevent mods from working. Your choice applies only to that operation;
+it does not mark the version as verified. Missing prerequisites, known incompatible
+versions and unverified versions of other dependencies still block the action.
 Check the mod's upstream instructions for the supported prerequisite version. Direct
 install/update actions appear when a supported catalogue release meets the requirement;
 external installations must be adopted first. A failed latest-version check preserves
@@ -49,7 +80,7 @@ installed status and labels any last known release.
 
 ## The catalogue will not refresh
 
-Modatro keeps the last validated catalogue when a download fails or GitHub is
+Modatro keeps the last validated catalogue when Thunderstore or the GitHub supplement is
 unavailable. You can continue browsing it; a first launch without a saved catalogue
 needs a successful refresh. Check your connection and try **Refresh** again later.
 

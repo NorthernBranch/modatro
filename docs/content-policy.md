@@ -9,13 +9,19 @@ Mod authors retain ownership of their mods. Modatro does not claim ownership or
 require a copyright transfer. Downloads normally go directly from the author's
 repository or release source to the user's computer. Modatro does not host copies
 of mod archives. A different distribution source requires recorded author approval;
-automatic downloads currently support the documented HTTPS GitHub hosts only.
+automatic downloads support reviewed HTTPS GitHub sources and versioned Thunderstore
+packages through its public API and supported CDN hosts. Catalogue data and archives
+are fetched directly by the desktop application; Modatro does not mirror the registry.
 
 An entry's display, installation and update permissions are separate. Inclusion in
-the archived Balatro Mod Index is labelled **Legacy index**, and does not establish
+Thunderstore is labelled **Published on Thunderstore**, and does not establish
 explicit Modatro approval. **Author approved** means approval for catalogue inclusion,
 not a guarantee about code security. Licence metadata is informational; Modatro does
 not automatically decide whether a licence permits a particular use.
+
+Old saved index entries remain available for offline browsing while a user transitions
+to Thunderstore. They are not refreshed from the discontinued index or offered as new
+downloads. Existing installation records and file ownership remain intact.
 
 Descriptions must be author-supplied, appropriately licensed, or short factual text
 written for the index. Modatro does not scrape or reproduce full READMEs. Artwork

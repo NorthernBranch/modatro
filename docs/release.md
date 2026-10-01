@@ -1,6 +1,6 @@
 # Release information
 
-Modatro 0.1.2 is a preview of the desktop manager for Balatro on Windows,
+Modatro is a preview of the desktop manager for Balatro on Windows,
 macOS and Linux with Steam/Proton. It includes mod discovery, dependency checks, managed installations,
 updates, backups and recovery for interrupted file operations.
 
@@ -9,27 +9,33 @@ Downloads and release notes are listed on
 
 ## Automated preview downloads
 
-Each push to `main` publishes a new preview once the Windows x64, Apple Silicon
+Each push to `main` publishes a new preview once the Windows x64, Apple Silicon,
 Intel macOS and Linux builds pass their checks. A release includes every platform's installers,
 `SHA256SUMS.txt` for download verification, and a link to its exact source commit.
 If any platform build or upload fails, the release remains unpublished.
 
-Preview tags identify the version, build number and commit, for example
-`v0.1.2-build.42.aaaaaaa`. The application version and installer filenames stay at
-the version in `package.json`; use the release tag and commit link to distinguish
-builds of the same version. Application updates remain manual.
+Each workflow run assigns an increasing app version automatically, for example
+`0.2.42`, followed by `0.2.43`. Merging into `main` triggers the same process as a
+push. The renderer, Electron app, platform installers and release notes all use
+that version. Retrying a workflow retains its assigned version. There are no
+version-bump commits and no need to edit `package.json` for normal releases.
 
-Matching version tags such as `v0.1.2` publish named releases after the same checks.
+Preview tags also identify the run and commit, such as `v0.2.42-build.42.aaaaaaa`.
+Application updates remain manual. An optional tag such as `v1.0.0` can publish a
+named release; CI takes the version from the tag without a package-file edit.
 Pull requests and manual workflow runs provide build artifacts without publishing.
 
-## Changes in 0.1.2
+## Included features
 
 - Independent author-removal and release-block feeds take precedence over saved
   catalogues. Offline browsing and local management remain available.
 - New downloads record their exact source, release/commit, timestamp and archive
   SHA-256. Unexpected changes under the same immutable release stop automation.
-- Legacy index labels, separate installation/update permissions, author manifests,
-  a native catalogue compiler and public content/removal policies.
+- Live Thunderstore discovery with cached offline browsing, automatic author-controlled
+  GitHub release discovery, separate installation/update permissions and public removal policies.
+- Automatic app version increments on pushes and merges, shared by every platform installer.
+- Explicit consent when installed Lovely or Steamodded versions cannot be verified;
+  missing or known incompatible requirements remain blocked.
 - External folders and standalone Lua mods can be adopted without a catalogue entry.
   Existing installation records migrate with a saved-state backup and honest provenance.
 - Game-file changes require confirmation of the actual plan; advanced users can
@@ -50,6 +56,9 @@ Pull requests and manual workflow runs provide build artifacts without publishin
 - Startup skeletons, failed prerequisite checks, Check again actions and precise
   uninstall reports improve loading and recovery feedback.
 - Packaged desktop startup checks added to each CI platform target.
+- macOS packages receive complete bundle signatures, checked before upload. This
+  replaces incomplete inherited Electron signatures that can cause “damaged” alerts.
+  Release notes distinguish ad-hoc previews from Developer ID signed, notarized builds.
 
 See [release verification](verification.md) for specification coverage and remaining
 platform validation.
@@ -77,9 +86,16 @@ works for your user account.
 Choose the `arm64` DMG for Apple Silicon or the `x64` DMG for Intel. Open the DMG,
 drag Modatro into Applications, and open the installed app.
 
-These preview builds are unsigned and the macOS builds are not notarized. Your
-operating system may show a publisher or verification warning. Modatro does not
-change operating-system security settings.
+The release notes and accompanying `signing-macos-<arch>.json` reports state whether
+the Mac build is **ad-hoc signed** or **Developer ID signed and notarized by Apple**.
+Ad-hoc signatures seal the packaged application but do not establish an identified
+publisher or satisfy Apple's default download checks. macOS may still block them.
+Developer ID builds also have their notarization ticket stapled to the app.
+
+If macOS says the app is damaged, use a newly built installer rather than overriding
+the old package's invalid signature. See [macOS troubleshooting](troubleshooting.md#macos-says-modatro-is-damaged)
+and [release signing](signing.md). Modatro does not change operating-system security
+settings. Windows preview installers are currently unsigned.
 
 ### Updating Modatro
 
@@ -128,16 +144,19 @@ their upstream projects. Each mod's requirements are checked separately.
 - **Talisman:** a direct install action is available when a supported catalogue
   release satisfies a mod's big-number requirement.
 
-If Modatro cannot verify a required version, it blocks installation and explains the
-missing information. An installed prerequisite with an unknown version is not assumed
-to satisfy a version range.
+If an installed Lovely or Steamodded version cannot be verified, Modatro explains
+the uncertainty and offers **Proceed at my own risk** for that operation. The choice
+does not persist to other installations or updates. Missing prerequisites, known
+incompatible versions and unknown versions of other dependencies still block the
+operation. An unknown version is never reported as verified.
 
 ## Preview limitations
 
 - Linux packages target x64. Native Linux LÖVE launch and ARM Linux are not supported.
 - Mods update individually; bulk updates and automatic application updates are unavailable.
 - Mods that replace game files cannot be disabled. Uninstall restores their recorded originals.
-- Unmanaged mods can be adopted only when their metadata identifies a unique catalogue entry.
+- Unmanaged mods can be adopted when structured metadata identifies a unique local
+  mod; catalogue updates additionally require a unique catalogue match.
 - Non-semantic version strings may not produce an update notice. Balatro game-version
   requirements cannot currently be verified automatically.
 - Backups are retained after uninstall and are not automatically deleted.

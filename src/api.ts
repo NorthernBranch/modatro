@@ -7,33 +7,7 @@ declare global {
     modatro?: ModatroApi;
   }
 }
-const previewMods: ModDefinition[] = preview.mods.map(({ folder, metadata }) =>
-  ModSchema.parse({
-    id: folder,
-    title: metadata.title,
-    author: metadata.author,
-    version: metadata.version,
-    approvalStatus: 'legacy-index',
-    repositoryUrl: metadata.repo,
-    downloadUrl: metadata.downloadURL,
-    categories: metadata.categories.map(
-      (c) =>
-        (({ Joker: 'Jokers', API: 'APIs', Extension: 'Extensions' }) as Record<string, string>)[
-          c
-        ] ?? c,
-    ),
-    sourceCategories: metadata.categories,
-    prerequisites: [
-      metadata['requires-steamodded']
-        ? { id: 'Steamodded', displayName: 'Steamodded', required: true }
-        : null,
-      metadata['requires-talisman']
-        ? { id: 'Talisman', displayName: 'Talisman', required: true }
-        : null,
-    ].filter(Boolean),
-    installation: { type: 'auto' },
-  }),
-);
+const previewMods: ModDefinition[] = preview.mods.map((mod) => ModSchema.parse(mod));
 const snapshot: Snapshot = {
   settings: { theme: 'dark', setupComplete: false },
   catalogue: {
@@ -104,7 +78,13 @@ const previewApi: ModatroApi = {
     const u = new URL(url);
     if (
       u.protocol === 'https:' &&
-      ['github.com', 'smods.dev', 'www.playbalatro.com'].includes(u.hostname)
+      [
+        'github.com',
+        'smods.dev',
+        'www.playbalatro.com',
+        'thunderstore.io',
+        'wiki.thunderstore.io',
+      ].includes(u.hostname)
     ) {
       window.open(url, '_blank', 'noopener,noreferrer');
       return { ok: true, value: undefined };

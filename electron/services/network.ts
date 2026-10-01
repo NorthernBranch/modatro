@@ -12,25 +12,53 @@ const DOWNLOAD_HOSTS = new Set([
   'objects.githubusercontent.com',
   'release-assets.githubusercontent.com',
 ]);
-export function validateRemoteUrl(value: string) {
+export type RemoteSource = 'github' | 'thunderstore';
+export function validateRemoteUrl(value: string, source: RemoteSource = 'github') {
   HttpsUrl.parse(value);
   const url = new URL(value);
-  if (!DOWNLOAD_HOSTS.has(url.hostname) || (url.port && url.port !== '443'))
+  const supported =
+    source === 'github'
+      ? DOWNLOAD_HOSTS.has(url.hostname)
+      : (url.hostname === 'thunderstore.io' &&
+          (url.pathname === '/c/balatro/api/v1/package/' ||
+            /^\/package\/download\/[A-Za-z0-9_]+\/[A-Za-z0-9_]+\/\d+\.\d+\.\d+\/$/.test(
+              url.pathname,
+            ))) ||
+        (['ccdn.thunderstore.io', 'gcdn.thunderstore.io'].includes(url.hostname) &&
+          /^\/live\/repository\/packages\/[A-Za-z0-9_.-]+\.zip$/.test(url.pathname));
+  if (
+    !supported ||
+    (url.port && url.port !== '443') ||
+    url.hash ||
+    (source === 'thunderstore' && url.search)
+  )
     throw new UserError(
-      'Automatic downloads currently support HTTPS GitHub sources only. Open the repository for manual instructions.',
+      source === 'github'
+        ? 'Automatic downloads currently support HTTPS GitHub sources only. Open the repository for manual instructions.'
+        : 'This URL is outside the supported Thunderstore catalogue and download locations.',
     );
   return url;
 }
-export async function safeFetch(url: string, signal?: AbortSignal): Promise<Response> {
+export async function safeFetch(
+  url: string,
+  signal?: AbortSignal,
+  source: RemoteSource = 'github',
+): Promise<Response> {
   let current = url;
   for (let i = 0; i < 6; i++) {
-    validateRemoteUrl(current);
+    validateRemoteUrl(current, source);
     const response = await fetch(current, {
       redirect: 'manual',
       signal: signal
         ? AbortSignal.any([signal, AbortSignal.timeout(120000)])
         : AbortSignal.timeout(30000),
-      headers: { 'User-Agent': `Modatro/${version}`, Accept: 'application/vnd.github+json' },
+      headers: {
+        'User-Agent': `Modatro/${version}`,
+        Accept:
+          source === 'github'
+            ? 'application/vnd.github+json'
+            : 'application/json, application/octet-stream;q=0.9, */*;q=0.8',
+      },
     });
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get('location');
@@ -43,7 +71,7 @@ export async function safeFetch(url: string, signal?: AbortSignal): Promise<Resp
       await response.body?.cancel();
       throw new UserError(
         response.status === 403 || response.status === 429
-          ? 'GitHub’s request limit was reached. Your cached catalogue is still available; try refreshing later.'
+          ? `${source === 'github' ? 'GitHub' : 'Thunderstore'}’s request limit was reached. Your cached catalogue is still available; try refreshing later.`
           : response.status === 404 || response.status === 410
             ? 'The original download source is no longer available. Your installed copy has not been changed.'
             : `The server returned ${response.status}. Try again later.`,
@@ -75,6 +103,13 @@ export async function boundedBody(response: Response, limit: number): Promise<Bu
 export async function remoteJson(url: string): Promise<unknown> {
   return JSON.parse((await boundedBody(await safeFetch(url), 20 * 1024 * 1024)).toString('utf8'));
 }
+export async function remoteThunderstoreJson(url: string): Promise<unknown> {
+  return JSON.parse(
+    (await boundedBody(await safeFetch(url, undefined, 'thunderstore'), 20 * 1024 * 1024)).toString(
+      'utf8',
+    ),
+  );
+}
 export async function remoteText(url: string): Promise<string> {
   return (await boundedBody(await safeFetch(url), 100000)).toString('utf8');
 }
@@ -85,11 +120,12 @@ export class DownloadService {
     url: string,
     signal: AbortSignal,
     progress: (percent?: number) => void,
+    source: RemoteSource = 'github',
   ): Promise<string> {
     const part = path.join(this.directory, `${randomUUID()}.part`),
       final = part.replace('.part', '.download');
     try {
-      const response = await safeFetch(url, signal);
+      const response = await safeFetch(url, signal, source);
       this.finalUrl = response.url || url;
       if (/text\/html/i.test(response.headers.get('content-type') ?? '')) {
         await response.body?.cancel();

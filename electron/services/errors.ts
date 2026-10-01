@@ -4,7 +4,10 @@ export class UserError extends Error {
     message: string,
     public readonly conflicts?: FileConflict[],
     public readonly details?: string,
-    public readonly context?: Pick<AppError, 'requirements' | 'retryable' | 'confirmation'>,
+    public readonly context?: Pick<
+      AppError,
+      'requirements' | 'retryable' | 'confirmation' | 'unverifiedPrerequisites'
+    >,
     public readonly statusCode?: number,
   ) {
     super(message);

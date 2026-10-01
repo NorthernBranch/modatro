@@ -11,6 +11,7 @@ import {
 import { UserError } from './errors';
 import { remoteJson } from './network';
 import { Logger, Storage } from './storage';
+import { thunderstoreId } from '../../src/shared/thunderstore';
 
 const BASE = 'https://raw.githubusercontent.com/NorthernBranch/modatro/main/catalogue';
 const Cache = z.object({ revocations: RevocationsSchema, blocked: BlockedReleasesSchema });
@@ -115,11 +116,20 @@ export class CatalogueTrust {
       Date.now() - Date.parse(this.state.checkedAt) < 15 * 60 * 1000
     );
   }
-  private matches(entry: { modId: string; repositoryUrl?: string }, mod: ModDefinition) {
+  private matches(
+    entry: { modId: string; repositoryUrl?: string; packageId?: string },
+    mod: ModDefinition,
+  ) {
     return (
-      [mod.id, ...(mod.legacyIds ?? [])].some(
-        (id) => id.toLowerCase() === entry.modId.toLowerCase(),
-      ) || sameRepository(entry.repositoryUrl, mod.repositoryUrl)
+      (!!entry.packageId && entry.packageId === mod.thunderstore?.packageId) ||
+      [
+        mod.id,
+        ...(mod.legacyIds ?? []),
+        ...(mod.thunderstore
+          ? [thunderstoreId(mod.thunderstore.namespace, mod.thunderstore.name)]
+          : []),
+      ].some((id) => id.toLowerCase() === entry.modId.toLowerCase()) ||
+      sameRepository(entry.repositoryUrl, mod.repositoryUrl)
     );
   }
   apply(mod: ModDefinition): ModDefinition {
@@ -134,9 +144,12 @@ export class CatalogueTrust {
             : `Automatic installations and updates are blocked (${revocation.reason}). Your existing installation has not been changed.`,
         permissions: { display: mod.permissions?.display ?? true, install: false, update: false },
       };
-    const blocked = this.blockedReason(mod, mod.version);
+    const blocked = this.blockedReason(mod, mod.thunderstore?.packageVersion ?? mod.version);
     return blocked
-      ? { ...mod, policyReason: `Release ${mod.version} is blocked: ${blocked}` }
+      ? {
+          ...mod,
+          policyReason: `Release ${mod.thunderstore?.packageVersion ?? mod.version} is blocked: ${blocked}`,
+        }
       : mod;
   }
   blockedReason(mod: ModDefinition, version: string) {

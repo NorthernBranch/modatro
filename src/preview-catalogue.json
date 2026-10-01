@@ -1,217 +1,618 @@
 {
-  "fetchedAt": "2026-10-01T09:51:07.486Z",
+  "fetchedAt": "2026-10-01T22:22:25.410Z",
   "mods": [
     {
-      "folder": "Blazingulag@Prism",
-      "metadata": {
-        "title": "Prism",
-        "requires-steamodded": true,
-        "requires-talisman": false,
-        "categories": [
-          "Content"
+      "id": "thunderstore/Steamodded-Steamodded",
+      "title": "Steamodded",
+      "author": "Steamodded",
+      "version": "26.829.0",
+      "repositoryUrl": "https://github.com/Steamodded/smods",
+      "downloadUrl": "https://thunderstore.io/package/download/Steamodded/Steamodded/26.829.0/",
+      "categories": [
+        "Mods",
+        "Tools",
+        "Libraries"
+      ],
+      "sourceCategories": [
+        "Mods",
+        "Tools",
+        "Libraries"
+      ],
+      "prerequisites": [
+        {
+          "id": "Lovely",
+          "displayName": "Lovely",
+          "versionConstraint": ">=0.9.0",
+          "required": true,
+          "packageId": "thunderstore/Thunderstore-lovely"
+        }
+      ],
+      "installation": {
+        "type": "auto"
+      },
+      "updatedAt": 1788036406063,
+      "approvalStatus": "registry-published",
+      "metadataId": "Steamodded",
+      "legacyIds": [
+        "Steamodded@smods"
+      ],
+      "releaseSource": {
+        "sourceType": "registry",
+        "releaseTag": "26.829.0"
+      },
+      "thunderstore": {
+        "packageId": "935bea81-8ab6-45be-b592-9fad1f6cebf3",
+        "versionId": "13971161-2a70-4440-90bd-c6def7c4815c",
+        "namespace": "Steamodded",
+        "name": "Steamodded",
+        "packageVersion": "26.829.0",
+        "dependencies": [
+          "Thunderstore-lovely-0.9.0"
         ],
-        "author": "Blazingulag",
-        "repo": "https://github.com/blazingulag/Prism",
-        "downloadURL": "https://github.com/blazingulag/Prism/archive/refs/heads/main.zip",
-        "folderName": "Prism",
-        "automatic-version-check": true,
-        "version": "aba0b4d",
-        "last-updated": 1786660271
+        "packageUrl": "https://thunderstore.io/c/balatro/p/Steamodded/Steamodded/"
       }
     },
     {
-      "folder": "Aikoyori@Aikoyoris-Shenanigans",
-      "metadata": {
-        "title": "Aikoyori's Shenanigans",
-        "requires-steamodded": true,
-        "requires-talisman": false,
-        "categories": [
-          "Content"
-        ],
-        "author": "Aikoyori",
-        "repo": "https://github.com/Aikoyori/Balatro-Aikoyoris-Shenanigans",
-        "downloadURL": "https://github.com/Aikoyori/Balatro-Aikoyoris-Shenanigans/archive/refs/heads/stable.zip",
-        "automatic-version-check": true,
-        "version": "5310373",
-        "last-updated": 1787329244
+      "id": "thunderstore/Thunderstore-lovely",
+      "title": "Lovely",
+      "author": "Thunderstore",
+      "version": "0.10.0",
+      "repositoryUrl": "https://github.com/ethangreen-dev/lovely-injector",
+      "downloadUrl": "https://thunderstore.io/package/download/Thunderstore/lovely/0.10.0/",
+      "categories": [
+        "Tools",
+        "Libraries"
+      ],
+      "sourceCategories": [
+        "Tools",
+        "Libraries"
+      ],
+      "prerequisites": [],
+      "installation": {
+        "type": "game-replacement",
+        "files": [
+          {
+            "source": "winmm.dll",
+            "destination": "winmm.dll"
+          }
+        ]
+      },
+      "updatedAt": 1790177097452,
+      "approvalStatus": "registry-published",
+      "metadataId": "Lovely",
+      "legacyIds": [
+        "Lovely"
+      ],
+      "releaseSource": {
+        "sourceType": "registry",
+        "releaseTag": "0.10.0"
+      },
+      "thunderstore": {
+        "packageId": "a7b0b713-eb5e-48d3-9efb-40e5647692d1",
+        "versionId": "102555bd-4d61-44cc-b19d-06e6075f29e7",
+        "namespace": "Thunderstore",
+        "name": "lovely",
+        "packageVersion": "0.10.0",
+        "dependencies": [],
+        "packageUrl": "https://thunderstore.io/c/balatro/p/Thunderstore/lovely/"
       }
     },
     {
-      "folder": "Steamodded@smods",
-      "metadata": {
-        "title": "Steamodded",
-        "requires-steamodded": false,
-        "requires-talisman": false,
-        "categories": [
-          "Technical"
+      "id": "thunderstore/nh6574-JokerDisplay",
+      "title": "JokerDisplay",
+      "author": "nh6574",
+      "version": "2.0.4",
+      "downloadUrl": "https://thunderstore.io/package/download/nh6574/JokerDisplay/2.0.4/",
+      "categories": [
+        "Mods",
+        "Libraries",
+        "Quality of Life"
+      ],
+      "sourceCategories": [
+        "Mods",
+        "Libraries",
+        "Quality of Life"
+      ],
+      "prerequisites": [
+        {
+          "id": "Lovely",
+          "displayName": "Lovely",
+          "versionConstraint": ">=0.9.0",
+          "required": true,
+          "packageId": "thunderstore/Thunderstore-lovely"
+        }
+      ],
+      "installation": {
+        "type": "auto"
+      },
+      "updatedAt": 1790195510340,
+      "approvalStatus": "registry-published",
+      "metadataId": "JokerDisplay",
+      "releaseSource": {
+        "sourceType": "registry",
+        "releaseTag": "2.0.4"
+      },
+      "thunderstore": {
+        "packageId": "16da1074-2334-41b9-bdae-c0e106d57a97",
+        "versionId": "e0fcdabc-15e8-44db-a2e6-d8309be2ce0d",
+        "namespace": "nh6574",
+        "name": "JokerDisplay",
+        "packageVersion": "2.0.4",
+        "dependencies": [
+          "Thunderstore-lovely-0.9.0"
         ],
-        "author": "Steamodded",
-        "repo": "https://github.com/Steamodded/smods",
-        "downloadURL": "https://github.com/Steamodded/smods/archive/refs/tags/26.829.0.zip",
-        "automatic-version-check": true,
-        "version": "26.829.0",
-        "last-updated": 1788038614
+        "packageUrl": "https://thunderstore.io/c/balatro/p/nh6574/JokerDisplay/"
       }
     },
     {
-      "folder": "BakersDozenBagels@Bakery",
-      "metadata": {
-        "title": "Bakery",
-        "requires-steamodded": true,
-        "requires-talisman": false,
-        "categories": [
-          "Content",
-          "Joker",
-          "Miscellaneous"
+      "id": "thunderstore/spectralpack-Cryptid",
+      "title": "Cryptid",
+      "author": "spectralpack",
+      "version": "0.5.17",
+      "repositoryUrl": "https://github.com/SpectralPack/Cryptid",
+      "downloadUrl": "https://thunderstore.io/package/download/spectralpack/Cryptid/0.5.17/",
+      "categories": [
+        "Mods"
+      ],
+      "sourceCategories": [
+        "Mods"
+      ],
+      "prerequisites": [
+        {
+          "id": "Amulet",
+          "displayName": "Amulet",
+          "versionConstraint": ">=3.5.4",
+          "required": true,
+          "packageId": "thunderstore/just_frostice482-Amulet"
+        },
+        {
+          "id": "Steamodded",
+          "displayName": "Steamodded",
+          "versionConstraint": ">=1.1814.0",
+          "required": true,
+          "packageId": "thunderstore/Steamodded-Steamodded"
+        }
+      ],
+      "installation": {
+        "type": "auto"
+      },
+      "updatedAt": 1787588341987,
+      "approvalStatus": "registry-published",
+      "metadataId": "Cryptid",
+      "releaseSource": {
+        "sourceType": "registry",
+        "releaseTag": "0.5.17"
+      },
+      "thunderstore": {
+        "packageId": "224a0be2-1d52-40be-82f1-41f7b6338de6",
+        "versionId": "dd0c29c9-22cd-47a4-97b8-4ac6476677f9",
+        "namespace": "spectralpack",
+        "name": "Cryptid",
+        "packageVersion": "0.5.17",
+        "dependencies": [
+          "just_frostice482-Amulet-3.5.4",
+          "Steamodded-Steamodded-1.1814.0"
         ],
-        "author": "BakersDozenBagels",
-        "repo": "https://github.com/BakersDozenBagels/BalatroBakery",
-        "downloadURL": "https://github.com/BakersDozenBagels/BalatroBakery/archive/refs/heads/main.zip",
-        "automatic-version-check": true,
-        "version": "6feee82",
-        "last-updated": 1786463470
+        "packageUrl": "https://thunderstore.io/c/balatro/p/spectralpack/Cryptid/"
       }
     },
     {
-      "folder": "Aure@SixSuits",
-      "metadata": {
-        "title": "Six Suits",
-        "requires-steamodded": true,
-        "requires-talisman": false,
-        "categories": [
-          "Content"
+      "id": "thunderstore/Simple_dev-TargetedRerolls",
+      "title": "TargetedRerolls",
+      "author": "Simple_dev",
+      "version": "26.10.1",
+      "repositoryUrl": "https://github.com/iligalodin/TargetedRerolls",
+      "downloadUrl": "https://thunderstore.io/package/download/Simple_dev/TargetedRerolls/26.10.1/",
+      "categories": [
+        "Gameplay Tweaks",
+        "Tools",
+        "Translation",
+        "Mods",
+        "Misc",
+        "Quality of Life"
+      ],
+      "sourceCategories": [
+        "Gameplay Tweaks",
+        "Tools",
+        "Translation",
+        "Mods",
+        "Misc",
+        "Quality of Life"
+      ],
+      "prerequisites": [
+        {
+          "id": "Steamodded",
+          "displayName": "Steamodded",
+          "versionConstraint": ">=1.1814.0",
+          "required": true,
+          "packageId": "thunderstore/Steamodded-Steamodded"
+        },
+        {
+          "id": "Lovely",
+          "displayName": "Lovely",
+          "versionConstraint": ">=0.9.0",
+          "required": true,
+          "packageId": "thunderstore/Thunderstore-lovely"
+        }
+      ],
+      "installation": {
+        "type": "auto"
+      },
+      "updatedAt": 1790876384531,
+      "approvalStatus": "registry-published",
+      "metadataId": "TargetedRerolls",
+      "releaseSource": {
+        "sourceType": "registry",
+        "releaseTag": "26.10.1"
+      },
+      "thunderstore": {
+        "packageId": "61822f0c-53b5-46d5-affe-dd7efb94cc10",
+        "versionId": "64a85495-06f6-4af8-aa19-e13adc4e453e",
+        "namespace": "Simple_dev",
+        "name": "TargetedRerolls",
+        "packageVersion": "26.10.1",
+        "dependencies": [
+          "Steamodded-Steamodded-1.1814.0",
+          "Thunderstore-lovely-0.9.0"
         ],
-        "author": "Aure",
-        "repo": "https://github.com/Aurelius7309/SixSuits",
-        "downloadURL": "https://github.com/Aurelius7309/SixSuits/archive/refs/heads/master.zip",
-        "automatic-version-check": true,
-        "version": "d2044ee"
+        "packageUrl": "https://thunderstore.io/c/balatro/p/Simple_dev/TargetedRerolls/"
       }
     },
     {
-      "folder": "DigitalDetective47@NextAntePreview",
-      "metadata": {
-        "title": "Next Ante Preview",
-        "requires-steamodded": true,
-        "requires-talisman": false,
-        "categories": [
-          "Quality of Life"
+      "id": "thunderstore/Dee9c-FoolsDisplay",
+      "title": "FoolsDisplay",
+      "author": "Dee9c",
+      "version": "0.2.1",
+      "repositoryUrl": "https://github.com/dee9c-git/Balatro-FoolsDisplay",
+      "downloadUrl": "https://thunderstore.io/package/download/Dee9c/FoolsDisplay/0.2.1/",
+      "categories": [
+        "Mods",
+        "Misc",
+        "Quality of Life"
+      ],
+      "sourceCategories": [
+        "Mods",
+        "Misc",
+        "Quality of Life"
+      ],
+      "prerequisites": [
+        {
+          "id": "Lovely",
+          "displayName": "Lovely",
+          "versionConstraint": ">=0.10.0",
+          "required": true,
+          "packageId": "thunderstore/Thunderstore-lovely"
+        },
+        {
+          "id": "Steamodded",
+          "displayName": "Steamodded",
+          "versionConstraint": ">=26.829.0",
+          "required": true,
+          "packageId": "thunderstore/Steamodded-Steamodded"
+        }
+      ],
+      "installation": {
+        "type": "auto"
+      },
+      "updatedAt": 1790407750687,
+      "approvalStatus": "registry-published",
+      "metadataId": "FoolsDisplay",
+      "releaseSource": {
+        "sourceType": "registry",
+        "releaseTag": "0.2.1"
+      },
+      "thunderstore": {
+        "packageId": "a7ff6e04-f12c-4b5d-bcdb-46ef25d8187e",
+        "versionId": "e3e256a8-a7c3-409b-919f-a02257901872",
+        "namespace": "Dee9c",
+        "name": "FoolsDisplay",
+        "packageVersion": "0.2.1",
+        "dependencies": [
+          "Thunderstore-lovely-0.10.0",
+          "Steamodded-Steamodded-26.829.0"
         ],
-        "author": "DigitalDetective47",
-        "repo": "https://github.com/DigitalDetective47/next-ante-preview",
-        "downloadURL": "https://github.com/DigitalDetective47/next-ante-preview/archive/refs/heads/main.zip",
-        "automatic-version-check": true,
-        "version": "86f76df",
-        "last-updated": 1757369749
+        "packageUrl": "https://thunderstore.io/c/balatro/p/Dee9c/FoolsDisplay/"
       }
     },
     {
-      "folder": "AmazinDooD@ScrollableDescriptions",
-      "metadata": {
-        "title": "ScrollableDescriptions",
-        "requires-steamodded": true,
-        "requires-talisman": false,
-        "categories": [
-          "Quality of Life",
-          "Miscellaneous"
+      "id": "thunderstore/nh6574-PlayLog",
+      "title": "PlayLog",
+      "author": "nh6574",
+      "version": "0.1.7",
+      "downloadUrl": "https://thunderstore.io/package/download/nh6574/PlayLog/0.1.7/",
+      "categories": [
+        "Mods",
+        "Libraries",
+        "Quality of Life"
+      ],
+      "sourceCategories": [
+        "Mods",
+        "Libraries",
+        "Quality of Life"
+      ],
+      "prerequisites": [
+        {
+          "id": "Lovely",
+          "displayName": "Lovely",
+          "versionConstraint": ">=0.9.0",
+          "required": true,
+          "packageId": "thunderstore/Thunderstore-lovely"
+        },
+        {
+          "id": "Steamodded",
+          "displayName": "Steamodded",
+          "versionConstraint": ">=26.829.0",
+          "required": true,
+          "packageId": "thunderstore/Steamodded-Steamodded"
+        }
+      ],
+      "installation": {
+        "type": "auto"
+      },
+      "updatedAt": 1790303422208,
+      "approvalStatus": "registry-published",
+      "metadataId": "PlayLog",
+      "releaseSource": {
+        "sourceType": "registry",
+        "releaseTag": "0.1.7"
+      },
+      "thunderstore": {
+        "packageId": "3df378e0-5354-405e-908f-bb34632638e4",
+        "versionId": "c123facd-7e49-40e0-ad9d-845514d6e9ad",
+        "namespace": "nh6574",
+        "name": "PlayLog",
+        "packageVersion": "0.1.7",
+        "dependencies": [
+          "Thunderstore-lovely-0.9.0",
+          "Steamodded-Steamodded-26.829.0"
         ],
-        "author": "AmazinDooD",
-        "repo": "https://github.com/AmazinDooD/ScrollableDescriptions",
-        "downloadURL": "https://github.com/AmazinDooD/ScrollableDescriptions/archive/refs/heads/main.zip",
-        "version": "dc846b4",
-        "automatic-version-check": true,
-        "fixed-release-tag-updates": false,
-        "last-updated": 1784221402
+        "packageUrl": "https://thunderstore.io/c/balatro/p/nh6574/PlayLog/"
       }
     },
     {
-      "folder": "CeruleanK@SharpCards",
-      "metadata": {
-        "title": "Sharp Cards",
-        "requires-steamodded": true,
-        "requires-talisman": false,
-        "categories": [
-          "Quality of Life"
-        ],
-        "author": "CeruleanKay",
-        "repo": "https://github.com//CeruleanKay/sharpcards",
-        "downloadURL": "https://github.com/CeruleanKay/sharpcards/releases/latest/download/v1.0.0.zip",
-        "folderName": "SharpCards",
-        "version": "1.0.0",
-        "automatic-version-check": false
+      "id": "thunderstore/ebkr-r2modman",
+      "title": "r2modman",
+      "author": "ebkr",
+      "version": "3.2.20",
+      "repositoryUrl": "https://github.com/ebkr/r2modmanPlus",
+      "downloadUrl": "https://thunderstore.io/package/download/ebkr/r2modman/3.2.20/",
+      "categories": [
+        "Tools"
+      ],
+      "sourceCategories": [
+        "Tools"
+      ],
+      "prerequisites": [],
+      "installation": {
+        "type": "auto"
+      },
+      "updatedAt": 1790079713845,
+      "approvalStatus": "registry-published",
+      "metadataId": "r2modman",
+      "releaseSource": {
+        "sourceType": "registry",
+        "releaseTag": "3.2.20"
+      },
+      "thunderstore": {
+        "packageId": "f21c391c-0bc5-431d-a233-95323b95e01b",
+        "versionId": "b570b689-2891-4a9a-8b31-509ca1439878",
+        "namespace": "ebkr",
+        "name": "r2modman",
+        "packageVersion": "3.2.20",
+        "dependencies": [],
+        "packageUrl": "https://thunderstore.io/c/balatro/p/ebkr/r2modman/"
       }
     },
     {
-      "folder": "Breezebuilder@SystemClock",
-      "metadata": {
-        "title": "SystemClock",
-        "requires-steamodded": false,
-        "requires-talisman": false,
-        "categories": [
-          "Quality of Life",
-          "Miscellaneous"
+      "id": "thunderstore/The_Cracker_Pack-The_Cracker_Pack",
+      "title": "The Cracker Pack",
+      "author": "The_Cracker_Pack",
+      "version": "1.1.0",
+      "repositoryUrl": "https://github.com/Yule42/TheCrackerPack",
+      "downloadUrl": "https://thunderstore.io/package/download/The_Cracker_Pack/The_Cracker_Pack/1.1.0/",
+      "categories": [
+        "Mods",
+        "Content Mods"
+      ],
+      "sourceCategories": [
+        "Mods",
+        "Content Mods"
+      ],
+      "prerequisites": [
+        {
+          "id": "Steamodded",
+          "displayName": "Steamodded",
+          "versionConstraint": ">=1.1224.0",
+          "required": true,
+          "packageId": "thunderstore/Steamodded-Steamodded"
+        },
+        {
+          "id": "Lovely",
+          "displayName": "Lovely",
+          "versionConstraint": ">=0.4.0",
+          "required": true,
+          "packageId": "thunderstore/Thunderstore-lovely"
+        }
+      ],
+      "installation": {
+        "type": "auto"
+      },
+      "updatedAt": 1790887769170,
+      "approvalStatus": "registry-published",
+      "metadataId": "The_Cracker_Pack",
+      "releaseSource": {
+        "sourceType": "registry",
+        "releaseTag": "1.1.0"
+      },
+      "thunderstore": {
+        "packageId": "7dc46d99-1e63-496c-b8e9-215d68c027ec",
+        "versionId": "7e5f054f-9a8d-4568-ab05-fa3adcef9dba",
+        "namespace": "The_Cracker_Pack",
+        "name": "The_Cracker_Pack",
+        "packageVersion": "1.1.0",
+        "dependencies": [
+          "Steamodded-Steamodded-1.1224.0",
+          "Thunderstore-lovely-0.4.0"
         ],
-        "author": "Breezebuilder",
-        "repo": "https://github.com/Breezebuilder/SystemClock",
-        "downloadURL": "https://github.com/Breezebuilder/SystemClock/releases/download/v1.7.1/SystemClock-v1.7.1.zip",
-        "automatic-version-check": false,
-        "version": "v1.7.1"
+        "packageUrl": "https://thunderstore.io/c/balatro/p/The_Cracker_Pack/The_Cracker_Pack/"
       }
     },
     {
-      "folder": "CampfireCollective@ExtraCredit",
-      "metadata": {
-        "title": "ExtraCredit",
-        "requires-steamodded": true,
-        "requires-talisman": false,
-        "categories": [
-          "Joker",
-          "Content"
+      "id": "thunderstore/omega_but_a_team-OMEGATRO",
+      "title": "OMEGATRO",
+      "author": "omega_but_a_team",
+      "version": "1.0.1",
+      "repositoryUrl": "https://github.com/OmegaYT3/OMEGATRO",
+      "downloadUrl": "https://thunderstore.io/package/download/omega_but_a_team/OMEGATRO/1.0.1/",
+      "categories": [
+        "Mods",
+        "Content Mods"
+      ],
+      "sourceCategories": [
+        "Mods",
+        "Content Mods"
+      ],
+      "prerequisites": [
+        {
+          "id": "Steamodded",
+          "displayName": "Steamodded",
+          "versionConstraint": ">=26.829.0",
+          "required": true,
+          "packageId": "thunderstore/Steamodded-Steamodded"
+        },
+        {
+          "id": "Amulet",
+          "displayName": "Amulet",
+          "versionConstraint": ">=3.6.1",
+          "required": true,
+          "packageId": "thunderstore/just_frostice482-Amulet"
+        }
+      ],
+      "installation": {
+        "type": "auto"
+      },
+      "updatedAt": 1790712422950,
+      "approvalStatus": "registry-published",
+      "metadataId": "OMEGATRO",
+      "releaseSource": {
+        "sourceType": "registry",
+        "releaseTag": "1.0.1"
+      },
+      "thunderstore": {
+        "packageId": "9d8bdfc4-4485-43e3-a549-2352c784a698",
+        "versionId": "e5fca823-bf77-473e-9515-1b39004298a0",
+        "namespace": "omega_but_a_team",
+        "name": "OMEGATRO",
+        "packageVersion": "1.0.1",
+        "dependencies": [
+          "Steamodded-Steamodded-26.829.0",
+          "just_frostice482-Amulet-3.6.1"
         ],
-        "author": "CampfireCollective",
-        "repo": "https://github.com/GuilloryCraft/ExtraCredit",
-        "downloadURL": "https://github.com/GuilloryCraft/ExtraCredit/archive/refs/heads/main.zip",
-        "automatic-version-check": true,
-        "version": "1321784",
-        "last-updated": 1781426184
+        "packageUrl": "https://thunderstore.io/c/balatro/p/omega_but_a_team/OMEGATRO/"
       }
     },
     {
-      "folder": "ECLA17@PixelPerfect",
-      "metadata": {
-        "title": "pixelperfect",
-        "requires-steamodded": true,
-        "requires-talisman": true,
-        "categories": [
-          "Content"
+      "id": "thunderstore/Djoaieuh-BalatroRebalanced",
+      "title": "BalatroRebalanced",
+      "author": "Djoaieuh",
+      "version": "0.1.1",
+      "repositoryUrl": "https://github.com/Djoaieuh/BalatroRebalanced",
+      "downloadUrl": "https://thunderstore.io/package/download/Djoaieuh/BalatroRebalanced/0.1.1/",
+      "categories": [
+        "New Mechanics",
+        "Gameplay Tweaks"
+      ],
+      "sourceCategories": [
+        "New Mechanics",
+        "Gameplay Tweaks"
+      ],
+      "prerequisites": [
+        {
+          "id": "Steamodded",
+          "displayName": "Steamodded",
+          "versionConstraint": ">=1.1814.0",
+          "required": true,
+          "packageId": "thunderstore/Steamodded-Steamodded"
+        }
+      ],
+      "installation": {
+        "type": "auto"
+      },
+      "updatedAt": 1790705604348,
+      "approvalStatus": "registry-published",
+      "metadataId": "BalatroRebalanced",
+      "releaseSource": {
+        "sourceType": "registry",
+        "releaseTag": "0.1.1"
+      },
+      "thunderstore": {
+        "packageId": "3f046860-02f2-46de-8b9a-deacddee749c",
+        "versionId": "c72a211b-f23c-443a-9b6e-f37d4e3b18f0",
+        "namespace": "Djoaieuh",
+        "name": "BalatroRebalanced",
+        "packageVersion": "0.1.1",
+        "dependencies": [
+          "Steamodded-Steamodded-1.1814.0"
         ],
-        "author": "ecla17",
-        "repo": "https://github.com/MacPlayz12/Pixel-Perfect",
-        "downloadURL": "https://github.com/MacPlayz12/Pixel-Perfect/releases/latest/download/pixelperfect.zip",
-        "folderName": "pixelperfect",
-        "version": "releasev3",
-        "automatic-version-check": true,
-        "last-updated": 1760206815
+        "packageUrl": "https://thunderstore.io/c/balatro/p/Djoaieuh/BalatroRebalanced/"
       }
     },
     {
-      "folder": "ABGamma@Brainstorm-Rerolled",
-      "metadata": {
-        "title": "Brainstorm-Rerolled",
-        "requires-steamodded": false,
-        "requires-talisman": false,
-        "categories": [
-          "Content",
-          "Technical",
-          "Miscellaneous"
+      "id": "thunderstore/HuyTK-Sagatro",
+      "title": "Sagatro",
+      "author": "HuyTK",
+      "version": "2.6.1",
+      "repositoryUrl": "https://github.com/HuyTheKiller/Sagatro",
+      "downloadUrl": "https://thunderstore.io/package/download/HuyTK/Sagatro/2.6.1/",
+      "categories": [
+        "Mods",
+        "Content Mods",
+        "New Mechanics",
+        "Gameplay Tweaks"
+      ],
+      "sourceCategories": [
+        "Mods",
+        "Content Mods",
+        "New Mechanics",
+        "Gameplay Tweaks"
+      ],
+      "prerequisites": [
+        {
+          "id": "Lovely",
+          "displayName": "Lovely",
+          "versionConstraint": ">=0.9.0",
+          "required": true,
+          "packageId": "thunderstore/Thunderstore-lovely"
+        },
+        {
+          "id": "Steamodded",
+          "displayName": "Steamodded",
+          "versionConstraint": ">=26.829.0",
+          "required": true,
+          "packageId": "thunderstore/Steamodded-Steamodded"
+        }
+      ],
+      "installation": {
+        "type": "auto"
+      },
+      "updatedAt": 1790676319509,
+      "approvalStatus": "registry-published",
+      "metadataId": "Sagatro",
+      "releaseSource": {
+        "sourceType": "registry",
+        "releaseTag": "2.6.1"
+      },
+      "thunderstore": {
+        "packageId": "0067bf21-4f13-44ba-832c-c52c3b4cdf49",
+        "versionId": "fa31f569-5556-4abb-a1e4-eb8faf4c60d2",
+        "namespace": "HuyTK",
+        "name": "Sagatro",
+        "packageVersion": "2.6.1",
+        "dependencies": [
+          "Thunderstore-lovely-0.9.0",
+          "Steamodded-Steamodded-26.829.0"
         ],
-        "author": "OceanRamen and ABGamma",
-        "repo": "https://github.com/ABGamma/Brainstorm-Rerolled/",
-        "downloadURL": "https://github.com/ABGamma/Brainstorm-Rerolled/releases/latest/download/Brainstorm-Rerolled.zip",
-        "folderName": "Brainstorm-Rerolled",
-        "version": "Brainstorm-Rerolled-1.0.2-alpha",
-        "automatic-version-check": true,
-        "last-updated": 1767287568
+        "packageUrl": "https://thunderstore.io/c/balatro/p/HuyTK/Sagatro/"
       }
     }
   ]

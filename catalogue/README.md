@@ -1,12 +1,14 @@
 # Modatro catalogue
 
-This directory is a first-party GitHub-hosted index, with no custom server. It can
-also be maintained in a standalone index repository. The desktop application combines
-its compiled entries with the archived Balatro Mod Index provider.
+Thunderstore's live Balatro API supplies the main catalogue. This directory contains
+the small GitHub supplement, reviewed installation/permission exceptions, and
+independent removal and blocked-release feeds. No custom server or routine mod
+version updates are required.
 
 ```text
 mods/<author>/<slug>/meta.json
 index.json
+overrides.json
 revocations.json
 blocked-releases.json
 schema/*.schema.json
@@ -17,6 +19,41 @@ an author-controlled `modatro.json` for installation metadata. The author manife
 must live in the declared repository and retain its indexed identity and repository.
 The index and manifest permissions are intersected; neither can widen the other's
 restrictions. See [the manifest example](../examples/modatro.json).
+
+## Registering automatic GitHub updates
+
+For a mod absent from Thunderstore, register its source repository, permission evidence,
+loader identity and installation method once. Add `githubRelease: {}` to discover the
+author's latest published stable GitHub release on every refresh. The entry needs no
+`version` or `downloadUrl`. One ZIP asset is selected automatically; a release without
+ZIP assets uses its tagged source archive. Multiple ZIP assets require an explicit
+`assetName`; `{version}` and `{tag}` placeholders follow changing filenames automatically.
+See [the registration example](../examples/catalogue-github-release.json).
+
+Alternatively, register an author-controlled `manifestUrl` in the declared GitHub
+repository. A manifest may publish its own version and URL, or set
+`distribution.trackLatestRelease: true` and omit them. The latter follows stable GitHub
+releases while preserving the author's permissions and installation instructions.
+See [the latest-release manifest](../examples/modatro-latest.json). Drafts and prereleases
+are excluded from automatic latest-release discovery. Archive metadata, identity and
+permissions are checked again before installation.
+
+## Thunderstore exceptions
+
+`overrides.json` contains only exceptions, identified by `package` as
+`thunderstore/<namespace>-<name>` or `packageId` as the registry's stable package UUID.
+Prefer the UUID when an exception should survive namespace or package name changes.
+An override can supply a loader identity, a stable destination folder, historical aliases,
+an installation method or separate permissions. Explicit author-approved status requires
+permission evidence. Package versions and download URLs always come from Thunderstore;
+overrides cannot replace either. Most packages need no override.
+
+Registry package versions are distinct from loader versions. Modatro checks registry
+dependencies against recorded package versions and loader requirements against the
+downloaded mod's metadata. Externally installed copies do not gain a verified package
+version through adoption; users may explicitly install the catalogue release to establish
+that record. Known historical aliases and package UUIDs preserve existing installation
+IDs and file records. Unmapped old installations remain manageable locally.
 
 ## Submitting a mod
 
@@ -91,7 +128,10 @@ and `other`.
 
 For one release, append `{ "modId": "author/mod-slug", "version": "1.4.2",
 "status": "blocked", "reason": "Known broken release", "effectiveAt": "2026-10-01T12:00:00Z" }`
-to `blocked-releases.json` and increase that feed's revision. Publish a separate safe
+to `blocked-releases.json` and increase that feed's revision. Registry removals and
+release blocks can also include `packageId` to retain restrictions across name changes.
+For registry blocks, `version` is the package version, not the loader's runtime version.
+Publish a separate safe
 version rather than replacing a flagged artifact. Existing user files are unaffected.
 
 ## Future catalogue signing

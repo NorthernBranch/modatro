@@ -1,4 +1,4 @@
-import { evaluateDependencies, hasUpdate } from './dependencies';
+import { canAcceptUnverified, evaluateDependencies, hasUpdate } from './dependencies';
 import type { DependencyStatus, ModDefinition, Snapshot } from './model';
 import { automationReason } from './trust';
 export function plainText(markdown = ''): string {
@@ -21,6 +21,7 @@ export function requirements(mod: ModDefinition, snapshot: Snapshot): Dependency
       declared.findIndex(
         (other) =>
           other.id.toLowerCase() === requirement.id.toLowerCase() &&
+          other.packageId === requirement.packageId &&
           other.versionConstraint === requirement.versionConstraint,
       ) === index,
   );
@@ -40,7 +41,9 @@ export function eligibility(mod: ModDefinition, snapshot: Snapshot): string | un
   if (mod.installation.type === 'unsupported') return 'Automatic install not supported';
   if (!snapshot.validation?.valid || !snapshot.settings.modsPath)
     return 'Set up Balatro to install';
-  return requirements(mod, snapshot).find((r) => r.required && r.state !== 'satisfied')?.reason;
+  return requirements(mod, snapshot).find(
+    (r) => r.required && r.state !== 'satisfied' && !canAcceptUnverified(r),
+  )?.reason;
 }
 export function isNewer(installed?: string, latest?: string): boolean {
   return !!installed && !!latest && hasUpdate(installed, latest);

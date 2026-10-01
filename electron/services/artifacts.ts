@@ -10,6 +10,8 @@ const History = z.object({
   artifacts: z.array(z.object({ identity: z.string(), sha256: HashSchema })).max(20000),
 });
 export function artifactIdentity(mod: ModDefinition) {
+  if (mod.thunderstore)
+    return JSON.stringify(['thunderstore', mod.thunderstore.packageId, mod.thunderstore.versionId]);
   const detected = sourceType(mod.downloadUrl);
   const type = detected === 'other' ? (mod.releaseSource?.sourceType ?? detected) : detected;
   const url = new URL(mod.downloadUrl);
@@ -57,7 +59,7 @@ export class ArtifactHistory {
     if (
       expected &&
       expected !== received &&
-      (mod.releaseSource?.sha256 || ['tag', 'commit', 'release-asset'].includes(type))
+      (mod.releaseSource?.sha256 || ['tag', 'commit', 'release-asset', 'registry'].includes(type))
     ) {
       await this.logger.log('artifact.changed', {
         modId: mod.id,
@@ -72,7 +74,7 @@ export class ArtifactHistory {
         `Expected: ${expected}\nReceived: ${received}`,
       );
     }
-    if (['tag', 'commit', 'release-asset'].includes(type) && !previous) {
+    if (['tag', 'commit', 'release-asset', 'registry'].includes(type) && !previous) {
       history.artifacts.push({ identity, sha256: received });
       await this.storage.write('data/artifact-history.json', History.parse(history));
     }
@@ -89,6 +91,8 @@ export class ArtifactHistory {
       commitSha: mod.releaseSource?.commitSha ?? /\/([a-f0-9]{40})\.zip$/.exec(path)?.[1],
       downloadedAt: new Date().toISOString(),
       sha256: received,
+      packageId: mod.thunderstore?.packageId,
+      packageVersion: mod.thunderstore?.packageVersion,
     };
   }
 }

@@ -13,12 +13,14 @@ export const RevocationReason = z.enum([
 ]);
 export const RevocationSchema = z.object({
   modId: ModId,
+  packageId: z.uuid().optional(),
   repositoryUrl: HttpsUrl.optional(),
   reason: RevocationReason,
   effectiveAt: z.iso.datetime(),
 });
 export const BlockedReleaseSchema = z.object({
   modId: ModId,
+  packageId: z.uuid().optional(),
   repositoryUrl: HttpsUrl.optional(),
   version: z.string().min(1).max(100),
   status: z.literal('blocked'),
@@ -47,6 +49,11 @@ export function sameRepository(a?: string, b?: string) {
   return canonical(a) === canonical(b);
 }
 export function sourceType(url: string): InstallationSource['sourceType'] {
+  if (
+    new URL(url).hostname === 'thunderstore.io' &&
+    /^\/package\/download\/[\w]+\/[\w]+\/\d+\.\d+\.\d+\/$/.test(new URL(url).pathname)
+  )
+    return 'registry';
   const pathname = new URL(url).pathname;
   if (/\/releases\/download\//.test(pathname)) return 'release-asset';
   if (
@@ -65,6 +72,7 @@ export function approvalLabel(mod: ModDefinition) {
   return {
     'author-approved': 'Author approved',
     'legacy-index': 'Legacy index',
+    'registry-published': 'Published on Thunderstore',
     'community-submitted': 'Community submitted',
     'pending-review': 'Pending review',
     'opted-out': 'Removed by author',
@@ -102,6 +110,7 @@ export function sourceLabel(type: InstallationSource['sourceType']) {
     tag: 'Tagged archive',
     commit: 'Pinned commit archive',
     branch: 'Branch archive · mutable branch',
+    registry: 'Versioned Thunderstore package',
     other: 'Configured upstream source',
     legacy: 'Legacy installation',
     external: 'Installed externally',

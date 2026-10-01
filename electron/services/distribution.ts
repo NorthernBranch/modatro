@@ -2,10 +2,11 @@ import { z } from 'zod';
 import type { ModDefinition } from '../../src/shared/model';
 import { AuthorManifestSchema } from '../../src/shared/catalogue-schema';
 import { sourceType, sameRepository } from '../../src/shared/trust';
-import { ModSchema } from '../../src/shared/model';
+import { HttpsUrl, ModSchema } from '../../src/shared/model';
 import { dependencyId } from './metadata';
 import { UserError } from './errors';
 import { remoteJson, validateRemoteUrl } from './network';
+import { thunderstoreDownload } from '../../src/shared/thunderstore';
 
 export function repositoryPath(url?: string): string | undefined {
   if (!url) return undefined;
@@ -15,6 +16,17 @@ export function repositoryPath(url?: string): string | undefined {
     : undefined;
 }
 export function validateDistribution(mod: ModDefinition) {
+  if (mod.thunderstore) {
+    const registry = mod.thunderstore;
+    validateRemoteUrl(mod.downloadUrl, 'thunderstore');
+    if (
+      mod.downloadUrl !==
+        thunderstoreDownload(registry.namespace, registry.name, registry.packageVersion) ||
+      mod.releaseSource?.sourceType !== 'registry'
+    )
+      throw new UserError('The registry package identity does not match its download source.');
+    return;
+  }
   const url = validateRemoteUrl(mod.downloadUrl);
   const detected = sourceType(mod.downloadUrl);
   if (mod.releaseSource && detected !== 'other' && mod.releaseSource.sourceType !== detected)
@@ -59,7 +71,10 @@ export async function readAuthorManifest(
     ...entry,
     title: manifest.name,
     author: manifest.author,
-    version: manifest.version,
+    version: manifest.version ?? entry.version,
+    githubRelease: manifest.distribution.trackLatestRelease
+      ? { assetName: manifest.distribution.assetName }
+      : entry.githubRelease,
     permissions: Object.fromEntries(
       ['display', 'install', 'update'].map((key) => [
         key,
@@ -67,10 +82,12 @@ export async function readAuthorManifest(
           entry.permissions?.[key as keyof typeof manifest.permissions] !== false,
       ]),
     ),
-    downloadUrl: manifest.distribution.releaseUrl,
+    downloadUrl: manifest.distribution.releaseUrl ?? entry.downloadUrl,
     releaseSource: {
       ...manifest.distribution,
-      sourceType: manifest.distribution.sourceType ?? sourceType(manifest.distribution.releaseUrl),
+      sourceType:
+        manifest.distribution.sourceType ??
+        sourceType(manifest.distribution.releaseUrl ?? entry.downloadUrl),
     },
     description: manifest.description,
     descriptionProvenance: 'author-supplied',
@@ -94,14 +111,68 @@ export async function readAuthorManifest(
           ? { type: 'unsupported', instructions: installation.instructions }
           : installation,
   });
-  validateDistribution(definition);
+  if (!definition.githubRelease) validateDistribution(definition);
   return definition;
+}
+export async function readLatestGitHubRelease(
+  entry: ModDefinition,
+  json = remoteJson,
+): Promise<ModDefinition> {
+  if (!entry.githubRelease) return entry;
+  const repo = repositoryPath(entry.repositoryUrl);
+  if (!repo) throw new UserError('Automatic release discovery needs a declared GitHub repository.');
+  const release = z
+    .object({
+      tag_name: z.string().min(1).max(100),
+      draft: z.boolean(),
+      prerelease: z.boolean(),
+      published_at: z.iso.datetime({ offset: true }),
+      assets: z.array(
+        z.object({
+          name: z.string(),
+          browser_download_url: HttpsUrl,
+          digest: z.string().nullable().optional(),
+        }),
+      ),
+    })
+    .parse(await json(`https://api.github.com/repos/${repo}/releases/latest`));
+  if (release.draft || release.prerelease)
+    throw new UserError('The author has not published a stable release.');
+  const assetName = entry.githubRelease.assetName
+    ?.replaceAll('{version}', release.tag_name.replace(/^v(?=\d)/, ''))
+    .replaceAll('{tag}', release.tag_name);
+  const assets = release.assets.filter((asset) =>
+    assetName ? asset.name === assetName : /\.zip$/i.test(asset.name),
+  );
+  if ((entry.githubRelease.assetName && assets.length !== 1) || assets.length > 1)
+    throw new UserError(
+      'The release has no unambiguous mod archive. Register its asset filename or follow the author’s instructions.',
+    );
+  const mod = ModSchema.parse({
+    ...entry,
+    version: release.tag_name.replace(/^v(?=\d)/, ''),
+    updatedAt: Date.parse(release.published_at),
+    downloadUrl:
+      assets.length === 1
+        ? assets[0]!.browser_download_url
+        : `https://github.com/${repo}/archive/refs/tags/${encodeURIComponent(release.tag_name)}.zip`,
+    releaseSource: {
+      sourceType: assets.length === 1 ? 'release-asset' : 'tag',
+      releaseTag: release.tag_name,
+      sha256:
+        assets.length === 1
+          ? /^sha256:([a-f0-9]{64})$/.exec(assets[0]!.digest ?? '')?.[1]
+          : undefined,
+    },
+  });
+  validateDistribution(mod);
+  return mod;
 }
 export async function resolveDistribution(
   entry: ModDefinition,
   json = remoteJson,
 ): Promise<ModDefinition> {
-  let mod = await readAuthorManifest(entry, json);
+  let mod = await readLatestGitHubRelease(await readAuthorManifest(entry, json), json);
   validateDistribution(mod);
   const type = mod.releaseSource?.sourceType ?? sourceType(mod.downloadUrl);
   if (type !== 'branch')

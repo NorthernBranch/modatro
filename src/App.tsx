@@ -42,6 +42,7 @@ import type {
   Progress,
   Reply,
   Snapshot,
+  UnverifiedPrerequisite,
 } from './shared/model';
 import { eligibility, plainText, requirements } from './shared/presentation';
 import {
@@ -84,8 +85,13 @@ export function App() {
     mod?: ModDefinition;
     token?: string;
     plan?: InstallPlan;
+    acceptedUnverified?: UnverifiedPrerequisite[];
   }>();
-  const [conflictAction, setConflictAction] = useState<{ id: string; action: ModAction }>();
+  const [conflictAction, setConflictAction] = useState<{
+    id: string;
+    action: ModAction;
+    acceptedUnverified?: UnverifiedPrerequisite[];
+  }>();
   const [decisions, setDecisions] = useState<ConflictDecision[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -205,6 +211,7 @@ export function App() {
     action: ModAction,
     choices?: ConflictDecision[],
     token?: string,
+    acceptedUnverified?: UnverifiedPrerequisite[],
   ) {
     if (configuring) return;
     setError(undefined);
@@ -220,7 +227,7 @@ export function App() {
         enable: 'Enabling mod',
         adopt: 'Adopting mod',
       }[action],
-      () => api.action(id, action, choices, token),
+      () => api.action(id, action, choices, token, acceptedUnverified),
       {
         group: 'configuration',
         failureMessage:
@@ -253,8 +260,9 @@ export function App() {
           title: snapshot?.catalogue.mods.find((mod) => mod.id === id)?.title ?? id,
           token: reply.error.confirmation.token,
           plan: reply.error.confirmation.plan,
+          acceptedUnverified,
         });
-      } else setConflictAction({ id, action });
+      } else setConflictAction({ id, action, acceptedUnverified });
       setDecisions(
         (reply.error.conflicts ?? []).map((c) => ({ root: c.root, path: c.path, action: 'keep' })),
       );
@@ -628,7 +636,7 @@ export function App() {
               </p>
               <p>
                 {plainText(allowedDescription(selected)) ||
-                  'A community-made Balatro mod. Visit the repository for more information.'}
+                  'A community-made Balatro mod. Visit its source page for more information.'}
               </p>
             </div>
           </div>
@@ -644,7 +652,9 @@ export function App() {
                 <dd>
                   {selected.repositoryUrl
                     ? new URL(selected.repositoryUrl).pathname.slice(1)
-                    : 'Not recorded'}
+                    : selected.thunderstore
+                      ? `Thunderstore: ${selected.thunderstore.namespace}/${selected.thunderstore.name}`
+                      : 'Not recorded'}
                 </dd>
               </div>
               <div>
@@ -685,7 +695,10 @@ export function App() {
                   </span>
                   <div>
                     <strong>{r.displayName}</strong>
-                    <span>{r.versionConstraint ?? 'Required version: not specified by mod'}</span>
+                    <span>
+                      {r.packageId ? 'Thunderstore package ' : ''}
+                      {r.versionConstraint ?? 'Required version: not specified by mod'}
+                    </span>
                   </div>
                   <div>
                     <strong>
@@ -720,8 +733,8 @@ export function App() {
               ))
             ) : (
               <p className="muted-text">
-                No prerequisites are listed in the index. The downloaded mod’s structured metadata
-                and Lovely patches are checked before installation.
+                No prerequisites are listed in the catalogue. The downloaded mod’s structured
+                metadata and Lovely patches are checked before installation.
               </p>
             )}
             <button
@@ -793,6 +806,18 @@ export function App() {
               </p>
             )}
             <div className="detail-actions">
+              {selected.thunderstore && (
+                <AsyncButton
+                  className="button button-secondary"
+                  pending={requests.isPending(`link:${selected.thunderstore.packageUrl}`)}
+                  pendingLabel="Opening…"
+                  disabled={requests.isBusy('external-link')}
+                  onClick={() => void openLink(selected.thunderstore!.packageUrl)}
+                >
+                  <ExternalLink size={15} />
+                  Thunderstore
+                </AsyncButton>
+              )}
               <AsyncButton
                 className="button button-secondary"
                 pending={requests.isPending(`link:${selected.repositoryUrl}`)}
@@ -1009,7 +1034,13 @@ export function App() {
             <button
               className={`button ${confirmation.action === 'uninstall' ? 'button-danger' : 'button-primary'}`}
               onClick={() =>
-                void perform(confirmation.id, confirmation.action, undefined, confirmation.token)
+                void perform(
+                  confirmation.id,
+                  confirmation.action,
+                  undefined,
+                  confirmation.token,
+                  confirmation.acceptedUnverified,
+                )
               }
             >
               {confirmation.action === 'uninstall'
@@ -1088,6 +1119,13 @@ export function App() {
               <pre>{error.details}</pre>
             </details>
           )}
+          {!!error.unverifiedPrerequisites?.length && conflictAction && (
+            <p>
+              Modatro cannot confirm that these installed prerequisite versions meet this mod’s
+              requirements. Continuing may cause crashes or prevent mods from working. This choice
+              applies only to this operation.
+            </p>
+          )}
           <div className="dialog-footer">
             <button className="button button-secondary" onClick={() => setError(undefined)}>
               Close
@@ -1107,6 +1145,29 @@ export function App() {
               >
                 Check again
               </button>
+            )}
+            {!!error.unverifiedPrerequisites?.length && conflictAction && (
+              <AsyncButton
+                className="button button-danger"
+                pending={working}
+                pendingLabel="Continuing…"
+                disabled={configuring}
+                onClick={() =>
+                  void perform(conflictAction.id, conflictAction.action, undefined, undefined, [
+                    ...(conflictAction.acceptedUnverified ?? []),
+                    ...error.unverifiedPrerequisites!.map(
+                      ({ id, versionConstraint, installedVersion, packageId }) => ({
+                        id,
+                        versionConstraint,
+                        installedVersion,
+                        packageId,
+                      }),
+                    ),
+                  ])
+                }
+              >
+                Proceed at my own risk
+              </AsyncButton>
             )}
           </div>
         </Dialog>
@@ -1196,7 +1257,7 @@ export function App() {
           </p>
           <div className="about-links">
             {[
-              ['Balatro Mod Index', 'https://github.com/skyline69/balatro-mod-index'],
+              ['Thunderstore Balatro catalogue', 'https://thunderstore.io/c/balatro/'],
               ['Lovely', 'https://github.com/ethangreen-dev/lovely-injector'],
               ['Steamodded', 'https://github.com/Steamodded/smods'],
               [

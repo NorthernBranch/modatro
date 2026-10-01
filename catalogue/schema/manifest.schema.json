@@ -63,6 +63,14 @@
           "type": "string",
           "format": "uri"
         },
+        "trackLatestRelease": {
+          "type": "boolean"
+        },
+        "assetName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
         "sourceType": {
           "type": "string",
           "enum": ["release-asset", "tag", "commit", "branch", "other"]
@@ -79,7 +87,7 @@
           "pattern": "^[a-f0-9]{64}$"
         }
       },
-      "required": ["repository", "releaseUrl"],
+      "required": ["repository"],
       "additionalProperties": false
     },
     "requirements": {
@@ -206,7 +214,6 @@
     "id",
     "name",
     "author",
-    "version",
     "permissions",
     "distribution",
     "requirements",

@@ -2,6 +2,7 @@ import type { DependencyRequirement, ModAction, ModDefinition, Snapshot } from '
 import { evaluateDependency, hasUpdate } from '../shared/dependencies';
 import { eligibility } from '../shared/presentation';
 import { AsyncButton } from './AsyncButton';
+import { thunderstoreId } from '../shared/thunderstore';
 import type { Requests } from '../hooks/useRequests';
 
 interface Props {
@@ -23,11 +24,14 @@ export function PrerequisiteAction({
   const prerequisite = snapshot.prerequisites.find(
     (p) => p.id.toLowerCase() === requirement.id.toLowerCase(),
   );
-  const matches = snapshot.catalogue.mods.filter(
-    (mod) =>
-      mod.title.toLowerCase() === requirement.id.toLowerCase() ||
-      (mod.metadataId ?? mod.id.split(/[@/]/).pop())?.toLowerCase() ===
-        requirement.id.toLowerCase(),
+  const matches = snapshot.catalogue.mods.filter((mod) =>
+    requirement.packageId
+      ? !!mod.thunderstore &&
+        thunderstoreId(mod.thunderstore.namespace, mod.thunderstore.name).toLowerCase() ===
+          requirement.packageId.toLowerCase()
+      : mod.title.toLowerCase() === requirement.id.toLowerCase() ||
+        (mod.metadataId ?? mod.id.split(/[@/]/).pop())?.toLowerCase() ===
+          requirement.id.toLowerCase(),
   );
   const mod = matches.length === 1 ? matches[0] : undefined;
   const status = evaluateDependency(requirement, snapshot.prerequisites);
@@ -35,6 +39,7 @@ export function PrerequisiteAction({
   if (snapshot.preview) return null;
   if (
     requirement.id === 'Lovely' &&
+    !mod?.thunderstore &&
     ['win32', 'linux'].includes(snapshot.platform) &&
     (!prerequisite?.installed ||
       snapshot.localMods.some((mod) => mod.managed && mod.id === 'Lovely'))
@@ -82,14 +87,22 @@ export function PrerequisiteAction({
         id: requirement.id,
         displayName: requirement.displayName,
         installed: true,
-        installedVersion: mod.version,
+        installedVersion: mod.thunderstore && !requirement.packageId ? undefined : mod.version,
+        packageId: mod.thunderstore
+          ? thunderstoreId(mod.thunderstore.namespace, mod.thunderstore.name)
+          : undefined,
+        packageVersion: mod.thunderstore?.packageVersion,
         sourceUrl: mod.repositoryUrl ?? mod.downloadUrl,
       },
     ]);
     const canInstall = !prerequisite?.installed && !local;
     const canUpdate =
       local && prerequisite?.installed && hasUpdate(local.version ?? '', mod.version);
-    if ((canInstall || canUpdate) && candidateStatus.state === 'satisfied') {
+    if (
+      (canInstall || canUpdate) &&
+      (candidateStatus.state === 'satisfied' ||
+        (mod.thunderstore && candidateStatus.state === 'unknown'))
+    ) {
       const reason = eligibility(mod, snapshot);
       return (
         <AsyncButton

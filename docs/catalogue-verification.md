@@ -24,12 +24,23 @@ in use.
 Catalogue and restriction feeds are currently authenticated by HTTPS and their
 maintained GitHub source, not cryptographic signatures. Native listing approval and
 licence evidence still require maintainer review. The native catalogue starts empty
-so examples cannot accidentally become approved listings; legacy discovery remains
-available through its separate provider. The new endpoints become available when
+so examples cannot accidentally become approved listings. Thunderstore supplies the
+live catalogue, with independent caching and separately labelled registry publication. The new endpoints become available when
 the catalogue files are pushed to the configured repository.
 
-Automatic downloads support approved GitHub hosts. Other author endpoints can be
+Automatic downloads support approved GitHub hosts and narrowly scoped Thunderstore
+API/package/CDN paths. Package archives are checked against their registry manifests;
+runtime and package versions remain separate. Other author endpoints can be
 described but require manual installation until a reviewed transport adapter supports
 them. Approved artwork is not fetched by the current renderer; neutral local icons
 remain the fallback. Native Linux LÖVE launch and ARM Linux are outside this integration.
 Real Steam Deck, Windows and Intel Mac game compatibility require native testing.
+
+## Registry and build automation
+
+`thunderstore.test.ts` verifies registry transport and redirect boundaries, archive/metadata
+agreement, separate runtime/package version checks, external adoption, stable record
+identities and immutable artifact history. `catalogue.test.ts` covers cached outages,
+retired/inactive packages, malformed feeds, partial provider failures and version-free
+GitHub registrations. `build-version.test.mjs` and `release.test.mjs` verify increasing
+workflow versions, retry stability, cross-platform filenames and release publication.

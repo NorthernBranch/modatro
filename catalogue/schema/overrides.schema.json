@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "overrides": {
+      "maxItems": 10000,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "package": {
+            "type": "string",
+            "pattern": "^thunderstore\\/[A-Za-z0-9_]+-[A-Za-z0-9_]+$"
+          },
+          "packageId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "metadataId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "folderName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[a-zA-Z0-9_@.+ -]+$"
+          },
+          "legacyIds": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120,
+                  "pattern": "^[a-zA-Z0-9_@.+ -]+$"
+                },
+                {
+                  "type": "string",
+                  "maxLength": 200,
+                  "pattern": "^[a-zA-Z0-9_.-]+\\/[a-zA-Z0-9_.-]+$"
+                }
+              ]
+            }
+          },
+          "permissions": {
+            "type": "object",
+            "properties": {
+              "display": {
+                "type": "boolean"
+              },
+              "install": {
+                "type": "boolean"
+              },
+              "update": {
+                "type": "boolean"
+              }
+            },
+            "required": ["display", "install", "update"],
+            "additionalProperties": false
+          },
+          "approvalStatus": {
+            "type": "string",
+            "enum": [
+              "author-approved",
+              "legacy-index",
+              "registry-published",
+              "community-submitted",
+              "pending-review",
+              "opted-out",
+              "blocked"
+            ]
+          },
+          "approvalEvidence": {
+            "type": "string",
+            "format": "uri"
+          },
+          "installation": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "auto"
+                  }
+                },
+                "required": ["type"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "standard"
+                  },
+                  "sourceRoot": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  }
+                },
+                "required": ["type"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "single-file"
+                  }
+                },
+                "required": ["type"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "lovely-patch"
+                  }
+                },
+                "required": ["type"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "game-replacement"
+                  },
+                  "files": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1024
+                        },
+                        "destination": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1024
+                        }
+                      },
+                      "required": ["source", "destination"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["type", "files"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "unsupported"
+                  },
+                  "instructions": {
+                    "type": "string"
+                  }
+                },
+                "required": ["type"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["schemaVersion", "overrides"],
+  "additionalProperties": false
+}

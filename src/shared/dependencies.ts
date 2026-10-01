@@ -1,5 +1,38 @@
 import semver from 'semver';
-import type { DependencyRequirement, DependencyStatus, Prerequisite } from './model';
+import type {
+  DependencyRequirement,
+  DependencyStatus,
+  Prerequisite,
+  UnverifiedPrerequisite,
+} from './model';
+
+export function canAcceptUnverified(requirement: DependencyStatus): boolean {
+  return (
+    requirement.state === 'unknown' &&
+    ['lovely', 'steamodded'].includes(requirement.id.toLowerCase())
+  );
+}
+
+export function blockingDependencies(
+  requirements: DependencyStatus[],
+  accepted: UnverifiedPrerequisite[] = [],
+): DependencyStatus[] {
+  return requirements.filter(
+    (requirement) =>
+      requirement.required &&
+      requirement.state !== 'satisfied' &&
+      !(
+        canAcceptUnverified(requirement) &&
+        accepted.some(
+          (acknowledgement) =>
+            acknowledgement.id.toLowerCase() === requirement.id.toLowerCase() &&
+            acknowledgement.versionConstraint === requirement.versionConstraint &&
+            acknowledgement.installedVersion === requirement.installedVersion &&
+            acknowledgement.packageId === requirement.packageId,
+        )
+      ),
+  );
+}
 export function cleanVersion(value?: string): string | undefined {
   return value ? (semver.valid(value.replace(/^v/i, '').trim()) ?? undefined) : undefined;
 }
@@ -13,7 +46,15 @@ export function evaluateDependency(
   requirement: DependencyRequirement,
   installed: Prerequisite[],
 ): DependencyStatus {
-  const found = installed.find((p) => p.id.toLowerCase() === requirement.id.toLowerCase());
+  const found =
+    installed.find((p) =>
+      requirement.packageId
+        ? p.packageId?.toLowerCase() === requirement.packageId.toLowerCase()
+        : p.id.toLowerCase() === requirement.id.toLowerCase(),
+    ) ??
+    (requirement.packageId
+      ? installed.find((p) => p.id.toLowerCase() === requirement.id.toLowerCase())
+      : undefined);
   if (!found?.installed)
     return {
       ...requirement,
@@ -29,19 +70,26 @@ export function evaluateDependency(
       state: 'satisfied',
       reason: 'Installed. Required version: not specified by mod.',
     };
-  const version = cleanVersion(found.installedVersion),
+  const observedVersion = requirement.packageId
+    ? found.packageId?.toLowerCase() === requirement.packageId.toLowerCase()
+      ? found.packageVersion
+      : undefined
+    : found.installedVersion;
+  const version = cleanVersion(observedVersion),
     range = semver.validRange(requirement.versionConstraint);
   if (!version || !range)
     return {
       ...requirement,
-      installedVersion: found.installedVersion,
+      installedVersion: observedVersion,
       state: 'unknown',
-      reason: `Cannot verify ${requirement.displayName} against ${requirement.versionConstraint}.`,
+      reason: requirement.packageId
+        ? `Cannot verify the installed Thunderstore package version of ${requirement.displayName} against ${requirement.versionConstraint}.`
+        : `Cannot verify ${requirement.displayName} against ${requirement.versionConstraint}.`,
     };
   if (semver.satisfies(version, range, { includePrerelease: true }))
     return {
       ...requirement,
-      installedVersion: found.installedVersion,
+      installedVersion: observedVersion,
       state: 'satisfied',
       reason: 'Meets the mod’s requirement.',
     };
@@ -49,11 +97,11 @@ export function evaluateDependency(
     outdated = minimum && semver.lt(version, minimum);
   return {
     ...requirement,
-    installedVersion: found.installedVersion,
+    installedVersion: observedVersion,
     state: outdated ? 'outdated' : 'incompatible',
     reason: outdated
       ? `${requirement.displayName} update required (${requirement.versionConstraint}).`
-      : `${requirement.displayName} ${found.installedVersion} is incompatible with ${requirement.versionConstraint}.`,
+      : `${requirement.displayName} ${observedVersion} is incompatible with ${requirement.versionConstraint}.`,
   };
 }
 export function evaluateDependencies(

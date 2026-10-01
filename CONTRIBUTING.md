@@ -64,31 +64,36 @@ After building the app, package a platform explicitly:
 
 ```sh
 pnpm build
-pnpm exec electron-builder --mac --arm64 --x64 --publish never
+pnpm package:desktop --mac --arm64 --x64
 ```
 
 On Windows:
 
 ```sh
 pnpm build
-pnpm exec electron-builder --win --x64 --publish never
+pnpm package:desktop --win --x64
 ```
 
 On Linux (x64, including Steam Deck):
 
 ```sh
 pnpm build
-pnpm exec electron-builder --linux --x64 --publish never
+pnpm package:desktop --linux --x64
 ```
 
 This produces an AppImage and a DEB. CI runs browser and packaged Electron smoke
 tests under Xvfb on Linux. Keep Electron's sandbox enabled in production and tests.
 
-Installers are written to `release/`. Signing requires platform credentials; local
-builds without them are unsigned. CI checks and packages Windows x64, Apple Silicon
+Installers are written to `release/`. macOS builds without Apple credentials use
+complete ad-hoc signatures, verified by the packaging script; they remain unnotarized
+test builds. With all credentials present, packaging requires Developer ID signing,
+notarization, a stapled ticket and Gatekeeper acceptance. Partial configuration fails
+instead of falling back. See [signing setup](docs/signing.md). Windows builds remain
+unsigned until a separate publisher-signing integration is configured.
+CI checks and packages Windows x64, Apple Silicon
 and Intel macOS installers, plus Linux AppImage and DEB packages. Pull requests and manual workflow runs upload build
 artifacts. Successful pushes to `main` also publish an automated preview release
-with every platform's installers and SHA-256 checksums.
+with every platform's installers, SHA-256 checksums and macOS signing reports.
 
 To smoke-test an unpacked application, point `MODATRO_PACKAGED_EXECUTABLE` at its
 executable and run `pnpm exec playwright test tests/desktop.spec.ts`. The test still
@@ -96,14 +101,17 @@ uses isolated application data.
 
 ## Publishing releases
 
-Every push to `main` publishes a preview after all platform checks pass. Its unique
-tag includes the package version, workflow run number and commit, for example
-`v0.1.2-build.42.aaaaaaa`. A push does not change `package.json` automatically.
+Every push or merge to `main` publishes a preview after all platform checks pass.
+CI assigns an increasing version from the workflow run number before building, so
+contributors do not maintain a version or make version-bump commits. Run 42 produces
+`0.2.42`; run 43 produces `0.2.43`. The app, installers and release notes share that
+version. Retrying a run retains its version. The unique preview tag also includes the
+run number and commit, for example `v0.2.42-build.42.aaaaaaa`.
 
-For a named release, update `package.json` to the intended version, commit the change,
-and push a matching `v<version>` tag. The workflow rejects tags whose version differs
-from `package.json`. Versions with a prerelease suffix remain previews; other version
-tags publish a release marked as latest. Preview builds from `main` do not replace it.
+For an optional named release, push a `v<version>` tag. CI assigns that version
+without requiring a package-file edit. Versions with a prerelease suffix remain
+previews; other version tags publish a release marked as latest. Preview builds from
+`main` do not replace it.
 
 The release job uses GitHub's built-in token with `contents: write`; no personal
 access token is required. It uploads all installers and checksums to a draft before

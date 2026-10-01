@@ -12,6 +12,7 @@ import { remoteJson } from './network';
 import { Logger, Storage } from './storage';
 import { hasUpdate } from './versions';
 import { automationReason } from '../../src/shared/trust';
+import { thunderstoreId } from '../../src/shared/thunderstore';
 import type { CatalogueTrust } from './trust';
 
 export interface PrerequisiteProvider {
@@ -93,15 +94,19 @@ export class InstalledModsService {
         : 'No catalogue update source is available. Your installed copy has not been changed.';
       const warning =
         latest || historical
-          ? this.trust?.blockedReason((latest ?? historical)!, record.modVersion)
+          ? this.trust?.blockedReason(
+              (latest ?? historical)!,
+              record.packageVersion ?? record.modVersion,
+            )
           : undefined;
       mods.push({
         id: record.modId,
         title: record.title,
-        version: record.modVersion,
+        version: record.packageVersion ?? record.modVersion,
         managed: true,
         folderName: record.folderName,
         canAdopt: false,
+        packageVersionUnknown: !!latest?.thunderstore && !record.packageVersion,
         problems,
         dependencies: record.dependencies,
         metadataId: record.metadataId,
@@ -112,7 +117,7 @@ export class InstalledModsService {
             ? historical.policyReason
             : updateReason,
         releaseWarning: warning
-          ? `This installed version (${record.modVersion}) has been flagged as unsafe or broken: ${warning}. Your files have not been changed.`
+          ? `This installed version (${record.packageVersion ?? record.modVersion}) has been flagged as unsafe or broken: ${warning}. Your files have not been changed.`
           : undefined,
         canDisable: record.files.every(
           (file) => file.operation === 'created' && file.root !== 'game',
@@ -122,7 +127,10 @@ export class InstalledModsService {
           ? 'broken'
           : record.disabled
             ? 'disabled'
-            : latest && !updateReason && hasUpdate(record.modVersion, latest.version)
+            : latest &&
+                !updateReason &&
+                (!latest.thunderstore || !!record.packageVersion) &&
+                hasUpdate(record.packageVersion ?? record.modVersion, latest.version)
               ? 'update-available'
               : 'installed',
       });
@@ -275,7 +283,9 @@ export class InstalledModsService {
           displayName: id,
           installed: true,
           installedVersion: info.version,
-          sourceUrl: 'https://github.com/skyline69/balatro-mod-index',
+          sourceUrl:
+            catalogue.find((mod) => mod.metadataId === id)?.repositoryUrl ??
+            'https://thunderstore.io/c/balatro/',
         });
     for (const local of mods)
       if (
@@ -289,6 +299,40 @@ export class InstalledModsService {
           'Multiple installed copies have this identity. Resolve the duplicate before adoption.',
         );
       }
+    for (const record of state.installations) {
+      const source = catalogue.find(
+        (mod) => mod.thunderstore?.packageId === record.provenance?.packageId,
+      );
+      const local = mods.find((mod) => mod.id === record.modId);
+      if (
+        !source?.thunderstore ||
+        !record.packageVersion ||
+        record.disabled ||
+        local?.problems.length ||
+        mods.filter(
+          (entry) =>
+            entry.metadataId && entry.metadataId.toLowerCase() === record.metadataId?.toLowerCase(),
+        ).length > 1
+      )
+        continue;
+      const packageId = thunderstoreId(source.thunderstore.namespace, source.thunderstore.name);
+      const runtime = prerequisites.find(
+        (entry) => entry.id.toLowerCase() === (record.metadataId ?? '').toLowerCase(),
+      );
+      if (runtime && !runtime.packageId) {
+        runtime.packageId = packageId;
+        runtime.packageVersion = record.packageVersion;
+      } else
+        prerequisites.push({
+          id: record.metadataId ?? packageId,
+          displayName: source.title,
+          installed: true,
+          installedVersion: runtime?.installedVersion,
+          packageId,
+          packageVersion: record.packageVersion,
+          sourceUrl: source.thunderstore.packageUrl,
+        });
+    }
     return { mods, prerequisites };
   }
   async checkLatest() {

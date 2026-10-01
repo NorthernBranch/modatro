@@ -5,9 +5,14 @@
 **An independent community mod manager for Balatro.** Find new mods, check what they need, and
 manage your collection from one place.
 
-Modatro browses the community [Balatro Mod Index](https://github.com/skyline69/balatro-mod-index)
+Modatro browses the live [Thunderstore Balatro catalogue](https://thunderstore.io/c/balatro/)
 and keeps a record of the files it installs. Backups, change detection and recovery
 help preserve your existing game files when you update or remove a mod.
+
+Registered GitHub projects supplement mods missing from Thunderstore. Their author-controlled
+manifests or published releases supply new versions automatically. Modatro's own registry
+records permissions, release restrictions and installation exceptions rather than maintaining
+a duplicate list of every mod release.
 
 ## Download
 
@@ -24,9 +29,13 @@ and version notes. Choose the installer for your computer:
 
 Each successful push to `main` publishes a preview with installers for every platform and
 SHA-256 checksums. The release notes identify its build number and source commit.
+App versions increase automatically with each workflow run, including merges into `main`;
+the displayed version, installers and release notes use the same generated version.
 
-Modatro is currently a preview. The current builds are unsigned; macOS builds are
-also not notarized. See [release information](docs/release.md) for installation
+Modatro is currently a preview. Windows builds are unsigned. macOS previews use
+ad-hoc signatures unless Apple signing credentials are configured; those previews
+are not Apple-verified or notarized and macOS may block opening them. Each release
+reports its signing status. See [release information](docs/release.md) for installation
 instructions and supported mod formats. The desktop app includes its runtime;
 you do not need Node.js or pnpm to use it.
 

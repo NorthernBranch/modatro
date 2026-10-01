@@ -1,6 +1,6 @@
 {
   "name": "modatro",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "An independent, safety-first Balatro mod manager",
   "private": true,
   "author": "Modatro contributors",
@@ -24,6 +24,7 @@
     "check": "prettier --check . && node scripts/compile-catalogue.mjs --check && tsc --noEmit && vitest run && vite build && node scripts/build-electron.mjs",
     "package": "tsc --noEmit && vite build && node scripts/build-electron.mjs && electron-builder",
     "package:dir": "tsc --noEmit && vite build && node scripts/build-electron.mjs && electron-builder --dir",
+    "package:desktop": "node scripts/package-desktop.mjs",
     "catalogue:build": "node scripts/compile-catalogue.mjs",
     "catalogue:check": "node scripts/compile-catalogue.mjs --check"
   },
@@ -69,6 +70,10 @@
       ],
       "category": "public.app-category.games",
       "hardenedRuntime": true,
+      "identity": "-",
+      "notarize": false,
+      "entitlements": "build/entitlements.mac.preview.plist",
+      "entitlementsInherit": "build/entitlements.mac.preview.plist",
       "artifactName": "Modatro-${version}-${arch}.${ext}"
     },
     "win": {

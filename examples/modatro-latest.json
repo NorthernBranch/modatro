@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "example/example-mod",
+  "name": "Example Mod",
+  "author": "ExampleAuthor",
+  "permissions": { "display": true, "install": true, "update": true },
+  "distribution": {
+    "repository": "https://github.com/example/example-mod",
+    "trackLatestRelease": true,
+    "assetName": "ExampleMod-{version}.zip"
+  },
+  "requirements": {},
+  "installation": { "type": "mods-directory", "folder": "ExampleMod" }
+}

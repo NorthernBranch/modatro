@@ -12,7 +12,7 @@ import {
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
-import { RelativePath, RootSchema } from '../src/shared/model';
+import { ModId, RelativePath, RootSchema } from '../src/shared/model';
 import { ModatroApplication } from './application';
 import { errorReply, UserError } from './services/errors';
 import { contained, exists, safeDestination } from './services/files';
@@ -43,7 +43,13 @@ const allowLink = (url: string) => {
   const u = new URL(url);
   return (
     u.protocol === 'https:' &&
-    ['github.com', 'smods.dev', 'www.playbalatro.com'].includes(u.hostname) &&
+    [
+      'github.com',
+      'smods.dev',
+      'www.playbalatro.com',
+      'thunderstore.io',
+      'wiki.thunderstore.io',
+    ].includes(u.hostname) &&
     !u.username &&
     !u.password &&
     !u.port
@@ -168,6 +174,19 @@ void app
           id: z.string().max(200),
           action: z.enum(['install', 'update', 'uninstall', 'disable', 'enable', 'adopt']),
           confirmationToken: z.uuid().optional(),
+          acceptedUnverified: z
+            .array(
+              z
+                .object({
+                  id: z.string().regex(/^(Lovely|Steamodded)$/i),
+                  versionConstraint: z.string().max(200).optional(),
+                  installedVersion: z.string().max(200).optional(),
+                  packageId: ModId.optional(),
+                })
+                .strict(),
+            )
+            .max(100)
+            .optional(),
           decisions: z
             .array(
               z.object({
@@ -186,6 +205,7 @@ void app
           request.action,
           request.decisions,
           request.confirmationToken,
+          request.acceptedUnverified,
         ),
     );
     handle('cancel', z.undefined(), async () => application.installer.cancel());

@@ -35,8 +35,8 @@ test('keyboard shortcuts and dialogs preserve focus', async ({ page }) => {
   await page.goto('/');
   await page.keyboard.press('ControlOrMeta+k');
   await expect(page.getByRole('searchbox')).toBeFocused();
-  await page.getByRole('searchbox').fill('Bakery');
-  const trigger = page.getByRole('button', { name: 'Details for Bakery', exact: true });
+  await page.getByRole('searchbox').fill('Cryptid');
+  const trigger = page.getByRole('button', { name: 'Details for Cryptid', exact: true });
   await trigger.click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();

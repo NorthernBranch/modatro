@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { afterEach, expect, it, vi } from 'vitest';
 import { publishRelease, releaseDetails } from '../scripts/release.mjs';
 
-const version = '0.1.2';
+const version = '0.2.42';
 const env = {
   GITHUB_EVENT_NAME: 'push',
   GITHUB_REF: 'refs/heads/main',
@@ -23,6 +23,21 @@ async function fixture() {
   const details = releaseDetails(version, env);
   for (const asset of details.assets)
     await fs.writeFile(path.join(directory, asset), `fixture ${asset}`);
+  for (const arch of ['arm64', 'x64']) {
+    const asset = `Modatro-${version}-${arch}.dmg`;
+    await fs.writeFile(
+      path.join(directory, `signing-macos-${arch}.json`),
+      JSON.stringify({
+        schemaVersion: 1,
+        arch,
+        mode: 'ad-hoc',
+        signatureVerified: true,
+        notarized: false,
+        asset,
+        sha256: createHash('sha256').update(`fixture ${asset}`).digest('hex'),
+      }),
+    );
+  }
   const run = vi.fn((args) =>
     args[1] === 'view' ? { status: 1, stderr: 'release not found' } : { status: 0, stdout: '' },
   );
@@ -31,10 +46,10 @@ async function fixture() {
 
 it('gives each main push a unique preview tag tied to its commit', () => {
   expect(releaseDetails(version, env)).toMatchObject({
-    tag: 'v0.1.2-build.42.aaaaaaa',
+    tag: 'v0.2.42-build.42.aaaaaaa',
     prerelease: true,
   });
-  expect(releaseDetails(version, { ...env, GITHUB_RUN_NUMBER: '43' }).tag).not.toBe(
+  expect(releaseDetails('0.2.43', { ...env, GITHUB_RUN_NUMBER: '43' }).tag).not.toBe(
     releaseDetails(version, env).tag,
   );
   expect(releaseDetails(version, { ...env, GITHUB_SHA: 'b'.repeat(40) }).tag).not.toBe(
@@ -42,8 +57,8 @@ it('gives each main push a unique preview tag tied to its commit', () => {
   );
 });
 it('publishes a matching version tag as a named release', () => {
-  expect(releaseDetails(version, { ...env, GITHUB_REF: 'refs/tags/v0.1.2' })).toMatchObject({
-    tag: 'v0.1.2',
+  expect(releaseDetails(version, { ...env, GITHUB_REF: 'refs/tags/v0.2.42' })).toMatchObject({
+    tag: 'v0.2.42',
     prerelease: false,
   });
   expect(
@@ -53,7 +68,7 @@ it('publishes a matching version tag as a named release', () => {
 it.each([
   { GITHUB_EVENT_NAME: 'pull_request' },
   { GITHUB_REF: 'refs/heads/feature' },
-  { GITHUB_REF: 'refs/tags/v0.1.3' },
+  { GITHUB_REF: 'refs/tags/v0.2.43' },
   { GITHUB_SHA: 'main' },
   { GITHUB_REPOSITORY: '--unsafe' },
   { GITHUB_RUN_NUMBER: '../42' },
@@ -67,7 +82,7 @@ it('creates a draft containing all installers and checksums before publishing', 
   const create = f.run.mock.calls[1][0];
   expect(create).toContain('--draft');
   expect(create).toContain(env.GITHUB_SHA);
-  for (const asset of [...f.details.assets, 'SHA256SUMS.txt'])
+  for (const asset of [...f.details.assets, ...f.details.macReports, 'SHA256SUMS.txt'])
     expect(create).toContain(path.join(f.directory, asset));
   expect(f.run.mock.calls[2][0]).toContain('--draft=false');
   expect(f.run.mock.calls[2][0]).toContain('--prerelease=true');
@@ -96,9 +111,9 @@ it('does not mutate GitHub when an installer is empty', async () => {
 });
 it('marks a matching stable version release as latest', async () => {
   const f = await fixture();
-  await publishRelease({ version, ...f, env: { ...env, GITHUB_REF: 'refs/tags/v0.1.2' } });
+  await publishRelease({ version, ...f, env: { ...env, GITHUB_REF: 'refs/tags/v0.2.42' } });
   const edit = f.run.mock.calls[2][0];
-  expect(edit).toContain('v0.1.2');
+  expect(edit).toContain('v0.2.42');
   expect(edit).toContain('--prerelease=false');
   expect(edit).toContain('--latest=true');
 });
@@ -138,7 +153,9 @@ it('preserves a complete published release when a successful run is retried', as
     status: 0,
     stdout: JSON.stringify({
       isDraft: false,
-      assets: [...f.details.assets, 'SHA256SUMS.txt'].map((name) => ({ name })),
+      assets: [...f.details.assets, ...f.details.macReports, 'SHA256SUMS.txt'].map((name) => ({
+        name,
+      })),
     }),
   });
   await publishRelease({ version, env, ...f });
@@ -161,4 +178,34 @@ it('refuses to overwrite downloads on an incomplete published release', async ()
   });
   await expect(publishRelease({ version, env, ...f })).rejects.toThrow('incomplete');
   expect(f.run).toHaveBeenCalledTimes(1);
+});
+it('does not publish when a macOS signing report is missing', async () => {
+  const f = await fixture();
+  await fs.unlink(path.join(f.directory, f.details.macReports[0]));
+  await expect(publishRelease({ version, env, ...f })).rejects.toThrow();
+  expect(f.run).not.toHaveBeenCalled();
+});
+it('does not publish when a verified macOS installer has changed', async () => {
+  const f = await fixture();
+  await fs.appendFile(path.join(f.directory, f.details.assets[1]), 'changed');
+  await expect(publishRelease({ version, env, ...f })).rejects.toThrow('does not match');
+  expect(f.run).not.toHaveBeenCalled();
+});
+it('uses actual macOS signing status in release notes', async () => {
+  const f = await fixture();
+  const file = path.join(f.directory, f.details.macReports[0]);
+  const report = JSON.parse(await fs.readFile(file, 'utf8'));
+  await fs.writeFile(file, JSON.stringify({ ...report, mode: 'notarized', notarized: true }));
+  await publishRelease({ version, env, ...f });
+  const notes = await fs.readFile(path.join(f.directory, 'release-notes.md'), 'utf8');
+  expect(notes).toContain('arm64: Developer ID signed and notarized by Apple');
+  expect(notes).toContain('x64: ad-hoc signed for testing');
+});
+it('rejects a signing report that makes contradictory notarization claims', async () => {
+  const f = await fixture();
+  const file = path.join(f.directory, f.details.macReports[0]);
+  const report = JSON.parse(await fs.readFile(file, 'utf8'));
+  await fs.writeFile(file, JSON.stringify({ ...report, notarized: true }));
+  await expect(publishRelease({ version, env, ...f })).rejects.toThrow('invalid');
+  expect(f.run).not.toHaveBeenCalled();
 });

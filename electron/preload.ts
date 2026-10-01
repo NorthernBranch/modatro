@@ -7,8 +7,14 @@ const api: ModatroApi = {
   choosePath: (kind) => ipcRenderer.invoke('modatro:choosePath', kind),
   selectCandidate: (path) => ipcRenderer.invoke('modatro:selectCandidate', path),
   saveSettings: (settings) => ipcRenderer.invoke('modatro:saveSettings', settings),
-  action: (id, action, decisions, confirmationToken) =>
-    ipcRenderer.invoke('modatro:action', { id, action, decisions, confirmationToken }),
+  action: (id, action, decisions, confirmationToken, acceptedUnverified) =>
+    ipcRenderer.invoke('modatro:action', {
+      id,
+      action,
+      decisions,
+      confirmationToken,
+      acceptedUnverified,
+    }),
   openModFolder: (id) => ipcRenderer.invoke('modatro:openModFolder', id),
   cancel: () => ipcRenderer.invoke('modatro:cancel'),
   previewPlan: (id) => ipcRenderer.invoke('modatro:previewPlan', id),

@@ -295,8 +295,8 @@ export function DiscoverPage({
           </span>
           <span>
             {snapshot?.preview
-              ? 'Preview from the Balatro Mod Index'
-              : 'From Modatro and legacy catalogue sources'}
+              ? 'Preview from Thunderstore'
+              : 'From Thunderstore and registered GitHub projects'}
             <ExternalLink size={11} />
           </span>
         </div>
@@ -341,7 +341,7 @@ export function DiscoverPage({
                         </span>
                       ))
                     ) : (
-                      <span className="no-requirements">No index prerequisites</span>
+                      <span className="no-requirements">No catalogue prerequisites</span>
                     )}
                   </div>
                 </button>
@@ -369,8 +369,8 @@ export function DiscoverPage({
               mods.length
                 ? 'Try a different search or give another category a go.'
                 : snapshot.catalogue.refreshing
-                  ? 'We’re downloading and checking the Balatro Mod Index.'
-                  : 'Connect to the internet and refresh to load the Balatro Mod Index.'
+                  ? 'We’re downloading and checking the Thunderstore catalogue.'
+                  : 'Connect to the internet and refresh to load the Thunderstore catalogue.'
             }
             action={
               <AsyncButton

@@ -1,0 +1,13 @@
+{
+  "id": "example/example-mod",
+  "title": "Example Mod",
+  "author": "ExampleAuthor",
+  "repositoryUrl": "https://github.com/example/example-mod",
+  "githubRelease": { "assetName": "ExampleMod-{version}.zip" },
+  "metadataId": "ExampleMod",
+  "categories": ["Mods"],
+  "approvalStatus": "author-approved",
+  "approvalEvidence": "https://github.com/example/example-mod/issues/1",
+  "permissions": { "display": true, "install": true, "update": true },
+  "installation": { "type": "auto" }
+}

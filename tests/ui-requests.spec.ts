@@ -1,11 +1,22 @@
 import { expect, test, type Page } from '@playwright/test';
-import type { ModatroApi, Progress, Reply, Snapshot } from '../src/shared/model';
+import type {
+  ModatroApi,
+  Progress,
+  Reply,
+  Snapshot,
+  UnverifiedPrerequisite,
+} from '../src/shared/model';
 
 type Behavior = 'success' | 'hold' | 'reject' | 'error';
 interface MockRequests {
   state: Snapshot;
   calls: Record<string, number>;
-  actions: { id: string; action: string; token?: string }[];
+  actions: {
+    id: string;
+    action: string;
+    token?: string;
+    acceptedUnverified?: UnverifiedPrerequisite[];
+  }[];
   behavior: Record<string, Behavior>;
   finish: (method: string, reply?: Reply<unknown>) => void;
   reject: (method: string) => void;
@@ -130,8 +141,8 @@ async function mockDesktop(page: Page, state = fixture(), behavior: Record<strin
           if (reply.ok) control.state = reply.value;
           return reply;
         },
-        action: (id, action, _decisions, token) => {
-          control.actions.push({ id, action, token });
+        action: (id, action, _decisions, token, acceptedUnverified) => {
+          control.actions.push({ id, action, token, acceptedUnverified });
           return call('action', control.state);
         },
         openModFolder: () => call('openModFolder', undefined),
@@ -162,6 +173,114 @@ async function closeError(page: Page) {
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
 }
 
+test('unverified loaders allow installation only after explicit risk consent', async ({ page }) => {
+  const state = fixture();
+  state.prerequisites[0]!.installed = true;
+  state.catalogue.mods[0]!.prerequisites = [
+    { id: 'Lovely', displayName: 'Lovely', required: true, versionConstraint: '>=1.0.0' },
+  ];
+  await mockDesktop(page, state, { action: 'hold' });
+  await page.getByRole('button', { name: 'Install', exact: true }).click();
+  await page.evaluate(() =>
+    window.requestsTest.finish('action', {
+      ok: false,
+      error: {
+        message: 'Cannot verify Lovely against >=1.0.0.',
+        requirements: [
+          {
+            id: 'Lovely',
+            displayName: 'Lovely',
+            required: true,
+            versionConstraint: '>=1.0.0',
+            state: 'unknown',
+            reason: 'Cannot verify Lovely against >=1.0.0.',
+          },
+        ],
+        unverifiedPrerequisites: [
+          {
+            id: 'Lovely',
+            displayName: 'Lovely',
+            required: true,
+            versionConstraint: '>=1.0.0',
+            packageId: 'thunderstore/Thunderstore-lovely',
+            state: 'unknown',
+            reason: 'Cannot verify Lovely against >=1.0.0.',
+          },
+        ],
+      },
+    }),
+  );
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('Continuing may cause crashes');
+  await expect(dialog).toContainText('only to this operation');
+  expect(await page.evaluate(() => window.requestsTest.actions)).toEqual([
+    { id: 'fixture', action: 'install' },
+  ]);
+  const proceed = dialog.getByRole('button', { name: 'Proceed at my own risk' });
+  await proceed.evaluate((button: HTMLButtonElement) => {
+    button.click();
+    button.click();
+  });
+  await expect.poll(() => page.evaluate(() => window.requestsTest.actions.length)).toBe(2);
+  expect(await page.evaluate(() => window.requestsTest.actions[1])).toEqual({
+    id: 'fixture',
+    action: 'install',
+    acceptedUnverified: [
+      { id: 'Lovely', versionConstraint: '>=1.0.0', packageId: 'thunderstore/Thunderstore-lovely' },
+    ],
+  });
+  await page.evaluate(() => window.requestsTest.reject('action'));
+  await expect(page.getByRole('dialog')).toContainText('could not complete this operation');
+  await expect(page.getByRole('button', { name: 'Proceed at my own risk' })).toHaveCount(0);
+  await closeError(page);
+  await page.getByRole('button', { name: 'Install', exact: true }).click();
+  expect(
+    await page.evaluate(() => window.requestsTest.actions[2]?.acceptedUnverified),
+  ).toBeUndefined();
+  await page.evaluate(() => window.requestsTest.finish('action'));
+});
+
+test('enabling an unverified mod can be cancelled without changing its state', async ({ page }) => {
+  const state = fixture();
+  state.localMods = [
+    {
+      id: 'fixture',
+      title: 'Fixture mod',
+      version: '1.0.0',
+      folderName: 'fixture',
+      managed: true,
+      state: 'disabled',
+      canAdopt: false,
+      dependencies: [],
+      problems: [],
+    },
+  ];
+  await mockDesktop(page, state, { action: 'hold' });
+  await page.getByRole('button', { name: 'Enable', exact: true }).click();
+  await page.evaluate(() =>
+    window.requestsTest.finish('action', {
+      ok: false,
+      error: {
+        message: 'Cannot verify Steamodded against >=1.0.0.',
+        unverifiedPrerequisites: [
+          {
+            id: 'Steamodded',
+            displayName: 'Steamodded',
+            required: true,
+            versionConstraint: '>=1.0.0',
+            state: 'unknown',
+            reason: 'Cannot verify Steamodded against >=1.0.0.',
+          },
+        ],
+      },
+    }),
+  );
+  await expect(page.getByRole('button', { name: 'Proceed at my own risk' })).toBeVisible();
+  await closeError(page);
+  expect(await page.evaluate(() => window.requestsTest.actions.length)).toBe(1);
+  await expect(page.getByRole('button', { name: 'Enable', exact: true })).toBeEnabled();
+});
+
 test('automatic discovery shows progress, prevents duplicate clicks and explains no results', async ({
   page,
 }) => {
@@ -184,6 +303,47 @@ test('automatic discovery shows progress, prevents duplicate clicks and explains
   await expect(find).toBeEnabled();
   await expect(setup.getByRole('button', { name: 'Choose folder' })).toBeEnabled();
   expect(errors).toEqual([]);
+});
+
+test('an adopted copy with an unknown registry version offers an explicit catalogue replacement', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.localMods = [
+    {
+      id: 'fixture',
+      title: 'Fixture mod',
+      version: '99.0.0',
+      folderName: 'ExistingFolder',
+      managed: true,
+      canAdopt: false,
+      packageVersionUnknown: true,
+      state: 'installed',
+      dependencies: [],
+      problems: [],
+    },
+  ];
+  await mockDesktop(page, state, { action: 'hold' });
+  await page
+    .locator('.sidebar')
+    .getByRole('button', { name: /^Installed/ })
+    .click();
+  await expect(
+    page.getByText('The installed Thunderstore package version is unknown.', { exact: false }),
+  ).toBeVisible();
+  const install = page.getByRole('button', { name: 'Install catalogue release', exact: true });
+  await install.click();
+  await expect(install).toBeDisabled();
+  expect(await page.evaluate(() => window.requestsTest.actions)).toEqual([
+    { id: 'fixture', action: 'update' },
+  ]);
+  await page.evaluate(() => {
+    window.requestsTest.state.localMods[0]!.packageVersionUnknown = false;
+    window.requestsTest.state.localMods[0]!.version = '1.0.0';
+    window.requestsTest.finish('action');
+  });
+  await expect(install).toHaveCount(0);
+  await expect(page.locator('.local-row-info')).toContainText('Installed 1.0.0');
 });
 
 test('discovery handles a rejected connection and remains retryable', async ({ page }) => {

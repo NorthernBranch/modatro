@@ -1,6 +1,16 @@
 import { z } from 'zod';
 import semver from 'semver';
-import { HttpsUrl, ModId, ModSchema, PermissionsSchema, RelativePath, SafeName } from './model';
+import {
+  ApprovalStatus,
+  HttpsUrl,
+  InstallationSchema,
+  ModId,
+  ModSchema,
+  PermissionsSchema,
+  RelativePath,
+  ReleaseAssetName,
+  SafeName,
+} from './model';
 
 const Range = z
   .string()
@@ -13,12 +23,14 @@ export const AuthorManifestSchema = z
     id: ModId,
     name: z.string().min(1).max(200),
     author: z.string().min(1).max(200),
-    version: z.string().min(1).max(100),
+    version: z.string().min(1).max(100).optional(),
     permissions: PermissionsSchema,
     distribution: z
       .object({
         repository: HttpsUrl,
-        releaseUrl: HttpsUrl,
+        releaseUrl: HttpsUrl.optional(),
+        trackLatestRelease: z.boolean().optional(),
+        assetName: ReleaseAssetName.optional(),
         sourceType: z.enum(['release-asset', 'tag', 'commit', 'branch', 'other']).optional(),
         releaseTag: z.string().optional(),
         commitSha: z
@@ -58,9 +70,22 @@ export const AuthorManifestSchema = z
     iconUrl: HttpsUrl.optional(),
     iconUsageApproved: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((manifest, ctx) => {
+    if (
+      !manifest.distribution.trackLatestRelease &&
+      (!manifest.version || !manifest.distribution.releaseUrl)
+    )
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'A version and release URL are required unless latest-release discovery is enabled.',
+      });
+  });
 
 export const NativeEntrySchema = ModSchema.extend({
+  version: z.string().min(1).max(100).optional(),
+  prerequisites: ModSchema.shape.prerequisites.default([]),
   downloadUrl: HttpsUrl.optional(),
   permissions: PermissionsSchema,
 })
@@ -68,7 +93,7 @@ export const NativeEntrySchema = ModSchema.extend({
   .superRefine((entry, ctx) => {
     if (!/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(entry.id))
       ctx.addIssue({ code: 'custom', message: 'Native IDs must be author/slug.' });
-    if (!entry.downloadUrl && !entry.manifestUrl)
+    if (!entry.downloadUrl && !entry.manifestUrl && !(entry.githubRelease && entry.repositoryUrl))
       ctx.addIssue({ code: 'custom', message: 'A manifest or distribution URL is required.' });
     if (entry.approvalStatus === 'author-approved' && !entry.approvalEvidence)
       ctx.addIssue({ code: 'custom', message: 'Author approval requires evidence.' });
@@ -84,6 +109,51 @@ export const NativeEntrySchema = ModSchema.extend({
     for (const requirement of entry.prerequisites)
       if (requirement.versionConstraint && !semver.validRange(requirement.versionConstraint))
         ctx.addIssue({ code: 'custom', message: 'Unsupported version requirement.' });
+  });
+export const CatalogueOverridesSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    overrides: z
+      .array(
+        z
+          .object({
+            package: z
+              .string()
+              .regex(/^thunderstore\/[A-Za-z0-9_]+-[A-Za-z0-9_]+$/)
+              .optional(),
+            packageId: z.uuid().optional(),
+            metadataId: z.string().min(1).max(200).optional(),
+            folderName: SafeName.optional(),
+            legacyIds: z.array(ModId).max(20).optional(),
+            permissions: PermissionsSchema.optional(),
+            approvalStatus: ApprovalStatus.optional(),
+            approvalEvidence: HttpsUrl.optional(),
+            installation: InstallationSchema.optional(),
+          })
+          .strict()
+          .superRefine((entry, ctx) => {
+            if (!entry.package && !entry.packageId)
+              ctx.addIssue({ code: 'custom', message: 'A package identity or UUID is required.' });
+            if (
+              ['author-approved', 'community-submitted'].includes(entry.approvalStatus ?? '') &&
+              !entry.approvalEvidence
+            )
+              ctx.addIssue({ code: 'custom', message: 'Permission changes require evidence.' });
+          }),
+      )
+      .max(10000),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    const identities = value.overrides.flatMap((entry) =>
+      [
+        entry.package?.toLowerCase(),
+        entry.packageId,
+        ...(entry.legacyIds ?? []).map((id) => id.toLowerCase()),
+      ].filter(Boolean),
+    );
+    if (new Set(identities).size !== identities.length)
+      ctx.addIssue({ code: 'custom', message: 'Duplicate registry overrides.' });
   });
 export const NativeCatalogueSchema = z
   .object({

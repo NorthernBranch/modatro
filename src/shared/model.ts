@@ -36,6 +36,7 @@ export const ModId = z.union([
 export const ApprovalStatus = z.enum([
   'author-approved',
   'legacy-index',
+  'registry-published',
   'community-submitted',
   'pending-review',
   'opted-out',
@@ -47,7 +48,7 @@ export const PermissionsSchema = z.object({
   update: z.boolean(),
 });
 export const ReleaseSourceSchema = z.object({
-  sourceType: z.enum(['release-asset', 'tag', 'commit', 'branch', 'other']),
+  sourceType: z.enum(['release-asset', 'tag', 'commit', 'branch', 'registry', 'other']),
   releaseTag: z.string().max(200).optional(),
   commitSha: z
     .string()
@@ -67,7 +68,18 @@ export const DependencySchema = z.object({
   displayName: z.string().min(1),
   versionConstraint: z.string().optional(),
   required: z.boolean(),
+  packageId: ModId.optional(),
 });
+export const ReleaseAssetName = z
+  .string()
+  .min(1)
+  .max(200)
+  .refine(
+    (value) =>
+      SafeName.safeParse(value.replaceAll('{version}', 'release').replaceAll('{tag}', 'release'))
+        .success,
+    'Asset names may contain {version} or {tag} placeholders.',
+  );
 export type DependencyRequirement = z.infer<typeof DependencySchema>;
 export const InstallationSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('auto') }),
@@ -109,6 +121,25 @@ export const ModSchema = z.object({
   iconUsageApproved: z.boolean().optional(),
   distributionApproved: z.boolean().optional(),
   policyReason: z.string().optional(),
+  githubRelease: z.object({ assetName: ReleaseAssetName.optional() }).strict().optional(),
+  thunderstore: z
+    .object({
+      packageId: z.uuid(),
+      versionId: z.uuid(),
+      namespace: z
+        .string()
+        .regex(/^[a-zA-Z0-9_]+$/)
+        .max(40),
+      name: z
+        .string()
+        .regex(/^[a-zA-Z0-9_]+$/)
+        .max(40),
+      packageVersion: z.string().regex(/^\d+\.\d+\.\d+$/),
+      dependencies: z.array(z.string().max(200)).max(100),
+      packageUrl: HttpsUrl,
+    })
+    .strict()
+    .optional(),
 });
 export type ModDefinition = z.infer<typeof ModSchema>;
 export type DependencyState = 'satisfied' | 'missing' | 'outdated' | 'incompatible' | 'unknown';
@@ -127,6 +158,8 @@ export interface Prerequisite {
   sourceUrl: string;
   instructions?: string;
   provenance?: InstallationSource;
+  packageId?: string;
+  packageVersion?: string;
 }
 export interface ValidationProblem {
   code: string;
@@ -155,7 +188,16 @@ export const RootSchema = z.enum(['mods', 'game', 'disabled']);
 export type FileRoot = z.infer<typeof RootSchema>;
 export const HashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 export const InstallationSourceSchema = z.object({
-  sourceType: z.enum(['release-asset', 'tag', 'commit', 'branch', 'other', 'legacy', 'external']),
+  sourceType: z.enum([
+    'release-asset',
+    'tag',
+    'commit',
+    'branch',
+    'registry',
+    'other',
+    'legacy',
+    'external',
+  ]),
   repositoryUrl: HttpsUrl.optional(),
   downloadUrl: HttpsUrl.optional(),
   finalUrl: HttpsUrl.optional(),
@@ -166,6 +208,8 @@ export const InstallationSourceSchema = z.object({
     .optional(),
   downloadedAt: z.iso.datetime().optional(),
   sha256: HashSchema.optional(),
+  packageId: z.uuid().optional(),
+  packageVersion: z.string().max(100).optional(),
 });
 export type InstallationSource = z.infer<typeof InstallationSourceSchema>;
 export const InstalledFileSchema = z.object({
@@ -192,6 +236,7 @@ export const RecordSchema = z
     folderName: SafeName,
     transactionId: z.string(),
     metadataId: z.string().optional(),
+    packageVersion: z.string().max(100).optional(),
   })
   .superRefine((r, ctx) => {
     if (new Set(r.files.map((f) => `${f.root}:${f.path.toLowerCase()}`)).size !== r.files.length)
@@ -245,6 +290,7 @@ export interface LocalMod {
   releaseWarning?: string;
   repositoryUrl?: string;
   canDisable?: boolean;
+  packageVersionUnknown?: boolean;
   files?: Pick<InstalledFileRecord, 'root' | 'path' | 'operation'>[];
 }
 export interface TrustState {
@@ -306,11 +352,16 @@ export interface AppError {
   details?: string;
   conflicts?: FileConflict[];
   requirements?: DependencyStatus[];
+  unverifiedPrerequisites?: DependencyStatus[];
   retryable?: boolean;
   confirmation?: { token: string; plan: InstallPlan };
 }
 export type Reply<T> = { ok: true; value: T } | { ok: false; error: AppError };
 export type ModAction = 'install' | 'update' | 'uninstall' | 'disable' | 'enable' | 'adopt';
+export type UnverifiedPrerequisite = Pick<
+  DependencyStatus,
+  'id' | 'versionConstraint' | 'installedVersion' | 'packageId'
+>;
 export interface ConflictDecision {
   root: FileRoot;
   path: string;
@@ -346,6 +397,7 @@ export interface ModatroApi {
     action: ModAction,
     decisions?: ConflictDecision[],
     confirmationToken?: string,
+    acceptedUnverified?: UnverifiedPrerequisite[],
   ): Promise<Reply<Snapshot>>;
   cancel(): Promise<Reply<void>>;
   previewPlan?(id: string): Promise<Reply<InstallPlan>>;

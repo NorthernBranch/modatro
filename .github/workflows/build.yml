@@ -44,6 +44,8 @@ jobs:
           node-version: '24'
           package-manager-cache: false
       - uses: pnpm/action-setup@v6
+      - name: Assign automatic app version
+        run: node scripts/build-version.mjs
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm exec install-electron
@@ -53,9 +55,14 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - run: ${{ matrix.headless }} pnpm test:ui
       - name: Package installers
-        run: pnpm exec electron-builder ${{ matrix.target }} --publish never
+        run: pnpm package:desktop ${{ matrix.target }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          CSC_LINK: ${{ runner.os == 'macOS' && github.event_name != 'pull_request' && secrets.MAC_CERTIFICATE_P12 || '' }}
+          CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && github.event_name != 'pull_request' && secrets.MAC_CERTIFICATE_PASSWORD || '' }}
+          APPLE_ID: ${{ runner.os == 'macOS' && github.event_name != 'pull_request' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ runner.os == 'macOS' && github.event_name != 'pull_request' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ runner.os == 'macOS' && github.event_name != 'pull_request' && secrets.APPLE_TEAM_ID || '' }}
       - name: Verify packaged desktop startup
         run: ${{ matrix.headless }} pnpm exec playwright test tests/desktop.spec.ts
         env:
@@ -68,6 +75,7 @@ jobs:
             release/*.dmg
             release/*.AppImage
             release/*.deb
+            release/signing-macos-*.json
           if-no-files-found: error
           retention-days: 14
 
@@ -92,6 +100,8 @@ jobs:
           pattern: Modatro-*
           path: release-artifacts
           merge-multiple: true
+      - name: Assign the matching release version
+        run: node scripts/build-version.mjs
       - name: Publish tested installers
         run: node scripts/release.mjs
         env:

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import type { LocalMod, ModAction, ModDefinition } from '../shared/model';
 import { ModArt } from './ModArt';
 import { AsyncButton } from './AsyncButton';
+import { automationReason, sourceLabel } from '../shared/trust';
 export function PageHeading({
   eyebrow,
   title,
@@ -109,6 +110,12 @@ export function LocalRow({
           {local.managed ? 'Managed by Modatro' : 'Installed externally'}
         </p>
         {local.availabilityReason && <p className="muted-text">{local.availabilityReason}</p>}
+        {local.packageVersionUnknown && (
+          <p className="muted-text">
+            The installed Thunderstore package version is unknown. Review the catalogue release
+            before replacing your current copy.
+          </p>
+        )}
         {local.releaseWarning && <p role="status">{local.releaseWarning}</p>}
         {local.managed && (
           <details>
@@ -119,7 +126,7 @@ export function LocalRow({
                 ? 'Installed externally; adopted by Modatro'
                 : !local.provenance || local.provenance.sourceType === 'legacy'
                   ? 'Legacy installation'
-                  : local.provenance.sourceType}
+                  : sourceLabel(local.provenance.sourceType)}
             </p>
             {local.provenance?.downloadUrl && <p>Download: {local.provenance.downloadUrl}</p>}
             {local.provenance?.releaseTag && <p>Release: {local.provenance.releaseTag}</p>}
@@ -182,6 +189,19 @@ export function LocalRow({
         }
       </span>
       <div className="local-actions">
+        {local.managed &&
+          local.packageVersionUnknown &&
+          mod &&
+          local.state === 'installed' &&
+          !automationReason(mod, true) && (
+            <button
+              className="button button-secondary"
+              disabled={working}
+              onClick={() => onAction('update', mod)}
+            >
+              Install catalogue release
+            </button>
+          )}
         {local.managed ? (
           <>
             <button

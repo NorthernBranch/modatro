@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { crc32 } from 'node:zlib';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { GameDetectionService, LaunchService } from '../electron/services/detection';
 import { ModInstaller } from '../electron/services/installer';
@@ -35,6 +36,43 @@ export function mod(overrides: Partial<ModDefinition> = {}): ModDefinition {
     installation: { type: 'standard' },
     ...overrides,
   });
+}
+export function thunderstorePackage(
+  options: {
+    namespace?: string;
+    name?: string;
+    version?: string;
+    dependencies?: string[];
+    website?: string;
+    deprecated?: boolean;
+    categories?: string[];
+  } = {},
+) {
+  const namespace = options.namespace ?? 'Author',
+    name = options.name ?? 'Demo',
+    version = options.version ?? '1.0.0';
+  return {
+    uuid4: `11111111-1111-4111-8111-${createHash('sha256').update(`${namespace}-${name}`).digest('hex').slice(0, 12)}`,
+    owner: namespace,
+    name,
+    full_name: `${namespace}-${name}`,
+    package_url: `https://thunderstore.io/c/balatro/p/${namespace}/${name}/`,
+    date_updated: '2026-10-01T12:00:00Z',
+    categories: options.categories ?? ['Mods', 'Quality of Life'],
+    is_deprecated: options.deprecated ?? false,
+    versions: [
+      {
+        uuid4: `22222222-2222-4222-8222-${createHash('sha256').update(`${namespace}-${name}-${version}`).digest('hex').slice(0, 12)}`,
+        name,
+        full_name: `${namespace}-${name}-${version}`,
+        version_number: version,
+        is_active: true,
+        dependencies: options.dependencies ?? [],
+        download_url: `https://thunderstore.io/package/download/${namespace}/${name}/${version}/`,
+        website_url: options.website ?? 'https://github.com/author/demo',
+      },
+    ],
+  };
 }
 export async function setup(checkpoint?: (phase: string, index?: number) => Promise<void>) {
   const root = await tempRoot(),

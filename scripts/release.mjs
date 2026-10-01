@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { buildVersion } from './build-version.mjs';
 
 export function releaseDetails(version, env) {
   if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/.test(version))
@@ -16,6 +17,8 @@ export function releaseDetails(version, env) {
   if (env.GITHUB_REF === 'refs/heads/main') {
     if (!/^[1-9]\d*$/.test(env.GITHUB_RUN_NUMBER ?? ''))
       throw new Error('A workflow run number is required.');
+    if (version !== buildVersion(env))
+      throw new Error('The app version does not match this workflow run.');
     tag = `v${version}-build.${env.GITHUB_RUN_NUMBER}.${env.GITHUB_SHA.slice(0, 7)}`;
     title = `Modatro ${version} · build ${env.GITHUB_RUN_NUMBER}`;
     prerelease = true;
@@ -23,13 +26,14 @@ export function releaseDetails(version, env) {
     tag = `v${version}`;
     title = `Modatro ${version}`;
     prerelease = version.split('+')[0].includes('-');
-  } else throw new Error('Publish from main or a version tag matching package.json.');
+  } else throw new Error('Publish from main or a version tag matching the assigned app version.');
   return {
     tag,
     title,
     prerelease,
     sha: env.GITHUB_SHA,
     repository: env.GITHUB_REPOSITORY,
+    macReports: ['signing-macos-arm64.json', 'signing-macos-x64.json'],
     assets: [
       `Modatro-Setup-${version}.exe`,
       `Modatro-${version}-arm64.dmg`,
@@ -50,15 +54,41 @@ export async function publishRelease({
   const assets = details.assets.map((name) => path.resolve(directory, name));
   // Validate every platform build before making any GitHub mutation.
   const checksums = [];
+  const hashes = new Map();
   for (const [index, file] of assets.entries()) {
     const info = await stat(file);
     if (!info.isFile() || info.size === 0)
       throw new Error(`The installer is missing or empty: ${details.assets[index]}`);
-    checksums.push(
-      `${createHash('sha256')
-        .update(await readFile(file))
-        .digest('hex')}  ${details.assets[index]}`,
+    const hash = createHash('sha256')
+      .update(await readFile(file))
+      .digest('hex');
+    hashes.set(details.assets[index], hash);
+    checksums.push(`${hash}  ${details.assets[index]}`);
+  }
+  const macModes = [];
+  for (const [index, name] of details.macReports.entries()) {
+    const file = path.resolve(directory, name);
+    const data = await readFile(file);
+    const report = JSON.parse(data.toString('utf8'));
+    const arch = index === 0 ? 'arm64' : 'x64';
+    const asset = `Modatro-${version}-${arch}.dmg`;
+    if (
+      report.schemaVersion !== 1 ||
+      report.arch !== arch ||
+      report.signatureVerified !== true ||
+      !['ad-hoc', 'notarized'].includes(report.mode) ||
+      report.notarized !== (report.mode === 'notarized') ||
+      report.asset !== asset ||
+      report.sha256 !== hashes.get(asset)
+    )
+      throw new Error(
+        `The macOS signing report is invalid or does not match its installer: ${name}`,
+      );
+    macModes.push(
+      `${arch}: ${report.mode === 'notarized' ? 'Developer ID signed and notarized by Apple' : 'ad-hoc signed for testing; not Apple-verified or notarized'}`,
     );
+    checksums.push(`${createHash('sha256').update(data).digest('hex')}  ${name}`);
+    assets.push(file);
   }
   const checksumFile = path.resolve(directory, 'SHA256SUMS.txt');
   await writeFile(checksumFile, `${checksums.join('\n')}\n`);
@@ -70,7 +100,8 @@ export async function publishRelease({
       details.prerelease ? 'This is an automated preview build of Modatro.' : `Modatro ${version}.`,
       `Built from commit [${details.sha.slice(0, 7)}](https://github.com/${details.repository}/commit/${details.sha}) after the Windows, Apple Silicon, Intel macOS and Linux checks passed.`,
       'Choose the Windows x64 EXE, Apple Silicon arm64 DMG, Intel x64 DMG, or Linux x64 AppImage/DEB for your computer. SHA256SUMS.txt contains download checksums.',
-      'These builds are unsigned, and the macOS builds are not notarized. Application updates are manual; preserve your application data and backups.',
+      `macOS signing — ${macModes.join('; ')}. See the signing reports included with this release. Ad-hoc previews may require macOS approval before opening.`,
+      'The Windows installer is currently unsigned. Linux packages do not carry a publisher signature. Application updates are manual; preserve your application data and backups.',
       'Modatro is an independent community project and is not affiliated with, endorsed by, or sponsored by LocalThunk or Playstack. Mod authors retain ownership of their work.',
       `[Installation instructions and release information](https://github.com/${details.repository}/blob/${details.sha}/docs/release.md).`,
     ].join('\n\n') + '\n',
@@ -87,7 +118,11 @@ export async function publishRelease({
     const release = JSON.parse(existing.stdout);
     if (!release.isDraft) {
       const names = new Set(release.assets.map((asset) => asset.name));
-      if (![...details.assets, 'SHA256SUMS.txt'].every((name) => names.has(name)))
+      if (
+        ![...details.assets, ...details.macReports, 'SHA256SUMS.txt'].every((name) =>
+          names.has(name),
+        )
+      )
         throw new Error(
           'The published release is incomplete. Published assets will not be overwritten.',
         );

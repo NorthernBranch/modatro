@@ -64,6 +64,7 @@
       "pattern": "^[a-zA-Z0-9_@.+ -]+$"
     },
     "prerequisites": {
+      "default": [],
       "maxItems": 100,
       "type": "array",
       "items": {
@@ -82,6 +83,21 @@
           },
           "required": {
             "type": "boolean"
+          },
+          "packageId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120,
+                "pattern": "^[a-zA-Z0-9_@.+ -]+$"
+              },
+              {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[a-zA-Z0-9_.-]+\\/[a-zA-Z0-9_.-]+$"
+              }
+            ]
           }
         },
         "required": ["id", "displayName", "required"],
@@ -201,6 +217,7 @@
       "enum": [
         "author-approved",
         "legacy-index",
+        "registry-published",
         "community-submitted",
         "pending-review",
         "opted-out",
@@ -260,7 +277,7 @@
       "properties": {
         "sourceType": {
           "type": "string",
-          "enum": ["release-asset", "tag", "commit", "branch", "other"]
+          "enum": ["release-asset", "tag", "commit", "branch", "registry", "other"]
         },
         "releaseTag": {
           "type": "string",
@@ -298,13 +315,74 @@
     },
     "policyReason": {
       "type": "string"
+    },
+    "githubRelease": {
+      "type": "object",
+      "properties": {
+        "assetName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "additionalProperties": false
+    },
+    "thunderstore": {
+      "type": "object",
+      "properties": {
+        "packageId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "versionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "namespace": {
+          "type": "string",
+          "maxLength": 40,
+          "pattern": "^[a-zA-Z0-9_]+$"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 40,
+          "pattern": "^[a-zA-Z0-9_]+$"
+        },
+        "packageVersion": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "dependencies": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "packageUrl": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "required": [
+        "packageId",
+        "versionId",
+        "namespace",
+        "name",
+        "packageVersion",
+        "dependencies",
+        "packageUrl"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [
     "id",
     "title",
     "author",
-    "version",
     "categories",
     "prerequisites",
     "installation",

@@ -27,6 +27,7 @@ it('detects Steamodded by structured metadata in a differently named unmanaged f
     path.join(f.mods, 'DifferentFolder', 'manifest.json'),
     JSON.stringify({ name: 'Steamodded', version_number: '26.829.0', dependencies: [] }),
   );
+  await put(path.join(f.mods, 'DifferentFolder', 'version.lua'), 'return \"26.829.0\"');
   const scan = await new InstalledModsService(f.storage, f.logger).scan([]);
   expect(scan.prerequisites.find((p) => p.id === 'Steamodded')).toMatchObject({
     installed: true,

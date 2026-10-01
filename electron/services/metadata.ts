@@ -8,6 +8,7 @@ import {
 } from '../../src/shared/model';
 import { UserError } from './errors';
 import { AuthorManifestSchema } from '../../src/shared/catalogue-schema';
+import { thunderstoreDependency } from '../../src/shared/thunderstore';
 import { exists, readPrefix, readSmall, safeDestination, walkFiles } from './files';
 const Manifest = z.object({
   id: z.string().optional(),
@@ -54,14 +55,7 @@ export function dependencyId(id: string): string {
   );
 }
 export function parseRequirement(text: string): DependencyRequirement {
-  const thunderstore = /^Thunderstore-lovely-(\d+\.\d+\.\d+)$/.exec(text);
-  if (thunderstore)
-    return {
-      id: 'Lovely',
-      displayName: 'Lovely',
-      versionConstraint: `>=${thunderstore[1]}`,
-      required: true,
-    };
+  if (/^[A-Za-z0-9_]+-[A-Za-z0-9_]+-\d+\.\d+\.\d+$/.test(text)) return thunderstoreDependency(text);
   const match = /^([\w.-]+)(.*)$/.exec(text.trim());
   if (!match)
     throw new UserError(`The dependency “${text}” is not in a supported structured format.`);
@@ -136,7 +130,7 @@ export async function inspectMetadata(root: string): Promise<ModMetadata> {
       authorMetadata = {
         id: manifest.id,
         name: manifest.name,
-        version: manifest.version,
+        version: manifest.distribution.trackLatestRelease ? undefined : manifest.version,
         requirements: Object.entries(manifest.requirements).map(([id, versionConstraint]) => ({
           id: dependencyId(id),
           displayName: id,
@@ -181,7 +175,9 @@ export async function inspectMetadata(root: string): Promise<ModMetadata> {
         results.push({
           id: m.id ?? (m.name === 'Steamodded' ? 'Steamodded' : undefined),
           name: m.name,
-          version: m.version ?? m.version_number,
+          // Registry versions describe a package, not the loader's runtime version.
+          version:
+            m.version ?? (entry.name === 'manifest.json' && !m.id ? undefined : m.version_number),
           requirements,
           conflicts: (m.conflicts ?? []).map(parseRequirement),
         });
@@ -225,7 +221,7 @@ export function mergeRequirements(...groups: DependencyRequirement[][]): Depende
   const map = new Map<string, DependencyRequirement>();
   for (const r of groups.flat()) {
     const normalized = { ...r, id: dependencyId(r.id) };
-    const key = `${normalized.id}:${r.versionConstraint ?? ''}`;
+    const key = `${normalized.id.toLowerCase()}:${normalized.packageId ?? ''}:${r.versionConstraint ?? ''}`;
     map.set(key, { ...normalized, required: r.required || map.get(key)?.required === true });
   }
   return [...map.values()];

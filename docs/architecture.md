@@ -17,7 +17,7 @@ archives, filesystem access and repository retrieval run in the main process.
 | `electron/main.ts`                                     | Windows, protocol handling, IPC validation, native dialogs and launch actions    |
 | `electron/application.ts`                              | Service orchestration, snapshots, settings and imported definitions              |
 | `GameDetectionService`                                 | Steam discovery, platform validation and separate game/Mods roots                |
-| `BalatroModIndexRepository`                            | Commit-pinned index retrieval, normalization and caching                         |
+| `ThunderstoreRepository`                               | Live Balatro registry retrieval, version validation and independent caching      |
 | `NativeModRepository` and `ModatroCatalogueRepository` | Compiled native index, author manifests and legacy-ID continuity                 |
 | `CatalogueTrust`                                       | Independent persistent revocations/release blocks and fresh-download eligibility |
 | `ArtifactHistory`                                      | Archive provenance, supplied checksums and immutable-release change detection    |
@@ -33,30 +33,26 @@ are restricted in the main process.
 
 ## Catalogue retrieval
 
-The repository adapter reads the Balatro Mod Index's commit, Git tree and raw metadata.
-All legacy entries in a refresh come from the selected commit and are labelled
-`legacy-index`. Unapproved legacy descriptions are not retrieved or displayed.
-Native entries can refer to an author-controlled `modatro.json`. Identity, repository,
-permissions, supported strategies and paths are validated; index and manifest permissions
-are intersected. Neither GitHub HTML nor README content is scraped.
+Thunderstore supplies the main catalogue through its public Balatro package API.
+The adapter validates package identities, active versions, dependency declarations
+and canonical download URLs. Deprecated packages and inactive versions are excluded.
+A complete validated snapshot is saved independently of the GitHub supplement;
+outages retain cached browsing. Old index caches are read only for transition
+browsing; no network request contacts the discontinued index.
 
-A transport failure or incomplete tree preserves the previous catalogue. A malformed
-individual entry appears as unavailable. Validated catalogues are saved in
-`catalogue-cache/`, separate from Electron's browser cache. Legacy catalogues in
-`cache/` are read and copied to the new location without deleting browser data.
+`NativeModRepository` supplies registered GitHub-only projects. Author-controlled
+manifests and optional latest-release discovery supply versions and archives on
+refresh. `catalogue/overrides.json` records reviewed permissions and exceptional
+installation layouts without duplicating release versions or URLs. Independent
+revocation and blocked-release feeds remain authoritative for both providers.
 
-Revocations and blocked releases use independent versioned feeds. Each successful
-feed applies even if the catalogue or the other feed fails. Previously observed
-restrictions persist and cannot be removed by an older or incomplete feed. A fresh
-check is required before download and again before commit; local uninstall and
-enable/disable do not require network access. The renderer receives the same applied
-policy used by the installer.
-
-Distribution resolution prefers a matching published ZIP asset, then a release/tag
-archive, then a commit-pinned branch archive. Other mutable sources are labelled
-honestly. Downloads are checked against the declared repository or explicit source
-approval and the existing HTTPS host allowlist. SHA-256 history persists separately
-from installation records, so uninstalling a mod does not forget a changed release.
+Thunderstore requests use a separate transport policy limited to the Balatro API,
+canonical package downloads and supported CDN paths. GitHub redirects cannot expand
+into that policy. Every redirect is validated. A downloaded package's root manifest
+must agree with its selected name, version and dependency list before planning.
+Package UUIDs and version UUIDs identify immutable artifacts; observed SHA-256 hashes
+are retained across restarts and uninstall. Runtime versions come from loader metadata,
+while package versions remain separate for update and registry dependency checks.
 
 ## File operations
 
@@ -119,6 +115,11 @@ detection scans library capabilities rather than relying on one filename.
 Dependency declarations come from index flags and supported structured metadata or
 Steamodded headers. An archive can add requirements before any destination changes.
 Unspecified versions remain unspecified; unsupported constraints remain unknown.
+An operation can explicitly acknowledge unverified installed Lovely or Steamodded
+versions. The acknowledgement identifies the prerequisite, required range and
+observed installed version, and applies only to that operation. Installation and
+enabling recheck dependencies before committing; missing or known incompatible
+versions cannot be overridden. The unknown status remains visible after proceeding.
 
 ## Extending Modatro
 

@@ -11,6 +11,7 @@ import {
   type Progress,
   type Settings,
   type Snapshot,
+  type UnverifiedPrerequisite,
 } from '../src/shared/model';
 import { ModatroCatalogueRepository } from './services/catalogue';
 import { GameDetectionService, LaunchService } from './services/detection';
@@ -22,7 +23,7 @@ import { remoteJson } from './services/network';
 import { Logger, Storage } from './services/storage';
 import { TransactionEngine } from './services/transaction';
 import { CatalogueTrust } from './services/trust';
-import { allowedDescription } from '../src/shared/trust';
+import { allowedDescription, automationReason } from '../src/shared/trust';
 
 export class ModatroApplication {
   readonly storage: Storage;
@@ -67,7 +68,20 @@ export class ModatroApplication {
       this.logger,
       progress,
       async () => (await this.snapshot()).prerequisites,
-      (mod, update) => this.trust.assertAllowed(mod, update),
+      async (mod, update) => {
+        await this.repository.assertAvailable(mod);
+        const current = this.repository.catalogue.mods.find(
+          (entry) =>
+            entry.id === mod.id ||
+            entry.legacyIds?.includes(mod.id) ||
+            (!!mod.thunderstore && entry.thunderstore?.packageId === mod.thunderstore.packageId),
+        );
+        if (current) {
+          const reason = automationReason(current, update);
+          if (reason) throw new UserError(reason);
+        }
+        await this.trust.assertAllowed(mod, update);
+      },
     );
   }
   async initialize() {
@@ -121,12 +135,27 @@ export class ModatroApplication {
     return [...this.custom, ...this.repository.catalogue.mods.filter((m) => !ids.has(m.id))].map(
       (mod) => {
         // Keep the original record identity when a native entry replaces an archived index ID.
-        const existing = this.storage.state.installations.find((record) =>
-          mod.legacyIds?.includes(record.modId),
+        const matches = this.storage.state.installations.filter(
+          (record) =>
+            mod.legacyIds?.includes(record.modId) ||
+            (!!mod.thunderstore && record.provenance?.packageId === mod.thunderstore.packageId),
         );
+        const existing = matches.length === 1 ? matches[0] : undefined;
+        const platformUnavailable =
+          mod.thunderstore?.namespace === 'Thunderstore' &&
+          mod.thunderstore.name === 'lovely' &&
+          process.platform === 'darwin';
         return this.trust.apply({
           ...mod,
           id: existing?.modId ?? mod.id,
+          folderName: existing?.folderName ?? mod.folderName,
+          installation: platformUnavailable
+            ? {
+                type: 'unsupported',
+                instructions:
+                  'This Thunderstore Lovely package contains the Windows library. Use Lovely’s official macOS instructions.',
+              }
+            : mod.installation,
           legacyIds: existing ? [...new Set([mod.id, ...(mod.legacyIds ?? [])])] : mod.legacyIds,
           description: allowedDescription(mod),
           unavailableReason:
@@ -280,13 +309,14 @@ export class ModatroApplication {
     action: ModAction,
     decisions: ConflictDecision[] = [],
     confirmationToken?: string,
+    acceptedUnverified: UnverifiedPrerequisite[] = [],
   ) {
     this.operationReport = undefined;
     const mods = this.allMods();
     if (action === 'uninstall')
       this.operationReport = await this.installer.uninstall(id, decisions);
     else if (action === 'disable' || action === 'enable')
-      await this.installer.toggle(id, action === 'disable');
+      await this.installer.toggle(id, action === 'disable', acceptedUnverified);
     else if (action === 'adopt') {
       const external = (await this.snapshot()).localMods.find((m) => m.id === id && m.canAdopt);
       if (!external) throw new UserError('This external mod could not be confidently identified.');
@@ -367,7 +397,13 @@ export class ModatroApplication {
         await this.storage.write('data/custom-mods.json', this.custom);
       }
       try {
-        await this.installer.install(mod, action === 'update' || !!existing, confirmationToken);
+        await this.installer.install(
+          mod,
+          action === 'update' || !!existing,
+          confirmationToken,
+          false,
+          acceptedUnverified,
+        );
       } catch (error) {
         if (error instanceof UserError && [404, 410].includes(error.statusCode ?? 0)) {
           this.unavailableSources[mod.id] =
