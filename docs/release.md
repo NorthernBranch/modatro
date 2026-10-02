@@ -1,15 +1,15 @@
 # Release information
 
-Modatro is a preview of the desktop manager for Balatro on Windows,
+Modatro is a beta desktop mod manager for Balatro on Windows,
 macOS and Linux with Steam/Proton. It includes mod discovery, dependency checks, managed installations,
 updates, backups and recovery for interrupted file operations.
 
 Downloads and release notes are listed on
 [GitHub Releases](https://github.com/NorthernBranch/modatro/releases).
 
-## Automated preview downloads
+## Automated beta downloads
 
-Each push to `main` publishes a new preview once the Windows x64, Apple Silicon,
+Each push to `main` publishes a new beta once the Windows x64, Apple Silicon,
 Intel macOS and Linux builds pass their checks. A release includes every platform's installers,
 `SHA256SUMS.txt` for download verification, and a link to its exact source commit.
 If any platform build or upload fails, the release remains unpublished.
@@ -22,13 +22,23 @@ desktop startup before uploading. Publishing waits for every platform to pass an
 uses the same tested version.
 
 Each workflow run assigns an increasing app version automatically, for example
-`0.2.42`, followed by `0.2.43`. Merging into `main` triggers the same process as a
+`0.3.0`, followed by `0.3.1`. Merging into `main` triggers the same process as a
 push. The renderer, Electron app, platform installers and release notes all use
 that version. Retrying a workflow retains its assigned version. There are no
 version-bump commits and no need to edit `package.json` for normal releases.
 
-Preview tags also identify the run and commit, such as `v0.2.42-build.42.aaaaaaa`.
-Application updates remain manual. An optional tag such as `v1.0.0` can publish a
+The baseline in `build/version.json` starts the 0.3 series at workflow run 11.
+Later workflow runs increase the patch number; pull-request builds also consume run numbers.
+For a future minor bump, update the baseline version and its first workflow run together.
+
+Beta tags also identify the run and commit, such as `v0.3.0-beta.build.11.aaaaaaa`.
+The app checks GitHub Releases at startup and shows a small update notice when a newer
+beta or stable release has an installer for your platform. In Settings, use **Check for
+updates** to check again or **Download update** to open the installer in your browser.
+Nothing downloads automatically. Close Modatro before running the installer; preserve
+the existing application data directory and mod backups.
+
+An optional tag such as `v1.0.0` can publish a
 named release; CI takes the version from the tag without a package-file edit.
 Pull requests and manual workflow runs provide build artifacts without publishing.
 
@@ -69,7 +79,7 @@ Pull requests and manual workflow runs provide build artifacts without publishin
 - Packaged desktop startup checks added to each CI platform target.
 - macOS packages receive complete bundle signatures, checked before upload. This
   replaces incomplete inherited Electron signatures that can cause “damaged” alerts.
-  Release notes distinguish ad-hoc previews from Developer ID signed, notarized builds.
+  Release notes distinguish ad-hoc beta builds from Developer ID signed, notarized builds.
 
 See [release verification](verification.md) for specification coverage and remaining
 platform validation.
@@ -106,7 +116,7 @@ Developer ID builds also have their notarization ticket stapled to the app.
 If macOS says the app is damaged, use a newly built installer rather than overriding
 the old package's invalid signature. See [macOS troubleshooting](troubleshooting.md#macos-says-modatro-is-damaged)
 and [release signing](signing.md). Modatro does not change operating-system security
-settings. Windows preview installers are currently unsigned.
+settings. Windows beta installers are currently unsigned.
 
 ### Updating Modatro
 
@@ -151,7 +161,7 @@ Thunderstore package versions. External installations without a recorded package
 version cannot establish whether a newer Thunderstore package is available.
 
 - **Lovely:** install, manage an existing copy, or update using the official Windows,
-  Proton, Intel Mac or Apple Silicon Mac release. Confirm the game-file preview;
+  Proton, Intel Mac or Apple Silicon Mac release. Confirm the game-file plan;
   existing destination files are backed up and restored on uninstall. An older manual
   `version.dll` installation requires Lovely's upstream upgrade instructions before
   installing `winmm.dll`. On macOS, use **Launch Modded Balatro** after installation.
@@ -167,7 +177,7 @@ does not persist to other installations or updates. Missing prerequisites, known
 incompatible versions and unknown versions of other dependencies still block the
 operation. An unknown version is never reported as verified.
 
-## Preview limitations
+## Beta limitations
 
 - Linux packages target x64. Native Linux LÖVE launch and ARM Linux are not supported.
 - Mods update individually; bulk updates and automatic application updates are unavailable.

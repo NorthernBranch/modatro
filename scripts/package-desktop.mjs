@@ -66,15 +66,15 @@ export function macSigningConfiguration(base, env = process.env) {
           notarize: false,
           hardenedRuntime: true,
           type: 'distribution',
-          entitlements: 'build/entitlements.mac.preview.plist',
-          entitlementsInherit: 'build/entitlements.mac.preview.plist',
+          entitlements: 'build/entitlements.mac.beta.plist',
+          entitlementsInherit: 'build/entitlements.mac.beta.plist',
         },
       },
     };
   const missing = macCredentials.filter((key) => !env[key]);
   if (missing.length)
     throw new Error(
-      `macOS signing is partially configured. Add: ${missing.join(', ')}. Packaging will not silently fall back to an unverified preview.`,
+      `macOS signing is partially configured. Add: ${missing.join(', ')}. Packaging will not silently fall back to an unverified beta.`,
     );
   if (!/^[A-Z0-9]{10}$/.test(env.APPLE_TEAM_ID))
     throw new Error('APPLE_TEAM_ID must be a ten-character Apple Developer Team ID.');
@@ -127,7 +127,7 @@ export function verifyMacApp(
     checked('xcrun', ['stapler', 'validate', app]);
     checked('spctl', ['--assess', '--type', 'execute', '--verbose=2', app]);
   } else if (mode !== 'ad-hoc' || !/^Signature=adhoc$/m.test(signature))
-    throw new Error('The preview signing mode does not match its signature.');
+    throw new Error('The beta signing mode does not match its signature.');
 }
 
 export async function packageDesktop(args = process.argv.slice(2), env = process.env) {

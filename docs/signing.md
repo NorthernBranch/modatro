@@ -5,7 +5,7 @@ DMG, then verifies nested code and sealed resources. A signature that fails vali
 stops the build. Starting an unquarantined app on a build machine alone does not verify
 that a downloaded app will pass Gatekeeper.
 
-## macOS previews and public distribution
+## macOS beta builds and public distribution
 
 Without Apple credentials, packages use an **ad-hoc signature**. This provides a
 consistent resource seal and avoids retaining invalid signatures from Electron's
@@ -66,7 +66,7 @@ pnpm package:desktop --mac --arm64 --x64
 ```
 
 Do not put credential values directly in committed scripts or shell command examples.
-The default direct electron-builder command remains an ad-hoc preview; use
+The default direct electron-builder command remains an ad-hoc beta; use
 `package:desktop` for credential-aware signing and distribution verification.
 
 ## Release evidence
@@ -88,6 +88,35 @@ them and show an unknown publisher. A trusted Authenticode signature is recommen
 for public releases. Certificate or cloud-signing setup is separate from Apple's
 process; signing alone does not guarantee immediate SmartScreen reputation. The
 current workflow does not configure a Windows publisher-signing service.
+
+### Setting up trusted Windows signing
+
+Microsoft [Artifact Signing](https://learn.microsoft.com/en-us/azure/artifact-signing/quickstart)
+provides cloud-managed Authenticode certificates, so a private signing key does not
+need to be stored in GitHub. It requires an Azure subscription, successful identity
+validation and a **Public Trust** certificate profile. A Private Trust or Public Trust
+Test profile does not provide normal public distribution trust. Check eligibility
+before creating paid resources: Microsoft currently supports UK organizations, while
+individual developer Public Trust validation is limited to the United States and Canada.
+An individual developer elsewhere needs another eligible code-signing provider.
+
+Once an account is approved, the Windows packaging job can use electron-builder's
+`win.azureSignOptions` with the account's endpoint, signing account name, certificate
+profile name and exact publisher name. Prefer GitHub-to-Azure OIDC authentication,
+restricted to this repository's release workflow, and grant only the certificate
+profile signing role. Signing credentials must never be exposed to pull-request builds.
+An existing certificate from a trusted certificate authority is another option;
+hardware-backed certificates require a compatible token or cloud integration.
+
+Both the packaged `Modatro.exe` and the NSIS installer must be signed and timestamped.
+The Windows runner should verify their Authenticode signatures before uploading, and
+the release must report its actual signing status. No signing account or certificate
+is configured yet, so current builds remain unsigned. A successful build or checksum
+does not establish a trusted publisher.
+
+Microsoft [explains SmartScreen reputation](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation):
+trusted signing identifies the publisher and protects against tampering, but does not
+guarantee that a new download immediately avoids all SmartScreen warnings.
 
 Linux AppImage and directly downloaded DEB packages do not require an Apple-style
 notarization service. A future signed package repository or detached release signature

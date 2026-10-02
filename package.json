@@ -1,6 +1,6 @@
 {
   "name": "modatro",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "An independent, safety-first Balatro mod manager",
   "private": true,
   "author": "Modatro contributors",
@@ -72,8 +72,8 @@
       "hardenedRuntime": true,
       "identity": "-",
       "notarize": false,
-      "entitlements": "build/entitlements.mac.preview.plist",
-      "entitlementsInherit": "build/entitlements.mac.preview.plist",
+      "entitlements": "build/entitlements.mac.beta.plist",
+      "entitlementsInherit": "build/entitlements.mac.beta.plist",
       "artifactName": "Modatro-${version}-${arch}.${ext}"
     },
     "win": {

@@ -19,8 +19,8 @@ export function releaseDetails(version, env) {
       throw new Error('A workflow run number is required.');
     if (version !== buildVersion(env))
       throw new Error('The app version does not match this workflow run.');
-    tag = `v${version}-build.${env.GITHUB_RUN_NUMBER}.${env.GITHUB_SHA.slice(0, 7)}`;
-    title = `Modatro ${version} · build ${env.GITHUB_RUN_NUMBER}`;
+    tag = `v${version}-beta.build.${env.GITHUB_RUN_NUMBER}.${env.GITHUB_SHA.slice(0, 7)}`;
+    title = `Modatro Beta ${version} · build ${env.GITHUB_RUN_NUMBER}`;
     prerelease = true;
   } else if (env.GITHUB_REF === `refs/tags/v${version}`) {
     tag = `v${version}`;
@@ -97,11 +97,11 @@ export async function publishRelease({
   await writeFile(
     notesFile,
     [
-      details.prerelease ? 'This is an automated preview build of Modatro.' : `Modatro ${version}.`,
+      details.prerelease ? 'This is a beta release of Modatro.' : `Modatro ${version}.`,
       `Built from commit [${details.sha.slice(0, 7)}](https://github.com/${details.repository}/commit/${details.sha}) after the Windows, Apple Silicon, Intel macOS and Linux checks passed.`,
       'Choose the Windows x64 EXE, Apple Silicon arm64 DMG, Intel x64 DMG, or Linux x64 AppImage/DEB for your computer. SHA256SUMS.txt contains download checksums.',
-      `macOS signing — ${macModes.join('; ')}. See the signing reports included with this release. Ad-hoc previews may require macOS approval before opening.`,
-      'The Windows installer is currently unsigned. Linux packages do not carry a publisher signature. Application updates are manual; preserve your application data and backups.',
+      `macOS signing — ${macModes.join('; ')}. See the signing reports included with this release. Ad-hoc beta builds may require macOS approval before opening.`,
+      'The Windows installer is currently unsigned. Linux packages do not carry a publisher signature. Modatro checks for updates at startup; choose Download update in Settings to open the installer. Updates are never downloaded automatically. Preserve your application data and backups.',
       'Modatro is an independent community project and is not affiliated with, endorsed by, or sponsored by LocalThunk or Playstack. Mod authors retain ownership of their work.',
       `[Installation instructions and release information](https://github.com/${details.repository}/blob/${details.sha}/docs/release.md).`,
     ].join('\n\n') + '\n',

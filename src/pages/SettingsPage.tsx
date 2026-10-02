@@ -65,6 +65,67 @@ export function SettingsPage({
       {snapshot && (
         <div className="settings-layout">
           <section className="settings-section">
+            <h2>Application updates</h2>
+            <SettingsRow
+              title={`Modatro Beta · ${snapshot.appVersion}`}
+              description={
+                snapshot.appUpdate?.version
+                  ? `Version ${snapshot.appUpdate.version} is available. Downloads start only when you choose.`
+                  : (snapshot.appUpdate?.error ??
+                    (snapshot.appUpdate?.checking
+                      ? 'Checking GitHub Releases…'
+                      : snapshot.appUpdate?.checkedAt
+                        ? 'You have the latest available beta or stable release.'
+                        : 'Check GitHub Releases for a newer version.'))
+              }
+            >
+              <AsyncButton
+                className="button button-secondary"
+                pending={snapshot.appUpdate?.checking || requests.isPending('updates:check')}
+                pendingLabel="Checking…"
+                disabled={snapshot.preview || !api.checkAppUpdates}
+                onClick={() =>
+                  void callSnapshot('updates:check', 'Checking application updates', () =>
+                    api.checkAppUpdates!(),
+                  )
+                }
+              >
+                Check for updates
+              </AsyncButton>
+              {snapshot.appUpdate?.version && (
+                <AsyncButton
+                  className="button button-primary"
+                  pending={requests.isPending('updates:download')}
+                  pendingLabel="Opening…"
+                  disabled={requests.isBusy('external-link')}
+                  onClick={() =>
+                    void requests.run(
+                      'updates:download',
+                      'Opening application update',
+                      () =>
+                        api.openLink(
+                          snapshot.appUpdate!.downloadUrl ?? snapshot.appUpdate!.releaseUrl!,
+                        ),
+                      { group: 'external-link' },
+                    )
+                  }
+                >
+                  {snapshot.appUpdate.downloadUrl ? 'Download update' : 'View release'}
+                  <ArrowUpRight size={14} />
+                </AsyncButton>
+              )}
+            </SettingsRow>
+            <p className="muted-text">
+              The installer opens in your browser. Close Modatro before running it; your settings,
+              mods and backups are preserved.
+            </p>
+            {snapshot.appUpdate?.version && snapshot.appUpdate.error && (
+              <p className="muted-text" role="status">
+                {snapshot.appUpdate.error}
+              </p>
+            )}
+          </section>
+          <section className="settings-section">
             <h2>Mod sources</h2>
             <ModIndexSettings snapshot={snapshot} requests={requests} callSnapshot={callSnapshot} />
           </section>

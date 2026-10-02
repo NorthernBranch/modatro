@@ -275,6 +275,7 @@ void app
       await shell.openExternal(url);
     });
     handle('githubStars', z.undefined(), () => application.githubStars());
+    handle('checkAppUpdates', z.undefined(), () => application.checkAppUpdates());
     handle('launch', z.boolean(), (modded) =>
       application.launchGame(modded, async (s) => {
         if (process.platform === 'darwin' && modded) {

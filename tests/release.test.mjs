@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { afterEach, expect, it, vi } from 'vitest';
 import { publishRelease, releaseDetails } from '../scripts/release.mjs';
 
-const version = '0.2.42';
+const version = '0.3.31';
 const env = {
   GITHUB_EVENT_NAME: 'push',
   GITHUB_REF: 'refs/heads/main',
@@ -44,12 +44,12 @@ async function fixture() {
   return { directory, details, run };
 }
 
-it('gives each main push a unique preview tag tied to its commit', () => {
+it('gives each main push a unique beta tag tied to its commit', () => {
   expect(releaseDetails(version, env)).toMatchObject({
-    tag: 'v0.2.42-build.42.aaaaaaa',
+    tag: 'v0.3.31-beta.build.42.aaaaaaa',
     prerelease: true,
   });
-  expect(releaseDetails('0.2.43', { ...env, GITHUB_RUN_NUMBER: '43' }).tag).not.toBe(
+  expect(releaseDetails('0.3.32', { ...env, GITHUB_RUN_NUMBER: '43' }).tag).not.toBe(
     releaseDetails(version, env).tag,
   );
   expect(releaseDetails(version, { ...env, GITHUB_SHA: 'b'.repeat(40) }).tag).not.toBe(
@@ -57,8 +57,8 @@ it('gives each main push a unique preview tag tied to its commit', () => {
   );
 });
 it('publishes a matching version tag as a named release', () => {
-  expect(releaseDetails(version, { ...env, GITHUB_REF: 'refs/tags/v0.2.42' })).toMatchObject({
-    tag: 'v0.2.42',
+  expect(releaseDetails(version, { ...env, GITHUB_REF: 'refs/tags/v0.3.31' })).toMatchObject({
+    tag: 'v0.3.31',
     prerelease: false,
   });
   expect(
@@ -68,7 +68,7 @@ it('publishes a matching version tag as a named release', () => {
 it.each([
   { GITHUB_EVENT_NAME: 'pull_request' },
   { GITHUB_REF: 'refs/heads/feature' },
-  { GITHUB_REF: 'refs/tags/v0.2.43' },
+  { GITHUB_REF: 'refs/tags/v0.3.32' },
   { GITHUB_SHA: 'main' },
   { GITHUB_REPOSITORY: '--unsafe' },
   { GITHUB_RUN_NUMBER: '../42' },
@@ -111,9 +111,9 @@ it('does not mutate GitHub when an installer is empty', async () => {
 });
 it('marks a matching stable version release as latest', async () => {
   const f = await fixture();
-  await publishRelease({ version, ...f, env: { ...env, GITHUB_REF: 'refs/tags/v0.2.42' } });
+  await publishRelease({ version, ...f, env: { ...env, GITHUB_REF: 'refs/tags/v0.3.31' } });
   const edit = f.run.mock.calls[2][0];
-  expect(edit).toContain('v0.2.42');
+  expect(edit).toContain('v0.3.31');
   expect(edit).toContain('--prerelease=false');
   expect(edit).toContain('--latest=true');
 });

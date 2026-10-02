@@ -41,17 +41,23 @@ and version notes. Choose the installer for your computer:
 | Steam Deck / Linux, x64     | `Modatro-<version>-x86_64.AppImage` |
 | Debian / Ubuntu, x64        | `Modatro-<version>-amd64.deb`       |
 
-Each successful push to `main` publishes a preview with installers for every platform and
+Each successful push to `main` publishes a beta with installers for every platform and
 SHA-256 checksums. The release notes identify its build number and source commit.
 App versions increase automatically with each workflow run, including merges into `main`;
 the displayed version, installers and release notes use the same generated version.
 
-Modatro is currently a preview. Windows builds are unsigned. macOS previews use
-ad-hoc signatures unless Apple signing credentials are configured; those previews
+Modatro is currently in beta. Windows builds are unsigned. macOS beta builds use
+ad-hoc signatures unless Apple signing credentials are configured; those builds
 are not Apple-verified or notarized and macOS may block opening them. Each release
 reports its signing status. See [release information](docs/release.md) for installation
 instructions and supported mod formats. The desktop app includes its runtime;
 you do not need Node.js or pnpm to use it.
+
+Modatro checks GitHub Releases at startup and quietly indicates when a newer beta or
+stable version is available. Use **Settings → Application updates → Download update**
+to open your platform's installer in the browser. Nothing downloads automatically.
+Close Modatro before running the installer; application data and mod backups remain
+in their existing locations. **Check for updates** can also be used manually.
 
 On Steam Deck, run the AppImage in Desktop Mode. Linux game integration uses Steam
 and Proton; see [Linux and Steam Deck setup](docs/linux.md).

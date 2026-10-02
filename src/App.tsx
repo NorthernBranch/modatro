@@ -119,7 +119,10 @@ export function App() {
   const callSnapshot = useCallback(
     async (key: string, label: string, task: () => Promise<Reply<Snapshot>>) => {
       const reply = await run(key, label, task, {
-        group: ['load', 'refresh'].includes(key) ? undefined : 'configuration',
+        group:
+          ['load', 'refresh'].includes(key) || key.startsWith('updates:')
+            ? undefined
+            : 'configuration',
       });
       if (reply?.ok) setSnapshot(reply.value);
       return reply;
@@ -467,6 +470,7 @@ export function App() {
           </div>
           <button className="version-button" disabled={!snapshot} onClick={() => setAbout(true)}>
             v{snapshot?.appVersion ?? '…'}
+            {!snapshot?.preview && ' · Beta'}
             <span>
               Made for the community
               <ArrowUpRight size={12} />
@@ -482,6 +486,16 @@ export function App() {
             <span>{navigation.find((n) => n.id === page)?.label}</span>
           </div>
           <div className="topbar-actions">
+            {snapshot?.appUpdate?.version && !snapshot.preview && (
+              <button
+                className="text-button app-update-notice"
+                onClick={() => setPage('settings')}
+                title={`Modatro ${snapshot.appUpdate.version} is available`}
+              >
+                <ArrowDownToLine size={14} />
+                Update available
+              </button>
+            )}
             {snapshot?.preview ? (
               <span className="preview-label">
                 <EyeIcon />
@@ -1326,8 +1340,8 @@ export function App() {
             ))}
           </div>
           <p className="muted-text">
-            Application updates are manual in this release. Download a new installer when an update
-            is available.
+            Modatro Beta checks GitHub Releases for updates. Updates download only when you choose
+            Download update in Settings.
           </p>
         </Dialog>
       )}

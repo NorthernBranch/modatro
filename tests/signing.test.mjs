@@ -51,7 +51,7 @@ const successfulRun = (details) =>
     stderr: command === 'codesign' && args[0] === '--display' ? details : '',
   }));
 
-it('selects complete preview signing with no credentials and keeps hardened runtime', () => {
+it('selects complete beta signing with no credentials and keeps hardened runtime', () => {
   expect(macSigningConfiguration({ mac: {} }, {})).toMatchObject({
     mode: 'ad-hoc',
     config: { mac: { identity: '-', notarize: false, hardenedRuntime: true } },
@@ -90,7 +90,7 @@ it('rejects the invalid inherited Electron signature that caused damaged-app war
   );
   expect(run).toHaveBeenCalledTimes(1);
 });
-it('checks the full preview signature without claiming Apple verification', () => {
+it('checks the full beta signature without claiming Apple verification', () => {
   const run = successfulRun(signature);
   verifyMacApp('/test/Modatro.app', 'ad-hoc', undefined, run);
   expect(run.mock.calls.map(([command]) => command)).toEqual(['codesign', 'codesign']);

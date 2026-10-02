@@ -1,6 +1,10 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { readFileSync } from 'node:fs';
+const baseline = JSON.parse(
+  readFileSync(new URL('../build/version.json', import.meta.url), 'utf8'),
+);
 
 // Release versions are assigned by CI, without bot commits or manual patch bumps.
 // Rolling the patch at 65536 keeps Windows file versions within their field limits.
@@ -14,10 +18,18 @@ export function buildVersion(env = process.env) {
   if (!/^[1-9]\d*$/.test(env.GITHUB_RUN_NUMBER ?? ''))
     throw new Error('A positive GitHub workflow run number is required.');
   const run = Number(env.GITHUB_RUN_NUMBER);
-  const minor = 2 + Math.floor(run / 65536);
-  if (!Number.isSafeInteger(run) || minor > 255)
+  if (
+    !/^\d+\.\d+\.0$/.test(baseline.baseVersion) ||
+    !Number.isSafeInteger(baseline.firstRunNumber) ||
+    baseline.firstRunNumber < 1
+  )
+    throw new Error('The automatic version baseline is invalid.');
+  const [major, baseMinor] = baseline.baseVersion.split('.').map(Number);
+  const offset = run - baseline.firstRunNumber;
+  const minor = baseMinor + Math.floor(offset / 65536);
+  if (!Number.isSafeInteger(run) || offset < 0 || major > 255 || minor > 255)
     throw new Error('The workflow run number exceeds supported desktop version limits.');
-  return `0.${minor}.${run % 65536}`;
+  return `${major}.${minor}.${offset % 65536}`;
 }
 
 export async function stampBuildVersion(

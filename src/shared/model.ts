@@ -379,6 +379,14 @@ export interface Catalogue {
   rejected: number;
 }
 export interface Snapshot {
+  appUpdate?: {
+    checking: boolean;
+    checkedAt?: string;
+    version?: string;
+    releaseUrl?: string;
+    downloadUrl?: string;
+    error?: string;
+  };
   settings: Settings;
   validation?: PathValidationResult;
   catalogue: Catalogue;
@@ -459,6 +467,7 @@ export interface InstallPlan {
   packages?: { id: string; title: string; version: string; update: boolean; source?: string }[];
 }
 export interface ModatroApi {
+  checkAppUpdates?(): Promise<Reply<Snapshot>>;
   githubStars?(): Promise<Reply<Record<string, number>>>;
   snapshot(): Promise<Reply<Snapshot>>;
   refresh(): Promise<Reply<Snapshot>>;

@@ -30,8 +30,8 @@ architecture, quit Modatro and replace the app in Applications. Keep application
 data and backups. Compare the download with that release's `SHA256SUMS.txt`; a matching
 checksum establishes download integrity, not an Apple-verified publisher.
 
-Check the release's signing status. An ad-hoc preview is not notarized and may still
-be blocked by Gatekeeper. For a valid preview from this project's release that you
+Check the release's signing status. An ad-hoc beta build is not notarized and may still
+be blocked by Gatekeeper. For a valid beta build from this project's release that you
 choose to trust, Apple's documented **System Settings → Privacy & Security → Open
 Anyway** procedure may be available after attempting to open it. This does not
 repair an invalid signature. If the alert remains “damaged,” report the release tag,

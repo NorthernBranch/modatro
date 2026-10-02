@@ -6,14 +6,17 @@ import { buildVersion, stampBuildVersion } from '../scripts/build-version.mjs';
 import { releaseDetails } from '../scripts/release.mjs';
 
 it('increments main push and merge builds and preserves rerun versions', () => {
+  expect(buildVersion({ GITHUB_REF: 'refs/heads/main', GITHUB_RUN_NUMBER: '11' })).toBe('0.3.0');
+  expect(buildVersion({ GITHUB_REF: 'refs/heads/main', GITHUB_RUN_NUMBER: '12' })).toBe('0.3.1');
   const env = { GITHUB_REF: 'refs/heads/main', GITHUB_RUN_NUMBER: '42' };
-  expect(buildVersion(env)).toBe('0.2.42');
-  expect(buildVersion({ ...env, GITHUB_RUN_NUMBER: '43' })).toBe('0.2.43');
-  expect(buildVersion({ ...env, GITHUB_RUN_ATTEMPT: '2' })).toBe('0.2.42');
-  expect(buildVersion({ ...env, GITHUB_RUN_NUMBER: '65535' })).toBe('0.2.65535');
-  expect(buildVersion({ ...env, GITHUB_RUN_NUMBER: '65536' })).toBe('0.3.0');
+  expect(buildVersion(env)).toBe('0.3.31');
+  expect(buildVersion({ ...env, GITHUB_RUN_NUMBER: '43' })).toBe('0.3.32');
+  expect(buildVersion({ ...env, GITHUB_RUN_ATTEMPT: '2' })).toBe('0.3.31');
+  expect(buildVersion({ ...env, GITHUB_RUN_NUMBER: '65535' })).toBe('0.3.65524');
+  expect(buildVersion({ ...env, GITHUB_RUN_NUMBER: '65536' })).toBe('0.3.65525');
+  expect(buildVersion({ ...env, GITHUB_RUN_NUMBER: '65547' })).toBe('0.4.0');
 });
-it.each(['', '0', '-1', '1.5', '../42', '9007199254740993'])(
+it.each(['', '0', '10', '-1', '1.5', '../42', '9007199254740993'])(
   'rejects invalid run number %j',
   (number) => {
     expect(() => buildVersion({ GITHUB_RUN_NUMBER: number })).toThrow();
@@ -40,7 +43,7 @@ it('stamps the same version into every platform and publishing checkout', async 
     };
     const version = await stampBuildVersion(file, env);
     expect(JSON.parse(await fs.readFile(file, 'utf8'))).toMatchObject({
-      version: '0.2.42',
+      version: '0.3.31',
       scripts: { test: 'vitest' },
     });
     expect(await stampBuildVersion(file, env)).toBe(version);

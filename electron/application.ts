@@ -36,9 +36,11 @@ import { resolveDistribution } from './services/distribution';
 import { LocalModSource } from './services/sources/mod-source';
 import { lovelyDistribution } from './services/lovely';
 import { GitHubStars } from './services/github-stars';
+import { AppUpdates } from './services/app-updates';
 
 export class ModatroApplication {
   readonly storage: Storage;
+  readonly appUpdates: AppUpdates;
   private stars: GitHubStars;
   readonly logger: Logger;
   readonly detection = new GameDetectionService();
@@ -66,6 +68,9 @@ export class ModatroApplication {
     private changed: (value: Snapshot) => void,
   ) {
     this.storage = new Storage(dataRoot);
+    this.appUpdates = new AppUpdates(this.storage, appVersion, () => {
+      if (this.initialized) void this.publish();
+    });
     this.stars = new GitHubStars(this.storage);
     this.logger = new Logger(this.storage, os.homedir());
     this.trust = new CatalogueTrust(this.storage, this.logger, remoteJson, () => {
@@ -102,6 +107,7 @@ export class ModatroApplication {
   }
   async initialize() {
     await this.storage.initialize();
+    await this.appUpdates.loadCache();
     await this.trust.initialize();
     if (!this.storage.safetyError) await this.transactions.recover();
     await this.repository.loadCache();
@@ -142,6 +148,7 @@ export class ModatroApplication {
     });
   }
   backgroundRefresh() {
+    void this.appUpdates.check();
     void Promise.all([
       this.trust.refresh(),
       this.repository.refresh().then(() => this.local.checkLatest(this.allMods())),
@@ -175,6 +182,10 @@ export class ModatroApplication {
   async githubStars() {
     return this.stars.get(this.allMods());
   }
+  async checkAppUpdates() {
+    await this.appUpdates.check();
+    return this.snapshot();
+  }
   async snapshot(): Promise<Snapshot> {
     const gamePath = this.storage.state.settings.gamePath;
     const validation = gamePath ? await this.detection.validate(gamePath) : undefined;
@@ -197,6 +208,7 @@ export class ModatroApplication {
       platform: process.platform,
       arch: process.arch,
       appVersion: this.appVersion,
+      appUpdate: this.appUpdates.state,
       electronVersion: this.electronVersion,
       safetyError: this.storage.safetyError,
       discoveryError: this.discoveryError,

@@ -8,6 +8,32 @@ import type {
 } from '../src/shared/model';
 
 type Behavior = 'success' | 'hold' | 'reject' | 'error';
+test('application updates stay quiet and open the installer only after a user click', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.appUpdate = {
+    checking: false,
+    version: '0.2.42',
+    releaseUrl:
+      'https://github.com/NorthernBranch/modatro/releases/tag/v0.2.42-beta.build.42.aaaaaaa',
+    downloadUrl:
+      'https://github.com/NorthernBranch/modatro/releases/download/v0.2.42-beta.build.42.aaaaaaa/Modatro-Setup-0.2.42.exe',
+  };
+  await mockDesktop(page, state);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(await page.evaluate(() => window.requestsTest.calls.openLink ?? 0)).toBe(0);
+  await page.getByRole('button', { name: 'Update available', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Application updates', exact: true }),
+  ).toBeVisible();
+  expect(await page.evaluate(() => window.requestsTest.calls.openLink ?? 0)).toBe(0);
+  await page.getByRole('button', { name: 'Download update', exact: true }).click();
+  expect(await page.evaluate(() => window.requestsTest.calls.openLink)).toBe(1);
+  await page.getByRole('button', { name: 'Check for updates', exact: true }).click();
+  expect(await page.evaluate(() => window.requestsTest.calls.checkAppUpdates)).toBe(1);
+  expect(await page.evaluate(() => window.requestsTest.calls.openLink)).toBe(1);
+});
 interface MockRequests {
   state: Snapshot;
   calls: Record<string, number>;
@@ -128,6 +154,7 @@ async function mockDesktop(page: Page, state = fixture(), behavior: Record<strin
         }
       };
       const api: ModatroApi = {
+        checkAppUpdates: () => call('checkAppUpdates', control.state),
         githubStars: async () => ({ ok: true, value: { fixture: 42, popular: 1200, zero: 0 } }),
         snapshot: () => call('snapshot', control.state),
         detect: () => call('detect', control.state),

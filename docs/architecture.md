@@ -179,6 +179,10 @@ app URI and the user's configured Lovely override; Modatro never edits Steam set
 Mod updates and application updates have separate responsibilities. The stable
 application ID and bundled app version identify desktop releases; installation
 records stay in versioned application state outside the installed executable.
-Application updates are currently manual and preserve that data directory. A future
-updater should use signed platform releases and validated release metadata, without
-changing the mod transaction engine or accepting update commands from catalogue data.
+At startup, the main process checks this project's GitHub Releases for a newer beta or
+stable version and a matching platform installer. Release tags, repository links and
+asset names are validated; draft releases and earlier preview builds are excluded.
+Update metadata is cached separately from mod sources. Checks never download an installer
+or modify the mod transaction engine. A quiet notice opens Settings, where an explicit
+Download update action opens the installer in the browser. Installing it is manual and
+preserves the existing application data directory. Catalogue data cannot control application updates.
