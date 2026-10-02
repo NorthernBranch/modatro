@@ -99,7 +99,16 @@ export function App() {
   const reportError = useCallback((failure: AppError) => {
     setConflictAction(undefined);
     setDecisions([]);
-    setError(failure);
+    if (failure.confirmation) {
+      setError(undefined);
+      setConfirmation({
+        id: failure.confirmation.plan.modId,
+        action: 'install',
+        title: 'selected packages',
+        token: failure.confirmation.token,
+        plan: failure.confirmation.plan,
+      });
+    } else setError(failure);
   }, []);
   const requests = useRequests(reportError);
   const { run } = requests;
@@ -652,8 +661,8 @@ export function App() {
                 <dd>
                   {selected.repositoryUrl
                     ? new URL(selected.repositoryUrl).pathname.slice(1)
-                    : selected.thunderstore
-                      ? `Thunderstore: ${selected.thunderstore.namespace}/${selected.thunderstore.name}`
+                    : selected.source
+                      ? `${selected.source.provider}: ${selected.source.namespace ?? ''}/${selected.source.packageName ?? selected.source.externalId}`
                       : 'Not recorded'}
                 </dd>
               </div>
@@ -749,6 +758,9 @@ export function App() {
             </button>
           </section>
           <div className="detail-install">
+            {selected.deprecated && (
+              <p className="muted-text">Deprecated · Existing installations remain manageable.</p>
+            )}
             {api.previewPlan && (
               <>
                 <AsyncButton
@@ -794,7 +806,7 @@ export function App() {
             <div>
               <ShieldCheck size={17} />
               <span>
-                {selected.installation.type === 'game-replacement'
+                {['game-replacement', 'lovely-injector'].includes(selected.installation.type)
                   ? 'Changes game files. Original files will be backed up.'
                   : 'Staged, checked, and installed with a file-by-file record.'}
               </span>
@@ -806,16 +818,16 @@ export function App() {
               </p>
             )}
             <div className="detail-actions">
-              {selected.thunderstore && (
+              {selected.source?.url && (
                 <AsyncButton
                   className="button button-secondary"
-                  pending={requests.isPending(`link:${selected.thunderstore.packageUrl}`)}
+                  pending={requests.isPending(`link:${selected.source.url}`)}
                   pendingLabel="Opening…"
                   disabled={requests.isBusy('external-link')}
-                  onClick={() => void openLink(selected.thunderstore!.packageUrl)}
+                  onClick={() => void openLink(selected.source!.url!)}
                 >
                   <ExternalLink size={15} />
-                  Thunderstore
+                  Source: {selected.source.provider}
                 </AsyncButton>
               )}
               <AsyncButton
@@ -1005,8 +1017,17 @@ export function App() {
               ? 'Modatro removes only recorded files and restores verified originals. If a file has changed, you’ll choose how to handle it.'
               : confirmation.action === 'adopt'
                 ? 'Modatro will inspect and record the existing files before managing them. Future uninstall removes these recorded files only; changes will be protected.'
-                : 'This installation changes files in your Balatro game directory. Modatro will back up existing files before replacing them.'}
+                : 'Review the packages and file changes below. Modatro will back up existing files before replacing them.'}
           </p>
+          {!!confirmation.plan?.packages?.length && (
+            <ul>
+              {confirmation.plan.packages.map((entry) => (
+                <li key={entry.id}>
+                  {entry.title} {entry.version} · {entry.update ? 'Update' : 'Install'}
+                </li>
+              ))}
+            </ul>
+          )}
           {confirmation.plan && (
             <details open>
               <summary>

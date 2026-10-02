@@ -14,6 +14,13 @@ Intel macOS and Linux builds pass their checks. A release includes every platfor
 `SHA256SUMS.txt` for download verification, and a link to its exact source commit.
 If any platform build or upload fails, the release remains unpublished.
 
+Formatting, catalogue validation, type checks, unit tests and the full browser and
+source desktop test suite run once in a shared job. That job compiles the application
+and shares its output and assigned version with all four packaging jobs. Each platform
+installs its own build dependencies, creates its installers and verifies packaged
+desktop startup before uploading. Publishing waits for every platform to pass and
+uses the same tested version.
+
 Each workflow run assigns an increasing app version automatically, for example
 `0.2.42`, followed by `0.2.43`. Merging into `main` triggers the same process as a
 push. The renderer, Electron app, platform installers and release notes all use

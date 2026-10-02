@@ -116,13 +116,25 @@ describe('canonical destination safety', () => {
   it('rejects symlink traversal even when the target is inside the root', async () => {
     const r = await root();
     await fs.mkdir(path.join(r, 'real'));
-    await fs.symlink(path.join(r, 'real'), path.join(r, 'link'));
+    await fs.symlink(
+      path.join(r, 'real'),
+      path.join(r, 'link'),
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
     await expect(safeDestination(r, 'link/mod.lua')).rejects.toThrow('symbolic');
   });
-  it('rejects a symlink final file', async () => {
+  it('rejects a symlink final file', async (context) => {
     const r = await root();
     await put(path.join(r, 'real.lua'));
-    await fs.symlink(path.join(r, 'real.lua'), path.join(r, 'mod.lua'));
+    try {
+      await fs.symlink(path.join(r, 'real.lua'), path.join(r, 'mod.lua'), 'file');
+    } catch (error) {
+      if (process.platform === 'win32' && (error as NodeJS.ErrnoException).code === 'EPERM') {
+        context.skip();
+        return;
+      }
+      throw error;
+    }
     await expect(safeDestination(r, 'mod.lua')).rejects.toThrow('symbolic');
   });
   it('rejects a root changed into a symlink', async () => {
@@ -130,7 +142,11 @@ describe('canonical destination safety', () => {
       approved = path.join(r, 'approved');
     await fs.mkdir(approved);
     await fs.rename(approved, path.join(r, 'elsewhere'));
-    await fs.symlink(path.join(r, 'elsewhere'), approved);
+    await fs.symlink(
+      path.join(r, 'elsewhere'),
+      approved,
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
     await expect(safeDestination(approved, 'mod.lua')).rejects.toThrow('symbolic');
   });
 });

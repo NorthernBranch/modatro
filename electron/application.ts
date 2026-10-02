@@ -1,4 +1,5 @@
 import os from 'node:os';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { z } from 'zod';
 import {
@@ -24,6 +25,9 @@ import { Logger, Storage } from './services/storage';
 import { TransactionEngine } from './services/transaction';
 import { CatalogueTrust } from './services/trust';
 import { allowedDescription, automationReason } from '../src/shared/trust';
+import { DependencyGraphError, resolveDependencyGraph } from '../src/shared/dependency-graph';
+import { canAcceptUnverified } from '../src/shared/dependencies';
+import { LocalModSource } from './services/sources/mod-source';
 
 export class ModatroApplication {
   readonly storage: Storage;
@@ -35,8 +39,10 @@ export class ModatroApplication {
   readonly trust: CatalogueTrust;
   readonly transactions: TransactionEngine;
   readonly installer: ModInstaller;
+  readonly localSource = new LocalModSource(() => this.custom);
   private candidates: GameCandidate[] = [];
   private custom: ModDefinition[] = [];
+  private localArchives = new Map<string, string>();
   private unavailableSources: Record<string, string> = {};
   private initialized = false;
   private discoveryError?: string;
@@ -126,7 +132,10 @@ export class ModatroApplication {
     });
   }
   backgroundRefresh() {
-    void Promise.all([this.trust.refresh(), this.repository.refresh(), this.local.checkLatest()])
+    void Promise.all([
+      this.trust.refresh(),
+      this.repository.refresh().then(() => this.local.checkLatest(this.allMods())),
+    ])
       .then(() => this.publish())
       .catch((e) => this.logger.log('background.failed', String(e)));
   }
@@ -141,21 +150,10 @@ export class ModatroApplication {
             (!!mod.thunderstore && record.provenance?.packageId === mod.thunderstore.packageId),
         );
         const existing = matches.length === 1 ? matches[0] : undefined;
-        const platformUnavailable =
-          mod.thunderstore?.namespace === 'Thunderstore' &&
-          mod.thunderstore.name === 'lovely' &&
-          process.platform === 'darwin';
         return this.trust.apply({
           ...mod,
           id: existing?.modId ?? mod.id,
           folderName: existing?.folderName ?? mod.folderName,
-          installation: platformUnavailable
-            ? {
-                type: 'unsupported',
-                instructions:
-                  'This Thunderstore Lovely package contains the Windows library. Use Lovely’s official macOS instructions.',
-              }
-            : mod.installation,
           legacyIds: existing ? [...new Set([mod.id, ...(mod.legacyIds ?? [])])] : mod.legacyIds,
           description: allowedDescription(mod),
           unavailableReason:
@@ -211,7 +209,10 @@ export class ModatroApplication {
     }
   }
   async refresh() {
-    await Promise.all([this.trust.refresh(), this.repository.refresh(), this.local.checkLatest()]);
+    await Promise.all([
+      this.trust.refresh(),
+      this.repository.refresh().then(() => this.local.checkLatest(this.allMods())),
+    ]);
     // An explicit refresh allows a fresh upstream check on the next attempt.
     if (!this.repository.catalogue.stale && this.trust.isFresh()) {
       this.unavailableSources = {};
@@ -338,6 +339,10 @@ export class ModatroApplication {
       await this.installer.adopt(external.folderName, matches[0]);
     } else {
       let mod = mods.find((m) => m.id === id);
+      if (!mod && id === 'prerequisite:Lovely') {
+        const candidates = mods.filter((entry) => entry.installation.type === 'lovely-injector');
+        if (candidates.length === 1) mod = candidates[0];
+      }
       if (!mod && id === 'prerequisite:Lovely' && ['win32', 'linux'].includes(process.platform)) {
         if (
           this.storage.state.settings.gamePath &&
@@ -383,8 +388,7 @@ export class ModatroApplication {
           },
           prerequisites: [],
           installation: {
-            type: 'game-replacement',
-            files: [{ source: 'winmm.dll', destination: 'winmm.dll' }],
+            type: 'lovely-injector',
           },
         });
       }
@@ -392,18 +396,51 @@ export class ModatroApplication {
         throw new UserError('This mod is not in the validated catalogue. Refresh and try again.');
       const existing = this.storage.state.installations.find((r) => r.modId === mod!.id);
       // Keep the known Lovely definition for subsequent updates and detail views.
-      if (id === 'prerequisite:Lovely') {
+      if (id === 'prerequisite:Lovely' && !mod.thunderstore) {
         this.custom = [...this.custom.filter((m) => m.id !== mod!.id), mod];
         await this.storage.write('data/custom-mods.json', this.custom);
       }
       try {
-        await this.installer.install(
-          mod,
-          action === 'update' || !!existing,
-          confirmationToken,
-          false,
-          acceptedUnverified,
-        );
+        if (mod.source?.provider === 'thunderstore') {
+          let graph: ModDefinition[];
+          try {
+            graph = resolveDependencyGraph(
+              [mod],
+              mods,
+              (await this.snapshot()).prerequisites,
+              acceptedUnverified,
+            );
+          } catch (error) {
+            throw new UserError(
+              error instanceof Error ? error.message : String(error),
+              undefined,
+              undefined,
+              error instanceof DependencyGraphError
+                ? {
+                    requirements: error.requirements,
+                    unverifiedPrerequisites: error.requirements.every(canAcceptUnverified)
+                      ? error.requirements
+                      : undefined,
+                  }
+                : undefined,
+            );
+          }
+          await this.logger.log('dependencies.resolved', { ids: graph.map((entry) => entry.id) });
+          await this.installer.installMany(graph, confirmationToken, acceptedUnverified);
+        } else {
+          const archive = this.localArchives.get(mod.id);
+          if (mod.source?.provider === 'local' && !archive)
+            throw new UserError('Choose the local ZIP again using Install from file.');
+          await this.installer.install(
+            mod,
+            action === 'update' || !!existing,
+            confirmationToken,
+            false,
+            acceptedUnverified,
+            archive,
+          );
+          if (archive) this.localArchives.delete(mod.id);
+        }
       } catch (error) {
         if (error instanceof UserError && [404, 410].includes(error.statusCode ?? 0)) {
           this.unavailableSources[mod.id] =
@@ -418,6 +455,25 @@ export class ModatroApplication {
   }
   async importDefinition(file: string) {
     this.storage.assertSafe();
+    if (file.toLowerCase().endsWith('.zip')) {
+      const id = `local/${randomUUID()}`;
+      const definition = ModSchema.parse({
+        id,
+        title: path.basename(file, path.extname(file)),
+        author: 'Local file',
+        version: 'Unknown',
+        downloadUrl: 'https://github.com/NorthernBranch/modatro',
+        categories: [],
+        prerequisites: [],
+        source: { provider: 'local', externalId: id },
+        installation: { type: 'auto' },
+        approvalStatus: 'legacy-index',
+      });
+      this.localArchives.set(id, file);
+      this.custom.push(definition);
+      await this.storage.write('data/custom-mods.json', this.custom);
+      return this.action(id, 'install');
+    }
     const definition = ModSchema.parse(JSON.parse(await readSmall(file)));
     if (this.allMods().some((m) => m.id === definition.id))
       throw new UserError(
@@ -431,6 +487,14 @@ export class ModatroApplication {
   async previewPlan(id: string) {
     const mod = this.allMods().find((entry) => entry.id === id);
     if (!mod) throw new UserError('This mod has no current catalogue definition.');
+    if (mod.source?.provider === 'thunderstore') {
+      const graph = resolveDependencyGraph(
+        [mod],
+        this.allMods(),
+        (await this.snapshot()).prerequisites,
+      );
+      return this.installer.installMany(graph, undefined, [], true);
+    }
     const plan = await this.installer.install(
       mod,
       this.storage.state.installations.some((record) => record.modId === id),

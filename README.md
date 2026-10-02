@@ -9,10 +9,11 @@ Modatro browses the live [Thunderstore Balatro catalogue](https://thunderstore.i
 and keeps a record of the files it installs. Backups, change detection and recovery
 help preserve your existing game files when you update or remove a mod.
 
-Registered GitHub projects supplement mods missing from Thunderstore. Their author-controlled
-manifests or published releases supply new versions automatically. Modatro's own registry
-records permissions, release restrictions and installation exceptions rather than maintaining
-a duplicate list of every mod release.
+Discover uses Thunderstore's live Balatro listing index and a validated local cache.
+New packages, versions, categories and dependencies appear on refresh without a Modatro
+release. Required package changes are staged together, reviewed when necessary, and
+installed in dependency order in one transaction. Local ZIP files and explicit GitHub
+definitions remain available under Settings → Advanced.
 
 ## Download
 

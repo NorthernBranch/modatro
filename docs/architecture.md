@@ -17,8 +17,8 @@ archives, filesystem access and repository retrieval run in the main process.
 | `electron/main.ts`                                     | Windows, protocol handling, IPC validation, native dialogs and launch actions    |
 | `electron/application.ts`                              | Service orchestration, snapshots, settings and imported definitions              |
 | `GameDetectionService`                                 | Steam discovery, platform validation and separate game/Mods roots                |
-| `ThunderstoreRepository`                               | Live Balatro registry retrieval, version validation and independent caching      |
-| `NativeModRepository` and `ModatroCatalogueRepository` | Compiled native index, author manifests and legacy-ID continuity                 |
+| `ModSource`, `ThunderstoreModSource`, `LocalModSource` | Provider boundary, normalized catalogue/versions and local definitions           |
+| `ModatroCatalogueRepository`                           | Production Thunderstore catalogue, cache and explicit legacy opt-in              |
 | `CatalogueTrust`                                       | Independent persistent revocations/release blocks and fresh-download eligibility |
 | `ArtifactHistory`                                      | Archive provenance, supplied checksums and immutable-release change detection    |
 | `InstalledModsService`                                 | Local scanning, file integrity and prerequisite evidence                         |
@@ -33,18 +33,48 @@ are restricted in the main process.
 
 ## Catalogue retrieval
 
-Thunderstore supplies the main catalogue through its public Balatro package API.
+Thunderstore supplies the production catalogue through `/c/balatro/api/v1/package-listing-index/`.
+The main process fetches and decodes its gzip index and immutable CDN chunks with bounded
+concurrency and response limits. Responses are validated and normalized into Modatro models.
 The adapter validates package identities, active versions, dependency declarations
-and canonical download URLs. Deprecated packages and inactive versions are excluded.
-A complete validated snapshot is saved independently of the GitHub supplement;
+and canonical download URLs. Inactive versions are excluded; deprecated packages remain
+available for installed-package details and updates while new installs are blocked.
+A complete validated snapshot uses cache schema 2 (schema 1 is read and normalized);
 outages retain cached browsing. Old index caches are read only for transition
 browsing; no network request contacts the discontinued index.
 
-`NativeModRepository` supplies registered GitHub-only projects. Author-controlled
-manifests and optional latest-release discovery supply versions and archives on
-refresh. `catalogue/overrides.json` records reviewed permissions and exceptional
-installation layouts without duplicating release versions or URLs. Independent
-revocation and blocked-release feeds remain authoritative for both providers.
+The native provider is available only with `ENABLE_LEGACY_BMI_SOURCE=true` for development.
+Production startup and refresh never request its index. Existing installation identities,
+ownership, backups and legacy source records remain intact. Explicit JSON imports can
+still use author manifests and GitHub releases. Independent revocation and blocked-release
+feeds remain authoritative safety restrictions, not a discovery catalogue.
+
+`ModSource` exposes catalogue, individual definitions and version history without raw API
+schemas. Source-qualified identities preserve namespace and package name. React uses
+normalized source links and dependency requirements. Adding a provider requires an adapter,
+not changes to the installer or package-specific UI code.
+
+Catalogue refresh runs at startup, manually and every 30 minutes, deduplicating concurrent
+refreshes. Index, chunk, validation or schema failures preserve the last good cache.
+429 and transient server failures use bounded retries and respect `Retry-After`; long
+cooldowns return a failure instead of retrying early. Diagnostics include provider, online
+status, timestamp and cached package count. Descriptions and icons use publisher metadata;
+icons load lazily from allowed Thunderstore CDN hosts with an application fallback.
+
+Dependency planning visits package identities and versions recursively, detects cycles,
+deduplicates shared dependencies and checks semantic minimum versions. Already installed
+versions use their own dependency metadata. Install/update stages the entire required set
+before changing files; conflicts, unsupported layouts or additional unsatisfied archive
+requirements abort the plan. A confirmation token covers packages, versions and file hashes.
+One transaction commits dependencies before dependants and rolls all of them back on failure.
+Automatically installed dependencies remain recorded and are never silently removed.
+
+The Lovely strategy is a technical loader exception, not a catalogue entry. It inspects
+native library format, Lovely evidence and supported loader filenames, refuses unknown
+payloads and conflicting external loaders, and uses the same game-file backup/confirmation
+path. External binary evidence establishes presence, not a package version. Prerequisite
+versions come from catalogue metadata where available, with official release lookup only
+as a fallback. Unknown external loader versions require the existing explicit acknowledgement.
 
 Thunderstore requests use a separate transport policy limited to the Balatro API,
 canonical package downloads and supported CDN paths. GitHub redirects cannot expand

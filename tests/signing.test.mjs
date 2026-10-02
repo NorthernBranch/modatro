@@ -1,5 +1,10 @@
 import { expect, it, vi } from 'vitest';
-import { macSigningConfiguration, verifyMacApp } from '../scripts/package-desktop.mjs';
+import {
+  macSigningConfiguration,
+  packagingEnvironment,
+  withPackagingEnvironment,
+  verifyMacApp,
+} from '../scripts/package-desktop.mjs';
 
 const credentials = {
   CSC_LINK: 'test-certificate',
@@ -8,6 +13,33 @@ const credentials = {
   APPLE_APP_SPECIFIC_PASSWORD: 'test-notary-password',
   APPLE_TEAM_ID: 'ABCDEFGHIJ',
 };
+it('removes empty Actions secrets before electron-builder imports certificates', () => {
+  const env = {
+    ...Object.fromEntries(Object.keys(credentials).map((key) => [key, ''])),
+    CSC_INSTALLER_LINK: '   ',
+    OTHER: 'retained',
+  };
+  expect(packagingEnvironment(env)).toEqual({ OTHER: 'retained' });
+  expect(env.CSC_LINK).toBe('');
+  expect(macSigningConfiguration({ mac: {} }, env).mode).toBe('ad-hoc');
+  expect(packagingEnvironment(credentials)).toEqual(credentials);
+});
+it('unsets blank credentials in the builder process and restores its environment after failure', async () => {
+  vi.stubEnv('CSC_LINK', 'before-test');
+  try {
+    await expect(
+      withPackagingEnvironment({ CSC_LINK: '', CSC_KEY_PASSWORD: ' ' }, 'ad-hoc', async () => {
+        expect(process.env.CSC_LINK).toBeUndefined();
+        expect(process.env.CSC_KEY_PASSWORD).toBeUndefined();
+        expect(process.env.CSC_IDENTITY_AUTO_DISCOVERY).toBe('false');
+        throw new Error('Build failed');
+      }),
+    ).rejects.toThrow('Build failed');
+    expect(process.env.CSC_LINK).toBe('before-test');
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
 const signature =
   'Identifier=community.modatro.desktop\nflags=0x10002(adhoc,runtime)\nSignature=adhoc\nTeamIdentifier=not set\n';
 const notarizedSignature =

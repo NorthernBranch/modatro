@@ -2,7 +2,9 @@ import { z } from 'zod';
 import semver from 'semver';
 import { HttpsUrl, ModSchema, type DependencyRequirement, type ModDefinition } from './model';
 
-export const THUNDERSTORE_ENDPOINT = 'https://thunderstore.io/c/balatro/api/v1/package/';
+export const THUNDERSTORE_BASE_URL = 'https://thunderstore.io';
+export const BALATRO_COMMUNITY = 'balatro';
+export const THUNDERSTORE_ENDPOINT = `${THUNDERSTORE_BASE_URL}/c/${BALATRO_COMMUNITY}/api/v1/package-listing-index/`;
 const Name = z
   .string()
   .regex(/^[a-zA-Z0-9_]+$/)
@@ -15,6 +17,7 @@ export const ThunderstoreManifestSchema = z.object({
   name: Name,
   version_number: Version,
   dependencies: z.array(z.string().max(200)).max(100),
+  installers: z.array(z.unknown()).optional(),
 });
 const PackageVersion = z.object({
   uuid4: z.uuid(),
@@ -25,6 +28,11 @@ const PackageVersion = z.object({
   dependencies: z.array(z.string().max(200)).max(100),
   download_url: HttpsUrl,
   website_url: z.string().max(2000),
+  description: z.string().max(30000).optional(),
+  icon: HttpsUrl.optional(),
+  date_created: z.iso.datetime({ offset: true }).optional(),
+  downloads: z.number().int().nonnegative().optional(),
+  installers: z.array(z.unknown()).optional(),
 });
 export const ThunderstorePackageSchema = z.object({
   uuid4: z.uuid(),
@@ -58,6 +66,10 @@ export function thunderstoreDependency(value: string): DependencyRequirement {
     required: true,
     versionConstraint: `>=${parts[3]}`,
     packageId: thunderstoreId(namespace, name),
+    source: 'thunderstore',
+    namespace,
+    packageName: name,
+    minimumVersion: parts[3],
   };
 }
 export function thunderstoreDownload(namespace: string, name: string, version: string) {
@@ -71,17 +83,18 @@ export function normalizeThunderstore(raw: unknown): ModDefinition | undefined {
   )
     throw new Error('Thunderstore package identity does not match its source.');
   // Deprecated packages are never offered as new installs. An inactive version is not a fallback.
-  if (pkg.is_deprecated) return undefined;
-  const release = [...pkg.versions]
+  const releases = [...pkg.versions]
     .filter((version) => version.is_active)
-    .sort((a, b) => semver.rcompare(a.version_number, b.version_number))[0];
+    .sort((a, b) => semver.rcompare(a.version_number, b.version_number));
+  const release = releases[0];
   if (!release) return undefined;
-  if (
-    release.name !== pkg.name ||
-    release.full_name !== `${pkg.full_name}-${release.version_number}` ||
-    release.download_url !== thunderstoreDownload(pkg.owner, pkg.name, release.version_number)
-  )
-    throw new Error('Thunderstore release identity does not match its download.');
+  for (const version of releases)
+    if (
+      version.name !== pkg.name ||
+      version.full_name !== `${pkg.full_name}-${version.version_number}` ||
+      version.download_url !== thunderstoreDownload(pkg.owner, pkg.name, version.version_number)
+    )
+      throw new Error('Thunderstore release identity does not match its download.');
   const lovely = pkg.owner === 'Thunderstore' && pkg.name === 'lovely';
   const steamodded = pkg.owner === 'Steamodded' && pkg.name === 'Steamodded';
   let repositoryUrl: string | undefined;
@@ -99,14 +112,34 @@ export function normalizeThunderstore(raw: unknown): ModDefinition | undefined {
   } catch {
     /* Website links are optional and cannot expand download permissions. */
   }
-  if (steamodded) repositoryUrl = 'https://github.com/Steamodded/smods';
-  const modpack = pkg.categories.some((category) => category.toLowerCase() === 'modpacks');
   return ModSchema.parse({
     id: thunderstoreId(pkg.owner, pkg.name),
     title: lovely ? 'Lovely' : pkg.name.replaceAll('_', ' '),
     author: pkg.owner,
     version: release.version_number,
+    source: {
+      provider: 'thunderstore',
+      externalId: thunderstoreId(pkg.owner, pkg.name),
+      namespace: pkg.owner,
+      packageName: pkg.name,
+      url: pkg.package_url,
+    },
+    deprecated: pkg.is_deprecated,
+    description: release.description,
+    descriptionProvenance: 'author-supplied',
+    iconUrl: release.icon,
+    versions: releases.map((version) => ({
+      version: version.version_number,
+      downloadUrl: version.download_url,
+      dependencies: version.dependencies.map(thunderstoreDependency),
+      publishedAt: version.date_created,
+      downloads: version.downloads,
+      sourceArtifact: { provider: 'thunderstore', externalId: version.uuid4 },
+      installer: version.installers,
+    })),
+    installer: release.installers,
     repositoryUrl,
+    websiteUrl: HttpsUrl.safeParse(release.website_url).success ? release.website_url : undefined,
     downloadUrl: release.download_url,
     categories: pkg.categories.length ? pkg.categories : ['Mods'],
     sourceCategories: pkg.categories,
@@ -117,14 +150,16 @@ export function normalizeThunderstore(raw: unknown): ModDefinition | undefined {
     // Registry publication is labelled separately from explicit Modatro author approval.
     releaseSource: { sourceType: 'registry', releaseTag: release.version_number },
     prerequisites: release.dependencies.map(thunderstoreDependency),
-    installation: modpack
+    installation: release.installers?.length
       ? {
           type: 'unsupported',
-          instructions: 'This package is a modpack. Install its individual dependencies instead.',
+          instructions:
+            'This package declares an installer Modatro does not support. Open its source page for manual installation.',
         }
       : lovely
-        ? { type: 'game-replacement', files: [{ source: 'winmm.dll', destination: 'winmm.dll' }] }
+        ? { type: 'lovely-injector' }
         : { type: 'auto' },
+    support: release.installers?.length ? 'manual-install' : lovely ? 'dependency-only' : undefined,
     thunderstore: {
       packageId: pkg.uuid4,
       versionId: release.uuid4,

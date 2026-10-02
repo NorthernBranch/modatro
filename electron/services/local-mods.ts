@@ -14,6 +14,7 @@ import { hasUpdate } from './versions';
 import { automationReason } from '../../src/shared/trust';
 import { thunderstoreId } from '../../src/shared/thunderstore';
 import type { CatalogueTrust } from './trust';
+import { inspectLovelyLibrary } from './lovely';
 
 export interface PrerequisiteProvider {
   getInstalledVersion(): Promise<string | undefined>;
@@ -107,6 +108,7 @@ export class InstalledModsService {
         folderName: record.folderName,
         canAdopt: false,
         packageVersionUnknown: !!latest?.thunderstore && !record.packageVersion,
+        deprecated: latest?.deprecated,
         problems,
         dependencies: record.dependencies,
         metadataId: record.metadataId,
@@ -225,27 +227,13 @@ export class InstalledModsService {
               r.files.some((f) => f.root === 'game' && f.path === filename),
           );
           // Binary export/embedded symbol evidence is required for unknown DLLs.
-          const handle = await fs.open(target, 'r');
-          const size = Math.min((await handle.stat()).size, 16 * 1024 * 1024);
-          const bytes = Buffer.alloc(size);
-          try {
-            await handle.read(bytes, 0, size, 0);
-          } finally {
-            await handle.close();
-          }
-          const magic = bytes.subarray(0, 4).toString('hex');
-          const nativeLibrary = ['win32', 'linux'].includes(process.platform)
-            ? bytes.subarray(0, 2).toString() === 'MZ'
-            : ['cffaedfe', 'cefaedfe', 'feedfacf', 'feedface', 'cafebabe', 'bebafeca'].includes(
-                magic,
-              );
           const ownedFile = managed?.files.find((f) => f.root === 'game' && f.path === filename);
-          const verifiedRecord = ownedFile && (await hashFile(target)) === ownedFile.installedHash;
-          if (nativeLibrary && (verifiedRecord || /lovely/i.test(bytes.toString('latin1')))) {
+          const evidence = await inspectLovelyLibrary(target, ownedFile?.installedHash);
+          if (evidence.identified) {
             lovelyMatches++;
             lovelyInstalled = true;
             // A record cannot prove the version of an externally replaced binary.
-            lovelyVersion = verifiedRecord ? managed?.modVersion : undefined;
+            lovelyVersion = evidence.owned ? managed?.modVersion : undefined;
           }
         } catch {
           /* Unknown library is not positive Lovely evidence. */
@@ -305,7 +293,8 @@ export class InstalledModsService {
       );
       const local = mods.find((mod) => mod.id === record.modId);
       if (
-        !source?.thunderstore ||
+        (!source?.thunderstore &&
+          !(record.provenance?.namespace && record.provenance.packageName)) ||
         !record.packageVersion ||
         record.disabled ||
         local?.problems.length ||
@@ -315,7 +304,10 @@ export class InstalledModsService {
         ).length > 1
       )
         continue;
-      const packageId = thunderstoreId(source.thunderstore.namespace, source.thunderstore.name);
+      const packageId = thunderstoreId(
+        source?.thunderstore?.namespace ?? record.provenance!.namespace!,
+        source?.thunderstore?.name ?? record.provenance!.packageName!,
+      );
       const runtime = prerequisites.find(
         (entry) => entry.id.toLowerCase() === (record.metadataId ?? '').toLowerCase(),
       );
@@ -325,20 +317,51 @@ export class InstalledModsService {
       } else
         prerequisites.push({
           id: record.metadataId ?? packageId,
-          displayName: source.title,
+          displayName: source?.title ?? record.title,
           installed: true,
           installedVersion: runtime?.installedVersion,
           packageId,
           packageVersion: record.packageVersion,
-          sourceUrl: source.thunderstore.packageUrl,
+          sourceUrl:
+            source?.source?.url ??
+            record.provenance?.downloadUrl ??
+            'https://thunderstore.io/c/balatro/',
         });
+    }
+    for (const prerequisite of prerequisites) {
+      const matches = catalogue.filter(
+        (mod) =>
+          !mod.deprecated &&
+          mod.source?.provider === 'thunderstore' &&
+          dependencyId(mod.metadataId ?? '') === prerequisite.id,
+      );
+      if (matches.length === 1) {
+        const source = matches[0]!;
+        prerequisite.latestVersion = source.version;
+        prerequisite.latestPackageId = source.source!.externalId;
+        prerequisite.latestError = undefined;
+        prerequisite.sourceUrl = source.source!.url ?? prerequisite.sourceUrl;
+      } else if (matches.length > 1) {
+        prerequisite.latestVersion = undefined;
+        prerequisite.latestError =
+          'Multiple package sources exist; choose a specific package to check its version';
+      }
     }
     return { mods, prerequisites };
   }
-  async checkLatest() {
+  async checkLatest(catalogue: ModDefinition[] = []) {
     if (this.latestCheck) return this.latestCheck;
     this.latestCheck = Promise.all(
       upstreams.map(async (upstream) => {
+        if (
+          catalogue.some(
+            (mod) =>
+              !mod.deprecated &&
+              mod.source?.provider === 'thunderstore' &&
+              dependencyId(mod.metadataId ?? '') === upstream.id,
+          )
+        )
+          return;
         try {
           const provider = new GitHubPrerequisiteProvider(
             upstream.repository,

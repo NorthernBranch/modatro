@@ -80,6 +80,8 @@ export function approvalLabel(mod: ModDefinition) {
   }[mod.approvalStatus ?? 'legacy-index'];
 }
 export function automationReason(mod: ModDefinition, update = false): string | undefined {
+  if (mod.deprecated && !update)
+    return 'This package is deprecated. Existing installations remain manageable.';
   if (mod.policyReason) return mod.policyReason;
   if (mod.approvalStatus === 'opted-out')
     return 'The author requested removal. Your existing installation has not been changed.';
@@ -114,5 +116,6 @@ export function sourceLabel(type: InstallationSource['sourceType']) {
     other: 'Configured upstream source',
     legacy: 'Legacy installation',
     external: 'Installed externally',
+    local: 'Local archive',
   }[type];
 }

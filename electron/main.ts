@@ -126,7 +126,7 @@ void app
         responseHeaders: {
           ...details.responseHeaders,
           'Content-Security-Policy': [
-            `default-src 'self'; script-src 'self' ${rendererUrl.startsWith('http:') ? "'unsafe-inline'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ${rendererUrl.startsWith('http:') ? 'ws://127.0.0.1:5173' : ''}; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'`,
+            `default-src 'self'; script-src 'self' ${rendererUrl.startsWith('http:') ? "'unsafe-inline'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://ccdn.thunderstore.io https://gcdn.thunderstore.io; font-src 'self'; connect-src 'self' ${rendererUrl.startsWith('http:') ? 'ws://127.0.0.1:5173' : ''}; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'`,
           ],
         },
       }),
@@ -282,6 +282,8 @@ void app
             })),
           prerequisites: s.prerequisites,
           catalogue: {
+            provider: 'Thunderstore',
+            status: s.catalogue.stale ? 'Offline' : 'Online',
             count: s.catalogue.mods.length,
             stale: s.catalogue.stale,
             fetchedAt: s.catalogue.fetchedAt,
@@ -295,8 +297,8 @@ void app
     });
     handle('importDefinition', z.undefined(), async () => {
       const result = await dialog.showOpenDialog(window!, {
-        title: 'Add a Modatro mod definition',
-        filters: [{ name: 'Modatro JSON definition', extensions: ['json'] }],
+        title: 'Install from file or add a mod definition',
+        filters: [{ name: 'Mod ZIP or Modatro definition', extensions: ['zip', 'json'] }],
         properties: ['openFile'],
       });
       return result.canceled
@@ -304,7 +306,12 @@ void app
         : application.importDefinition(result.filePaths[0]!);
     });
     await createWindow();
-    if (!process.env.MODATRO_TEST_DATA) application.backgroundRefresh();
+    if (!process.env.MODATRO_TEST_DATA) {
+      application.backgroundRefresh();
+      const refreshTimer = setInterval(() => application.backgroundRefresh(), 30 * 60 * 1000);
+      refreshTimer.unref();
+      app.once('before-quit', () => clearInterval(refreshTimer));
+    }
     app.on('activate', () => {
       if (!window) void createWindow();
     });

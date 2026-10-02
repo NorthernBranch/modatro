@@ -37,10 +37,13 @@ export function PrerequisitesPage({
           {snapshot.prerequisites
             .filter((p) => ['Lovely', 'Steamodded', 'Talisman'].includes(p.id))
             .map((prerequisite, index) => {
-              const update = isNewer(prerequisite.installedVersion, prerequisite.latestVersion);
+              const installedVersion = prerequisite.latestPackageId
+                ? prerequisite.packageVersion
+                : prerequisite.installedVersion;
+              const update = isNewer(installedVersion, prerequisite.latestVersion);
               const unknown =
                 prerequisite.installed &&
-                (!cleanVersion(prerequisite.installedVersion) ||
+                (!cleanVersion(installedVersion) ||
                   !cleanVersion(prerequisite.latestVersion) ||
                   !!prerequisite.latestError);
               return (
@@ -76,7 +79,7 @@ export function PrerequisitesPage({
                       <dt>Installed version</dt>
                       <dd>
                         {prerequisite.installed
-                          ? (prerequisite.installedVersion ?? 'Version unknown')
+                          ? (installedVersion ?? 'Version unknown')
                           : 'Not installed'}
                       </dd>
                     </div>
@@ -132,6 +135,7 @@ export function PrerequisitesPage({
                         displayName: prerequisite.displayName,
                         required: true,
                         versionConstraint: update ? `>=${prerequisite.latestVersion}` : undefined,
+                        packageId: prerequisite.latestPackageId,
                       }}
                       snapshot={snapshot}
                       requests={requests}

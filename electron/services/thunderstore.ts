@@ -19,11 +19,10 @@ export async function validateThunderstoreArchive(mod: ModDefinition, staging: s
       'The downloaded package manifest differs from its Thunderstore release. No installed files were changed.',
     );
   if (
-    registry.namespace === 'Thunderstore' &&
-    registry.name === 'lovely' &&
-    process.platform === 'darwin'
+    manifest.installers?.length ||
+    (mod.installer !== undefined && (!Array.isArray(mod.installer) || mod.installer.length))
   )
     throw new UserError(
-      'This Lovely package contains the Windows library. Use Lovely’s official macOS instructions.',
+      'This package declares an installer Modatro does not support. Open its source page for manual installation instructions.',
     );
 }

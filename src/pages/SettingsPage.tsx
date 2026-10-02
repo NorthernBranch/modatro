@@ -234,14 +234,14 @@ export function SettingsPage({
               <ChevronRight size={16} />
             </summary>
             <p>
-              Add an explicit Modatro JSON definition for a mod with a known installation method.
-              File replacement definitions list every source and destination; you review them before
-              installing.
+              Install a local mod ZIP, or add an explicit Modatro JSON definition for a mod with a
+              known installation method. File replacement definitions list every source and
+              destination; you review them before installing.
             </p>
             <AsyncButton
               className="button button-secondary"
               pending={requests.isPending('import')}
-              pendingLabel="Importing definition…"
+              pendingLabel="Inspecting file…"
               disabled={configuring}
               onClick={() =>
                 void callSnapshot('import', 'Importing mod definition', () =>
@@ -250,7 +250,7 @@ export function SettingsPage({
               }
             >
               <Plus size={15} />
-              Add mod definition
+              Install from file / Add mod definition
             </AsyncButton>
           </details>
           <section className="settings-section">

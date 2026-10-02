@@ -83,12 +83,16 @@ export const AuthorManifestSchema = z
       });
   });
 
-export const NativeEntrySchema = ModSchema.extend({
-  version: z.string().min(1).max(100).optional(),
-  prerequisites: ModSchema.shape.prerequisites.default([]),
-  downloadUrl: HttpsUrl.optional(),
-  permissions: PermissionsSchema,
-})
+// Native registrations may omit a version/download until their author manifest
+// resolves them. The resulting definition is validated with ModSchema later.
+export const NativeEntrySchema = z
+  .object({
+    ...ModSchema.shape,
+    version: z.string().min(1).max(100).optional(),
+    prerequisites: ModSchema.shape.prerequisites.default([]),
+    downloadUrl: HttpsUrl.optional(),
+    permissions: PermissionsSchema,
+  })
   .strict()
   .superRefine((entry, ctx) => {
     if (!/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(entry.id))

@@ -6,11 +6,19 @@ import type {
   UnverifiedPrerequisite,
 } from './model';
 
-export function canAcceptUnverified(requirement: DependencyStatus): boolean {
+export function externalLoaderRequirement(
+  requirement: Pick<DependencyRequirement, 'id' | 'packageId'>,
+): boolean {
   return (
-    requirement.state === 'unknown' &&
-    ['lovely', 'steamodded'].includes(requirement.id.toLowerCase())
+    ['lovely', 'steamodded'].includes(requirement.id.toLowerCase()) &&
+    (!requirement.packageId ||
+      ['thunderstore/thunderstore-lovely', 'thunderstore/steamodded-steamodded'].includes(
+        requirement.packageId.toLowerCase(),
+      ))
   );
+}
+export function canAcceptUnverified(requirement: DependencyStatus): boolean {
+  return requirement.state === 'unknown' && externalLoaderRequirement(requirement);
 }
 
 export function blockingDependencies(
@@ -53,7 +61,12 @@ export function evaluateDependency(
         : p.id.toLowerCase() === requirement.id.toLowerCase(),
     ) ??
     (requirement.packageId
-      ? installed.find((p) => p.id.toLowerCase() === requirement.id.toLowerCase())
+      ? installed.find(
+          (p) =>
+            !p.packageId &&
+            p.id.toLowerCase() === requirement.id.toLowerCase() &&
+            externalLoaderRequirement(requirement),
+        )
       : undefined);
   if (!found?.installed)
     return {

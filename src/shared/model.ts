@@ -60,8 +60,12 @@ export const ReleaseSourceSchema = z.object({
     .optional(),
 });
 export const HttpsUrl = z.url().refine((v) => {
-  const u = new URL(v);
-  return u.protocol === 'https:' && !u.username && !u.password;
+  try {
+    const u = new URL(v);
+    return u.protocol === 'https:' && !u.username && !u.password;
+  } catch {
+    return false;
+  }
 }, 'Only HTTPS links are supported');
 export const DependencySchema = z.object({
   id: z.string().min(1),
@@ -69,6 +73,10 @@ export const DependencySchema = z.object({
   versionConstraint: z.string().optional(),
   required: z.boolean(),
   packageId: ModId.optional(),
+  source: z.string().optional(),
+  namespace: z.string().optional(),
+  packageName: z.string().optional(),
+  minimumVersion: z.string().optional(),
 });
 export const ReleaseAssetName = z
   .string()
@@ -86,6 +94,7 @@ export const InstallationSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('standard'), sourceRoot: RelativePath.optional() }),
   z.object({ type: z.literal('single-file') }),
   z.object({ type: z.literal('lovely-patch') }),
+  z.object({ type: z.literal('lovely-injector') }),
   z.object({
     type: z.literal('game-replacement'),
     files: z.array(z.object({ source: RelativePath, destination: RelativePath })).min(1),
@@ -93,54 +102,97 @@ export const InstallationSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('unsupported'), instructions: z.string().optional() }),
 ]);
 export type InstallationDefinition = z.infer<typeof InstallationSchema>;
-export const ModSchema = z.object({
-  id: ModId,
-  title: z.string().min(1).max(200),
-  author: z.string().min(1).max(200),
+export const ModVersionSchema = z.object({
   version: z.string().min(1).max(100),
-  description: z.string().max(30000).optional(),
-  repositoryUrl: HttpsUrl.optional(),
   downloadUrl: HttpsUrl,
-  categories: z.array(z.string()).max(30),
-  sourceCategories: z.array(z.string()).optional(),
-  folderName: SafeName.optional(),
-  prerequisites: z.array(DependencySchema).max(100),
-  installation: InstallationSchema.default({ type: 'auto' }),
-  unavailableReason: z.string().optional(),
-  updatedAt: z.number().optional(),
-  approvalStatus: ApprovalStatus.optional(),
-  approvalEvidence: HttpsUrl.optional(),
-  permissions: PermissionsSchema.optional(),
-  manifestUrl: HttpsUrl.optional(),
-  metadataId: z.string().min(1).max(200).optional(),
-  legacyIds: z.array(ModId).max(20).optional(),
-  releaseSource: ReleaseSourceSchema.optional(),
-  licence: z.string().max(200).optional(),
-  descriptionProvenance: z.enum(['author-supplied', 'licensed', 'factual']).optional(),
-  iconUrl: HttpsUrl.optional(),
-  iconUsageApproved: z.boolean().optional(),
-  distributionApproved: z.boolean().optional(),
-  policyReason: z.string().optional(),
-  githubRelease: z.object({ assetName: ReleaseAssetName.optional() }).strict().optional(),
-  thunderstore: z
-    .object({
-      packageId: z.uuid(),
-      versionId: z.uuid(),
-      namespace: z
-        .string()
-        .regex(/^[a-zA-Z0-9_]+$/)
-        .max(40),
-      name: z
-        .string()
-        .regex(/^[a-zA-Z0-9_]+$/)
-        .max(40),
-      packageVersion: z.string().regex(/^\d+\.\d+\.\d+$/),
-      dependencies: z.array(z.string().max(200)).max(100),
-      packageUrl: HttpsUrl,
-    })
-    .strict()
-    .optional(),
+  dependencies: z.array(DependencySchema).max(100),
+  publishedAt: z.iso.datetime({ offset: true }).optional(),
+  downloads: z.number().int().nonnegative().optional(),
+  sourceArtifact: z.object({ provider: z.string(), externalId: z.string() }).optional(),
+  installer: z.unknown().optional(),
 });
+export type ModVersion = z.infer<typeof ModVersionSchema>;
+export const ModSchema = z
+  .object({
+    id: ModId,
+    title: z.string().min(1).max(200),
+    author: z.string().min(1).max(200),
+    version: z.string().min(1).max(100),
+    source: z
+      .object({
+        provider: z.string(),
+        externalId: z.string(),
+        namespace: z.string().optional(),
+        packageName: z.string().optional(),
+        url: HttpsUrl.optional(),
+      })
+      .optional(),
+    versions: z.array(ModVersionSchema).max(2000).optional(),
+    deprecated: z.boolean().optional(),
+    support: z.enum(['supported', 'manual-install', 'unsupported', 'dependency-only']).optional(),
+    installer: z.unknown().optional(),
+    description: z.string().max(30000).optional(),
+    repositoryUrl: HttpsUrl.optional(),
+    websiteUrl: HttpsUrl.optional(),
+    downloadUrl: HttpsUrl,
+    categories: z.array(z.string()).max(30),
+    sourceCategories: z.array(z.string()).optional(),
+    folderName: SafeName.optional(),
+    prerequisites: z.array(DependencySchema).max(100),
+    installation: InstallationSchema.default({ type: 'auto' }),
+    unavailableReason: z.string().optional(),
+    updatedAt: z.number().optional(),
+    approvalStatus: ApprovalStatus.optional(),
+    approvalEvidence: HttpsUrl.optional(),
+    permissions: PermissionsSchema.optional(),
+    manifestUrl: HttpsUrl.optional(),
+    metadataId: z.string().min(1).max(200).optional(),
+    legacyIds: z.array(ModId).max(20).optional(),
+    releaseSource: ReleaseSourceSchema.optional(),
+    licence: z.string().max(200).optional(),
+    descriptionProvenance: z.enum(['author-supplied', 'licensed', 'factual']).optional(),
+    iconUrl: HttpsUrl.optional(),
+    iconUsageApproved: z.boolean().optional(),
+    distributionApproved: z.boolean().optional(),
+    policyReason: z.string().optional(),
+    githubRelease: z.object({ assetName: ReleaseAssetName.optional() }).strict().optional(),
+    thunderstore: z
+      .object({
+        packageId: z.uuid(),
+        versionId: z.uuid(),
+        namespace: z
+          .string()
+          .regex(/^[a-zA-Z0-9_]+$/)
+          .max(40),
+        name: z
+          .string()
+          .regex(/^[a-zA-Z0-9_]+$/)
+          .max(40),
+        packageVersion: z.string().regex(/^\d+\.\d+\.\d+$/),
+        dependencies: z.array(z.string().max(200)).max(100),
+        packageUrl: HttpsUrl,
+      })
+      .strict()
+      .optional(),
+  })
+  .superRefine((mod, context) => {
+    if (mod.source?.provider === 'thunderstore' && !mod.thunderstore)
+      context.addIssue({ code: 'custom', message: 'Thunderstore source identity is incomplete.' });
+    if (mod.thunderstore && mod.source) {
+      const registry = mod.thunderstore;
+      if (
+        mod.source.provider !== 'thunderstore' ||
+        mod.source.externalId !== `thunderstore/${registry.namespace}-${registry.name}` ||
+        (mod.source.namespace !== undefined && mod.source.namespace !== registry.namespace) ||
+        (mod.source.packageName !== undefined && mod.source.packageName !== registry.name) ||
+        (mod.source.url !== undefined && mod.source.url !== registry.packageUrl)
+      )
+        context.addIssue({
+          code: 'custom',
+          message: 'Normalized source identity does not match its registry package.',
+        });
+    }
+  });
 export type ModDefinition = z.infer<typeof ModSchema>;
 export type DependencyState = 'satisfied' | 'missing' | 'outdated' | 'incompatible' | 'unknown';
 export interface DependencyStatus extends DependencyRequirement {
@@ -160,6 +212,7 @@ export interface Prerequisite {
   provenance?: InstallationSource;
   packageId?: string;
   packageVersion?: string;
+  latestPackageId?: string;
 }
 export interface ValidationProblem {
   code: string;
@@ -197,6 +250,7 @@ export const InstallationSourceSchema = z.object({
     'other',
     'legacy',
     'external',
+    'local',
   ]),
   repositoryUrl: HttpsUrl.optional(),
   downloadUrl: HttpsUrl.optional(),
@@ -210,6 +264,9 @@ export const InstallationSourceSchema = z.object({
   sha256: HashSchema.optional(),
   packageId: z.uuid().optional(),
   packageVersion: z.string().max(100).optional(),
+  provider: z.string().optional(),
+  namespace: z.string().optional(),
+  packageName: z.string().optional(),
 });
 export type InstallationSource = z.infer<typeof InstallationSourceSchema>;
 export const InstalledFileSchema = z.object({
@@ -237,6 +294,7 @@ export const RecordSchema = z
     transactionId: z.string(),
     metadataId: z.string().optional(),
     packageVersion: z.string().max(100).optional(),
+    automaticallyInstalled: z.boolean().optional(),
   })
   .superRefine((r, ctx) => {
     if (new Set(r.files.map((f) => `${f.root}:${f.path.toLowerCase()}`)).size !== r.files.length)
@@ -291,6 +349,7 @@ export interface LocalMod {
   repositoryUrl?: string;
   canDisable?: boolean;
   packageVersionUnknown?: boolean;
+  deprecated?: boolean;
   files?: Pick<InstalledFileRecord, 'root' | 'path' | 'operation'>[];
 }
 export interface TrustState {
@@ -384,6 +443,7 @@ export interface InstallPlan {
   remove: PlannedFile[];
   prerequisites: DependencyStatus[];
   conflicts: FileConflict[];
+  packages?: { id: string; title: string; version: string; update: boolean }[];
 }
 export interface ModatroApi {
   snapshot(): Promise<Reply<Snapshot>>;

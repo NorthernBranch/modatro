@@ -39,7 +39,7 @@ import {
 import { DownloadService } from './network';
 import { Logger, Storage } from './storage';
 import { selectStrategy } from './strategies';
-import { TransactionEngine, type Change } from './transaction';
+import { TransactionEngine, type Change, type TransactionJournal } from './transaction';
 import { evaluateDependencies } from './versions';
 import { blockingDependencies, canAcceptUnverified } from '../../src/shared/dependencies';
 import { automationReason, defaultFolder } from '../../src/shared/trust';
@@ -48,6 +48,8 @@ import { resolveDistribution, validateDistribution } from './distribution';
 import { validateThunderstoreArchive } from './thunderstore';
 import { thunderstoreId } from '../../src/shared/thunderstore';
 import { AuthorManifestSchema } from '../../src/shared/catalogue-schema';
+import { projectedPrerequisites } from '../../src/shared/dependency-graph';
+import { inspectLovelyLibrary } from './lovely';
 
 export interface PreparedInstallation {
   plan: InstallPlan;
@@ -56,6 +58,7 @@ export interface PreparedInstallation {
   folderName: string;
   dependencies: DependencyStatus[];
   metadataId?: string;
+  runtimeVersion?: string;
   previous?: InstallationRecord;
   provenance?: InstallationSource;
 }
@@ -132,16 +135,17 @@ export class ModInstaller {
     confirmationToken?: string,
     inspect = false,
     acceptedUnverified: UnverifiedPrerequisite[] = [],
+    localArchive?: string,
   ) {
     return this.transactions.locked(async () => {
       await this.guard();
       let mod = ModSchema.parse(input);
-      await this.verifyTrust?.(mod, update);
-      mod = this.verifyTrust ? await resolveDistribution(mod) : mod;
+      if (!localArchive) await this.verifyTrust?.(mod, update);
+      mod = this.verifyTrust && !localArchive ? await resolveDistribution(mod) : mod;
       if (mod.thunderstore) validateDistribution(mod);
       const reason = automationReason(mod, update);
       if (reason) throw new UserError(reason);
-      await this.verifyTrust?.(mod, update);
+      if (!localArchive) await this.verifyTrust?.(mod, update);
       const previous = this.storage.state.installations.find((r) => r.modId === mod.id);
       if (previous && !update)
         throw new UserError('This mod is already managed by Modatro. Use Update instead.');
@@ -157,24 +161,34 @@ export class ModInstaller {
         this.progress({ modId: mod.id, phase: 'downloading', percent: 0 });
         await this.logger.log('download.start', { modId: mod.id });
         const downloader = new DownloadService(this.storage.file('downloads'));
-        download = await downloader.download(
-          mod.downloadUrl,
-          abort.signal,
-          (percent) => this.progress({ modId: mod.id, phase: 'downloading', percent }),
-          mod.thunderstore ? 'thunderstore' : 'github',
-        );
-        const provenance = await new ArtifactHistory(this.storage, this.logger).verify(
-          mod,
-          await hashFile(download),
-        );
-        provenance.finalUrl = downloader.finalUrl ?? mod.downloadUrl;
+        download = localArchive
+          ? this.storage.file(`downloads/${randomUUID()}.download`)
+          : await downloader.download(
+              mod.downloadUrl,
+              abort.signal,
+              (percent) => this.progress({ modId: mod.id, phase: 'downloading', percent }),
+              mod.thunderstore ? 'thunderstore' : 'github',
+            );
+        if (localArchive) await atomicCopy(localArchive, download);
+        const provenance: InstallationSource = localArchive
+          ? {
+              sourceType: 'local',
+              provider: 'local',
+              sha256: await hashFile(download),
+              downloadedAt: new Date().toISOString(),
+            }
+          : await new ArtifactHistory(this.storage, this.logger).verify(
+              mod,
+              await hashFile(download),
+            );
+        if (!localArchive) provenance.finalUrl = downloader.finalUrl ?? mod.downloadUrl;
         await this.logger.log('download.complete', {
           modId: mod.id,
           version: mod.version,
           ...provenance,
         });
         this.progress({ modId: mod.id, phase: 'validating' });
-        const directFile = new URL(mod.downloadUrl).pathname.endsWith('.lua');
+        const directFile = !localArchive && new URL(mod.downloadUrl).pathname.endsWith('.lua');
         if (directFile) await atomicCopy(download, path.join(stage, 'mod.lua'));
         else await new ArchiveService().extract(download, stage, abort.signal);
         await validateThunderstoreArchive(mod, stage);
@@ -193,7 +207,7 @@ export class ModInstaller {
           'The downloaded mod has additional requirements: ',
         );
         abort.signal.throwIfAborted();
-        await this.verifyTrust?.(prepared.mod, update);
+        if (!localArchive) await this.verifyTrust?.(prepared.mod, update);
         await this.guard();
         // Recheck immediately before committing, including requirements found in the archive.
         prepared.dependencies = evaluateDependencies(
@@ -283,6 +297,22 @@ export class ModInstaller {
       mod = ModSchema.parse({ ...mod, folderName: previous.folderName.replace(/\.lua$/, '') });
     const strategy = selectStrategy({ mod, staging, directFile });
     const files = await strategy.plan({ mod, staging, directFile });
+    if (mod.installation.type === 'lovely-injector') {
+      const plannedNames = new Set(files.map((file) => file.path.toLowerCase()));
+      for (const name of await fs.readdir(roots.game)) {
+        if (!/\.(dll|dylib)$/i.test(name) || plannedNames.has(name.toLowerCase())) continue;
+        const owned = previous?.files.find(
+          (file) => file.root === 'game' && file.path === name && file.operation === 'created',
+        );
+        if (
+          !owned &&
+          (await inspectLovelyLibrary(await safeDestination(roots.game, name))).identified
+        )
+          throw new UserError(
+            'Another Lovely library is installed outside this plan. Follow the official upgrade instructions before installing this version.',
+          );
+      }
+    }
     if (
       (mod.id === 'Lovely' || mod.metadataId === 'Lovely') &&
       mod.installation.type === 'game-replacement'
@@ -314,7 +344,10 @@ export class ModInstaller {
     const stageRoot = await canonicalDirectory(staging);
     let requirements = mod.prerequisites;
     let metadataId: string | undefined = mod.metadataId;
-    if (mod.installation.type !== 'game-replacement') {
+    let runtimeVersion = ['game-replacement', 'lovely-injector'].includes(mod.installation.type)
+      ? mod.version
+      : undefined;
+    if (!['game-replacement', 'lovely-injector'].includes(mod.installation.type)) {
       const root = directFile
         ? staging
         : mod.installation.type === 'standard' && mod.installation.sourceRoot
@@ -353,6 +386,7 @@ export class ModInstaller {
           );
       }
       metadataId = metadata?.id;
+      runtimeVersion = metadata?.version;
       if (
         previous?.metadataId &&
         metadataId &&
@@ -506,6 +540,7 @@ export class ModInstaller {
       mod,
       dependencies,
       metadataId,
+      runtimeVersion,
       previous,
       folderName: SafeName.parse(defaultFolder(mod)),
     };
@@ -521,46 +556,7 @@ export class ModInstaller {
       throw new UserError('The install plan is not eligible to commit.');
     this.progress({ modId: prepared.mod.id, phase: 'installing' });
     await this.transactions.execute(this.roots(), prepared.changes, (journal) => {
-      const destinations = [...prepared.plan.create, ...prepared.plan.replace];
-      const record = RecordSchema.parse({
-        modId: prepared.mod.id,
-        title: prepared.mod.title,
-        modVersion: prepared.mod.version,
-        installedAt: new Date().toISOString(),
-        dependencies: prepared.dependencies.map(
-          ({ id, displayName, versionConstraint, required, packageId }) => ({
-            id,
-            displayName,
-            versionConstraint,
-            required,
-            packageId,
-          }),
-        ),
-        source: prepared.mod.downloadUrl,
-        provenance: prepared.provenance ?? { sourceType: 'legacy' },
-        folderName: prepared.folderName,
-        transactionId: journal.id,
-        metadataId: prepared.metadataId ?? prepared.previous?.metadataId,
-        packageVersion: prepared.mod.thunderstore?.packageVersion,
-        disabled: false,
-        files: destinations.map((file) => {
-          const before = journal.changes.find((c) => c.root === file.root && c.path === file.path)!;
-          const previous = prepared.previous?.files.find(
-            (f) => f.root === file.root && f.path.toLowerCase() === file.path.toLowerCase(),
-          );
-          const operation = previous?.operation ?? (before.beforeHash ? 'replaced' : 'created');
-          return {
-            root: file.root,
-            path: file.path,
-            installedHash: file.hash,
-            operation,
-            originalHash:
-              operation === 'replaced' ? (previous?.originalHash ?? before.beforeHash) : undefined,
-            backupPath:
-              operation === 'replaced' ? (previous?.backupPath ?? before.beforeBackup) : undefined,
-          };
-        }),
-      });
+      const record = this.installationRecord(prepared, journal);
       return {
         ...this.storage.state,
         installations: [
@@ -569,9 +565,214 @@ export class ModInstaller {
         ],
       };
     });
-    await this.cleanupEmptyDirectories(
-      prepared.previous?.files.map((f) => ({ root: f.root, path: f.path })) ?? [],
-    );
+    await this.cleanupEmptyDirectories(prepared.previous?.files ?? []);
+  }
+  private installationRecord(
+    prepared: PreparedInstallation,
+    journal: TransactionJournal,
+    automaticallyInstalled = false,
+  ): InstallationRecord {
+    const destinations = [...prepared.plan.create, ...prepared.plan.replace];
+    return RecordSchema.parse({
+      modId: prepared.mod.id,
+      title: prepared.mod.title,
+      modVersion: prepared.mod.version,
+      installedAt: new Date().toISOString(),
+      dependencies: prepared.dependencies.map(
+        ({ state: _state, reason: _reason, installedVersion: _version, ...requirement }) =>
+          requirement,
+      ),
+      source: prepared.mod.source?.provider === 'local' ? undefined : prepared.mod.downloadUrl,
+      provenance: prepared.provenance ?? { sourceType: 'legacy' },
+      folderName: prepared.folderName,
+      transactionId: journal.id,
+      metadataId: prepared.metadataId ?? prepared.previous?.metadataId,
+      packageVersion: prepared.mod.thunderstore?.packageVersion,
+      disabled: false,
+      automaticallyInstalled: prepared.previous?.automaticallyInstalled ?? automaticallyInstalled,
+      files: destinations.map((file) => {
+        const before = journal.changes.find((c) => c.root === file.root && c.path === file.path)!;
+        const previous = prepared.previous?.files.find(
+          (f) => f.root === file.root && f.path.toLowerCase() === file.path.toLowerCase(),
+        );
+        const operation = previous?.operation ?? (before.beforeHash ? 'replaced' : 'created');
+        return {
+          root: file.root,
+          path: file.path,
+          installedHash: file.hash,
+          operation,
+          originalHash:
+            operation === 'replaced' ? (previous?.originalHash ?? before.beforeHash) : undefined,
+          backupPath:
+            operation === 'replaced' ? (previous?.backupPath ?? before.beforeBackup) : undefined,
+        };
+      }),
+    });
+  }
+  async installMany(
+    inputs: ModDefinition[],
+    confirmationToken?: string,
+    accepted: UnverifiedPrerequisite[] = [],
+    inspect = false,
+  ) {
+    return this.transactions.locked(async () => {
+      await this.guard();
+      if (!inputs.length || new Set(inputs.map((mod) => mod.id)).size !== inputs.length)
+        throw new UserError('Invalid dependency installation plan.');
+      const staging = await fs.mkdtemp(this.storage.file('staging/batch-'));
+      const prepared: PreparedInstallation[] = [];
+      const abort = new AbortController();
+      this.abort = abort;
+      try {
+        for (const [index, input] of inputs.entries()) {
+          const mod = ModSchema.parse(input);
+          const previous = this.storage.state.installations.find(
+            (record) => record.modId === mod.id,
+          );
+          if (previous?.disabled) throw new UserError(`Enable ${mod.title} before updating it.`);
+          await this.verifyTrust?.(mod, !!previous);
+          validateDistribution(mod);
+          const reason = automationReason(mod, !!previous);
+          if (reason) throw new UserError(reason);
+          const stage = path.join(staging, String(index));
+          await fs.mkdir(stage);
+          this.progress({ modId: mod.id, phase: 'downloading', percent: 0 });
+          const downloader = new DownloadService(this.storage.file('downloads'));
+          const download = await downloader.download(
+            mod.downloadUrl,
+            abort.signal,
+            (percent) => this.progress({ modId: mod.id, phase: 'downloading', percent }),
+            mod.thunderstore ? 'thunderstore' : 'github',
+          );
+          try {
+            const provenance = await new ArtifactHistory(this.storage, this.logger).verify(
+              mod,
+              await hashFile(download),
+            );
+            provenance.finalUrl = downloader.finalUrl ?? mod.downloadUrl;
+            await new ArchiveService().extract(download, stage, abort.signal);
+            await validateThunderstoreArchive(mod, stage);
+            this.progress({ modId: mod.id, phase: 'planning' });
+            const item = await this.plan(mod, stage);
+            item.provenance = provenance;
+            prepared.push(item);
+          } finally {
+            await fs.rm(download, { force: true });
+          }
+          abort.signal.throwIfAborted();
+        }
+        const future = projectedPrerequisites(inputs, await this.getPrerequisites());
+        // Runtime requirements discovered in downloaded metadata use the actual
+        // loader version, while registry requirements use package versions.
+        for (const item of prepared)
+          future.unshift({
+            id: item.metadataId ?? item.mod.id,
+            displayName: item.mod.title,
+            installed: true,
+            installedVersion: item.runtimeVersion,
+            sourceUrl: item.mod.downloadUrl,
+          });
+        for (const item of prepared) {
+          item.dependencies = evaluateDependencies(item.dependencies, future);
+          item.plan.prerequisites = item.dependencies;
+          this.assertDependencies(item.dependencies, accepted);
+          if (item.plan.conflicts.length)
+            throw new UserError(
+              'The dependency installation conflicts with existing files. No files were changed.',
+              item.plan.conflicts,
+            );
+        }
+        const changes = prepared.flatMap((item) => item.changes);
+        if (
+          new Set(changes.map((change) => `${change.root}:${change.path.toLowerCase()}`)).size !==
+          changes.length
+        )
+          throw new UserError(
+            'Packages in this plan would change the same file. No files were changed.',
+          );
+        const last = inputs[inputs.length - 1]!;
+        const visible = this.inspectablePlan({
+          modId: last.id,
+          version: last.version,
+          create: prepared.flatMap((item) => item.plan.create),
+          replace: prepared.flatMap((item) => item.plan.replace),
+          remove: prepared.flatMap((item) => item.plan.remove),
+          prerequisites: prepared.flatMap((item) => item.dependencies),
+          conflicts: [],
+          packages: prepared.map((item) => ({
+            id: item.mod.id,
+            title: item.mod.title,
+            version: item.mod.thunderstore?.packageVersion ?? item.mod.version,
+            update: !!item.previous,
+          })),
+        });
+        if (inspect) return visible;
+        if (inputs.length > 1 || changes.some((change) => change.root === 'game')) {
+          const fingerprint = createHash('sha256').update(JSON.stringify(visible)).digest('hex');
+          if (
+            !confirmationToken ||
+            confirmationToken !== this.confirmation?.token ||
+            fingerprint !== this.confirmation.fingerprint ||
+            Date.now() > this.confirmation.expires
+          ) {
+            const token = randomUUID();
+            this.confirmation = { token, fingerprint, expires: Date.now() + 10 * 60 * 1000 };
+            throw new UserError(
+              'Review the required packages and file changes before continuing.',
+              undefined,
+              undefined,
+              { confirmation: { token, plan: visible } },
+            );
+          }
+          this.confirmation = undefined;
+        }
+        await this.guard();
+        for (const item of prepared) await this.verifyTrust?.(item.mod, !!item.previous);
+        // Refresh physical prerequisite evidence just before committing. Planned
+        // packages are projected, never written early to satisfy another plan.
+        const rechecked = projectedPrerequisites(inputs, await this.getPrerequisites());
+        for (const item of prepared)
+          rechecked.unshift({
+            id: item.metadataId ?? item.mod.id,
+            displayName: item.mod.title,
+            installed: true,
+            installedVersion: item.runtimeVersion,
+            sourceUrl: item.mod.downloadUrl,
+          });
+        for (const item of prepared)
+          this.assertDependencies(evaluateDependencies(item.dependencies, rechecked), accepted);
+        abort.signal.throwIfAborted();
+        this.abort = undefined;
+        await this.transactions.execute(this.roots(), changes, (journal) => ({
+          ...this.storage.state,
+          installations: [
+            ...this.storage.state.installations.filter(
+              (record) => !inputs.some((mod) => mod.id === record.modId),
+            ),
+            ...prepared.map((item, index) =>
+              this.installationRecord(item, journal, index < prepared.length - 1),
+            ),
+          ],
+        }));
+        for (const item of prepared) {
+          await this.cleanupEmptyDirectories(item.previous?.files ?? []);
+          this.progress({ modId: item.mod.id, phase: 'complete', percent: 100 });
+        }
+        await this.logger.log('install.batch.complete', {
+          packages: inputs.map((mod) => mod.id),
+          transaction: this.storage.state.lastTransaction,
+        });
+      } catch (error) {
+        await this.logger.log('install.batch.failed', {
+          packages: inputs.map((mod) => mod.id),
+          error: String(error),
+        });
+        throw error;
+      } finally {
+        this.abort = undefined;
+        await fs.rm(staging, { recursive: true, force: true });
+      }
+    });
   }
   private async assertNotRequired(record: InstallationRecord) {
     const source = record.provenance?.downloadUrl ?? record.source;
@@ -583,7 +784,6 @@ export class ModInstaller {
     const identities = new Set(
       [
         record.metadataId,
-        record.title,
         record.modId,
         record.modId.split('@').pop(),
         registry ? thunderstoreId(registry[1]!, registry[2]!) : undefined,
@@ -598,8 +798,9 @@ export class ModInstaller {
         r.dependencies.some(
           (d) =>
             d.required &&
-            (identities.has(dependencyId(d.id).toLowerCase()) ||
-              (!!d.packageId && identities.has(d.packageId.toLowerCase()))),
+            (d.packageId
+              ? identities.has(d.packageId.toLowerCase())
+              : identities.has(dependencyId(d.id).toLowerCase())),
         ),
     );
     if (dependents.length)
@@ -627,8 +828,9 @@ export class ModInstaller {
             metadata?.requirements.some(
               (d) =>
                 d.required &&
-                (identities.has(dependencyId(d.id).toLowerCase()) ||
-                  (!!d.packageId && identities.has(d.packageId.toLowerCase()))),
+                (d.packageId
+                  ? identities.has(d.packageId.toLowerCase())
+                  : identities.has(dependencyId(d.id).toLowerCase())),
             )
           )
             throw new UserError(

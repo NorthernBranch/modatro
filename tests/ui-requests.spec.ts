@@ -580,7 +580,11 @@ test('mod details keep progress visible while the service prepares an installati
 for (const scenario of [
   { method: 'openFolder', button: 'Open backups', loading: 'Opening…' },
   { method: 'diagnostics', button: 'Copy diagnostics', loading: 'Copying…' },
-  { method: 'importDefinition', button: 'Add mod definition', loading: 'Importing definition…' },
+  {
+    method: 'importDefinition',
+    button: 'Install from file / Add mod definition',
+    loading: 'Inspecting file…',
+  },
 ]) {
   test(`${scenario.button} handles a rejected request and restores its control`, async ({
     page,
@@ -999,6 +1003,10 @@ test('shows the server-generated file plan and returns its confirmation token', 
             remove: [],
             prerequisites: [],
             conflicts: [],
+            packages: [
+              { id: 'dependency', title: 'Required package', version: '1.2.0', update: false },
+              { id: 'fixture', title: 'Fixture mod', version: '1.0.0', update: false },
+            ],
           },
         },
       },
@@ -1006,6 +1014,7 @@ test('shows the server-generated file plan and returns its confirmation token', 
     window.requestsTest.behavior.action = 'success';
   });
   await expect(page.getByRole('dialog')).toContainText('replace: game/game.lua');
+  await expect(page.getByRole('dialog')).toContainText('Required package 1.2.0');
   await page.getByRole('dialog').getByRole('button', { name: 'Back up & install' }).click();
   expect((await page.evaluate(() => window.requestsTest.actions)).at(-1)?.token).toBe(
     'actual-plan-token',

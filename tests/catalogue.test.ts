@@ -10,8 +10,13 @@ import { CatalogueOverridesSchema } from '../src/shared/catalogue-schema';
 import { mod, setup, thunderstorePackage } from './helpers';
 const roots: string[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   for (const r of roots.splice(0)) await fs.rm(r, { recursive: true, force: true });
 });
+const chunk = `https://ccdn.thunderstore.io/live/blob-storage/sha256/${'a'.repeat(64)}.sh_fixture.blob`;
+const listing = (feed: unknown[]) => async (url: string) =>
+  url === THUNDERSTORE_ENDPOINT ? [chunk] : feed;
 async function fixture() {
   const f = await setup();
   roots.push(f.root);
@@ -79,7 +84,7 @@ describe('live Thunderstore catalogue', () => {
     expect(entry.description).toBeUndefined();
     expect(entry.iconUrl).toBeUndefined();
   });
-  it('chooses the highest active version and excludes deprecated or entirely inactive packages', () => {
+  it('chooses the highest active version, retains deprecation, and excludes entirely inactive packages', () => {
     const pkg = thunderstorePackage();
     pkg.versions.push({
       ...thunderstorePackage({ version: '2.0.0' }).versions[0]!,
@@ -87,7 +92,7 @@ describe('live Thunderstore catalogue', () => {
     });
     pkg.versions.push(thunderstorePackage({ version: '1.5.0' }).versions[0]!);
     expect(normalizeThunderstore(pkg)?.version).toBe('1.5.0');
-    expect(normalizeThunderstore({ ...pkg, is_deprecated: true })).toBeUndefined();
+    expect(normalizeThunderstore({ ...pkg, is_deprecated: true })?.deprecated).toBe(true);
     expect(
       normalizeThunderstore({
         ...pkg,
@@ -108,10 +113,10 @@ describe('live Thunderstore catalogue', () => {
   });
   it('refreshes once from the public API and reloads the validated cache on restart', async () => {
     const f = await fixture(),
-      json = vi.fn(async (_url: string) => [thunderstorePackage()]);
+      json = vi.fn(listing([thunderstorePackage()]));
     const repository = new ThunderstoreRepository(f.storage, f.logger, undefined, json);
     await Promise.all([repository.refresh(), repository.refresh()]);
-    expect(json.mock.calls).toEqual([[THUNDERSTORE_ENDPOINT]]);
+    expect(json.mock.calls).toEqual([[THUNDERSTORE_ENDPOINT], [chunk]]);
     expect(repository.catalogue.stale).toBe(false);
     const loaded = new ThunderstoreRepository(f.storage, f.logger);
     await loaded.loadCache();
@@ -141,7 +146,7 @@ describe('live Thunderstore catalogue', () => {
     await fs.writeFile(f.storage.file('Cache/browser-data'), 'chromium cache');
     const old = cache([mod()]);
     await f.storage.write('cache/catalogue.json', old);
-    const json = vi.fn(async () => [thunderstorePackage()]);
+    const json = vi.fn(listing([thunderstorePackage()]));
     const repository = new ThunderstoreRepository(f.storage, f.logger, undefined, json);
     await repository.loadCache();
     expect(repository.catalogue.mods[0]?.unavailableReason).toContain('archived');
@@ -161,12 +166,7 @@ describe('live Thunderstore catalogue', () => {
     'keeps a good cache after an empty, conflicting or entirely malformed feed',
     async ({ feed }) => {
       const f = await fixture();
-      const repository = new ThunderstoreRepository(
-        f.storage,
-        f.logger,
-        undefined,
-        async () => feed,
-      );
+      const repository = new ThunderstoreRepository(f.storage, f.logger, undefined, listing(feed));
       repository.catalogue.mods = [normalizeThunderstore(thunderstorePackage())!];
       await repository.refresh();
       expect(repository.catalogue.mods).toHaveLength(1);
@@ -176,26 +176,31 @@ describe('live Thunderstore catalogue', () => {
   );
   it('counts malformed records while continuing to show valid packages', async () => {
     const f = await fixture();
-    const repository = new ThunderstoreRepository(f.storage, f.logger, undefined, async () => [
-      thunderstorePackage(),
-      { broken: true },
-    ]);
+    const repository = new ThunderstoreRepository(
+      f.storage,
+      f.logger,
+      undefined,
+      listing([thunderstorePackage(), { broken: true }]),
+    );
     await repository.refresh();
     expect(repository.catalogue.mods).toHaveLength(1);
     expect(repository.catalogue.rejected).toBe(1);
   });
-  it('removes deprecated packages from the cache and prevents installing a retired release', async () => {
+  it('retains deprecated metadata without promoting it or deleting installed records', async () => {
     const f = await fixture();
     const entry = normalizeThunderstore(thunderstorePackage())!;
-    const repository = new ThunderstoreRepository(f.storage, f.logger, undefined, async () => [
-      thunderstorePackage({ deprecated: true }),
-    ]);
+    const repository = new ThunderstoreRepository(
+      f.storage,
+      f.logger,
+      undefined,
+      listing([thunderstorePackage({ deprecated: true })]),
+    );
     await repository.refresh();
-    expect(repository.catalogue.mods).toEqual([]);
+    expect(repository.catalogue.mods[0]?.deprecated).toBe(true);
     expect(repository.catalogue.stale).toBe(false);
-    await expect(repository.assertAvailable(entry)).rejects.toThrow('no longer current');
+    await expect(repository.assertAvailable(entry)).resolves.toBeUndefined();
   });
-  it('keeps registry updates working independently when the GitHub supplement is offline', async () => {
+  it('uses Thunderstore alone and never requests the legacy supplement by default', async () => {
     const f = await fixture();
     const repository = new ModatroCatalogueRepository(f.storage, f.logger);
     vi.spyOn(repository.thunderstore, 'refresh').mockImplementation(async () => {
@@ -205,12 +210,13 @@ describe('live Thunderstore catalogue', () => {
         stale: false,
       };
     });
-    vi.spyOn(repository.native, 'refresh').mockImplementation(async () => {
+    const legacy = vi.spyOn(repository.native, 'refresh').mockImplementation(async () => {
       repository.native.catalogue.error = 'offline';
     });
     await repository.refresh();
     expect(repository.catalogue.mods[0]?.thunderstore).toBeDefined();
-    expect(repository.catalogue.error).toContain('offline');
+    expect(repository.catalogue.error).toBeUndefined();
+    expect(legacy).not.toHaveBeenCalled();
     repository.native.overrides = [
       {
         package: 'thunderstore/Author-Demo',

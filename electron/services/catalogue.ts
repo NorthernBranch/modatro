@@ -2,14 +2,16 @@ import { z } from 'zod';
 import { Catalogue, ModDefinition, ModSchema } from '../../src/shared/model';
 import { UserError } from './errors';
 import { remoteJson, remoteThunderstoreJson } from './network';
-import { normalizeThunderstore, THUNDERSTORE_ENDPOINT } from '../../src/shared/thunderstore';
+import { normalizeThunderstore, thunderstoreId } from '../../src/shared/thunderstore';
 import { Logger, Storage } from './storage';
 import { CatalogueOverridesSchema, NativeCatalogueSchema } from '../../src/shared/catalogue-schema';
 import overridesBaseline from '../../catalogue/overrides.json';
 import { allowedDescription } from '../../src/shared/trust';
 import { readAuthorManifest, readLatestGitHubRelease } from './distribution';
+import type { CatalogueOptions, ModSource } from './sources/mod-source';
+import { readThunderstoreCatalogue } from './sources/thunderstore-client';
 const CacheSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.union([z.literal(1), z.literal(2)]),
   fetchedAt: z.iso.datetime(),
   mods: z.array(ModSchema).min(1),
   rejected: z.number().int().nonnegative(),
@@ -35,7 +37,9 @@ async function mapConcurrent<T, R>(
   );
   return output;
 }
-export class ThunderstoreRepository implements ModRepository {
+export class ThunderstoreModSource implements ModRepository, ModSource {
+  readonly id = 'thunderstore';
+  readonly displayName = 'Thunderstore';
   catalogue: Catalogue = { mods: [], stale: true, refreshing: false, rejected: 0 };
   private refreshing?: Promise<void>;
   constructor(
@@ -52,7 +56,23 @@ export class ThunderstoreRepository implements ModRepository {
       );
       if (cache) {
         if (cache.mods.some((mod) => !mod.thunderstore)) throw new Error('Invalid registry cache.');
-        this.catalogue = { ...cache, stale: true, refreshing: false };
+        this.catalogue = {
+          ...cache,
+          mods: cache.mods.map((mod) =>
+            ModSchema.parse({
+              ...mod,
+              source: mod.source ?? {
+                provider: 'thunderstore',
+                externalId: thunderstoreId(mod.thunderstore!.namespace, mod.thunderstore!.name),
+                namespace: mod.thunderstore!.namespace,
+                packageName: mod.thunderstore!.name,
+                url: mod.thunderstore!.packageUrl,
+              },
+            }),
+          ),
+          stale: true,
+          refreshing: false,
+        };
         return;
       }
       // Existing users retain offline discovery until their first registry refresh.
@@ -81,6 +101,18 @@ export class ThunderstoreRepository implements ModRepository {
   async getMods() {
     return this.catalogue.mods;
   }
+  async getCatalogue(options?: CatalogueOptions) {
+    if (options?.refresh) await this.refresh();
+    return this.getMods();
+  }
+  async getMod(id: string) {
+    return (
+      this.catalogue.mods.find((mod) => mod.id === id || mod.source?.externalId === id) ?? null
+    );
+  }
+  async getVersions(id: string) {
+    return (await this.getMod(id))?.versions ?? [];
+  }
   async refresh() {
     if (this.refreshing) return this.refreshing;
     this.refreshing = this.fetchCatalogue();
@@ -93,12 +125,13 @@ export class ThunderstoreRepository implements ModRepository {
   private async fetchCatalogue() {
     this.catalogue.refreshing = true;
     this.changed();
+    await this.logger.log('catalogue.thunderstore.started');
     try {
       const feed = z
         .array(z.unknown())
         .min(1)
         .max(10000)
-        .parse(await this.json(THUNDERSTORE_ENDPOINT));
+        .parse(await readThunderstoreCatalogue(this.json));
       let rejected = 0,
         valid = 0;
       const mods: ModDefinition[] = [];
@@ -114,13 +147,14 @@ export class ThunderstoreRepository implements ModRepository {
       }
       if (
         !valid ||
+        rejected > valid ||
         new Set(mods.map((mod) => mod.id.toLowerCase())).size !== mods.length ||
         new Set(mods.map((mod) => mod.thunderstore!.packageId)).size !== mods.length
       )
         throw new UserError(
           'Thunderstore returned invalid or conflicting package records. Keeping the previous catalogue.',
         );
-      const cache = { schemaVersion: 1, fetchedAt: new Date().toISOString(), mods, rejected };
+      const cache = { schemaVersion: 2, fetchedAt: new Date().toISOString(), mods, rejected };
       await this.storage.write('catalogue-cache/thunderstore.json', cache);
       this.catalogue = { ...cache, stale: false, refreshing: false };
       await this.logger.log('catalogue.thunderstore.complete', { count: mods.length, rejected });
@@ -166,6 +200,8 @@ export class ThunderstoreRepository implements ModRepository {
       );
   }
 }
+
+export { ThunderstoreModSource as ThunderstoreRepository };
 
 export class NativeModRepository implements ModRepository {
   catalogue: Catalogue = { mods: [], stale: true, refreshing: false, rejected: 0 };
@@ -261,7 +297,7 @@ export class NativeModRepository implements ModRepository {
 }
 
 export class ModatroCatalogueRepository implements ModRepository {
-  readonly thunderstore: ThunderstoreRepository;
+  readonly thunderstore: ThunderstoreModSource;
   readonly native: NativeModRepository;
   private refreshing?: Promise<void>;
   constructor(
@@ -269,11 +305,21 @@ export class ModatroCatalogueRepository implements ModRepository {
     logger: Logger,
     private changed: () => void = () => {},
   ) {
-    this.thunderstore = new ThunderstoreRepository(storage, logger, changed);
+    this.thunderstore = new ThunderstoreModSource(storage, logger, changed);
     this.native = new NativeModRepository(storage, logger);
   }
   get catalogue(): Catalogue {
-    const native = this.native.catalogue,
+    const native =
+        process.env.ENABLE_LEGACY_BMI_SOURCE === 'true'
+          ? this.native.catalogue
+          : {
+              ...this.native.catalogue,
+              mods: [],
+              stale: false,
+              rejected: 0,
+              error: undefined,
+              fetchedAt: undefined,
+            },
       registry = this.thunderstore.catalogue;
     const replacements = new Set(
       native.mods
@@ -308,7 +354,7 @@ export class ModatroCatalogueRepository implements ModRepository {
       ],
       fetchedAt: [native.fetchedAt, registry.fetchedAt].filter((v): v is string => !!v).sort()[0],
       stale: native.stale || registry.stale,
-      refreshing: !!this.refreshing,
+      refreshing: !!this.refreshing || registry.refreshing,
       rejected: native.rejected + registry.rejected,
       error: [native.error, registry.error].filter(Boolean).join('\n') || undefined,
     };
@@ -317,6 +363,10 @@ export class ModatroCatalogueRepository implements ModRepository {
     return this.catalogue.mods;
   }
   async assertAvailable(mod: ModDefinition) {
+    if (process.env.ENABLE_LEGACY_BMI_SOURCE !== 'true') {
+      await this.thunderstore.assertAvailable(mod);
+      return;
+    }
     if (
       !this.native.policyCheckedAt ||
       Date.now() - Date.parse(this.native.policyCheckedAt) > 15 * 60 * 1000
@@ -332,13 +382,15 @@ export class ModatroCatalogueRepository implements ModRepository {
     await this.thunderstore.assertAvailable(mod);
   }
   async loadCache() {
-    await Promise.all([this.native.loadCache(), this.thunderstore.loadCache()]);
+    await this.thunderstore.loadCache();
+    if (process.env.ENABLE_LEGACY_BMI_SOURCE === 'true') await this.native.loadCache();
   }
   async refresh() {
     if (this.refreshing) return this.refreshing;
-    this.refreshing = Promise.all([this.native.refresh(), this.thunderstore.refresh()]).then(
-      () => undefined,
-    );
+    this.refreshing = Promise.all([
+      ...(process.env.ENABLE_LEGACY_BMI_SOURCE === 'true' ? [this.native.refresh()] : []),
+      this.thunderstore.refresh(),
+    ]).then(() => undefined);
     this.changed();
     try {
       await this.refreshing;

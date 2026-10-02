@@ -93,6 +93,9 @@ export class ArtifactHistory {
       sha256: received,
       packageId: mod.thunderstore?.packageId,
       packageVersion: mod.thunderstore?.packageVersion,
+      provider: mod.source?.provider,
+      namespace: mod.source?.namespace,
+      packageName: mod.source?.packageName,
     };
   }
 }

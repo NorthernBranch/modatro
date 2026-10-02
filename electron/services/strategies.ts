@@ -5,6 +5,7 @@ import { UserError } from './errors';
 import { exists, readSmall, safeDestination, walkFiles } from './files';
 import { detectModRoot, inspectMetadata, parseLuaHeader } from './metadata';
 import { defaultFolder } from '../../src/shared/trust';
+import { inspectLovelyLibrary } from './lovely';
 export interface InstallContext {
   mod: ModDefinition;
   staging: string;
@@ -59,6 +60,11 @@ export class StandardModStrategy implements InstallationStrategy {
     return files
       .filter(
         (f) =>
+          !(
+            mod.source?.provider === 'thunderstore' &&
+            root === staging &&
+            /^(manifest\.json|readme\.md|icon\.png|changelog\.md)$/i.test(f)
+          ) &&
           !f.startsWith('.git/') &&
           !f.startsWith('.github/') &&
           !f.startsWith('__MACOSX/') &&
@@ -69,6 +75,44 @@ export class StandardModStrategy implements InstallationStrategy {
         path: RelativePath.parse(`${folder(mod)}/${f}`),
         source: path.join(root, ...f.split('/')),
       }));
+  }
+}
+export class LovelyInstaller implements InstallationStrategy {
+  canHandle({ mod }: InstallContext) {
+    return mod.installation.type === 'lovely-injector';
+  }
+  async plan({ staging }: InstallContext): Promise<StrategyFile[]> {
+    const files = await walkFiles(staging);
+    const libraries = files.filter((file) =>
+      process.platform === 'darwin' ? /\.dylib$/i.test(file) : /\.dll$/i.test(file),
+    );
+    const library = libraries[0];
+    const destination = library && path.posix.basename(library);
+    if (
+      libraries.length !== 1 ||
+      !destination ||
+      !(process.platform === 'darwin' ? /^liblovely\.dylib$/i : /^(winmm|version)\.dll$/i).test(
+        destination,
+      ) ||
+      files.some(
+        (file) =>
+          file !== library &&
+          !/^(?:manifest\.json|readme\.md|icon\.png|changelog\.md|license(?:\.md|\.txt)?|run_lovely_macos\.sh)$/i.test(
+            path.posix.basename(file),
+          ),
+      ) ||
+      !(await inspectLovelyLibrary(await safeDestination(staging, library!))).identified
+    )
+      throw new UserError(
+        'Automatic installation for this version of Lovely is not yet supported. Open the official instructions.',
+      );
+    return [
+      {
+        root: 'game',
+        path: RelativePath.parse(destination),
+        source: await safeDestination(staging, library!),
+      },
+    ];
   }
 }
 export class SingleFileStrategy implements InstallationStrategy {
@@ -105,6 +149,7 @@ export class GameReplacementStrategy implements InstallationStrategy {
 }
 export function selectStrategy(context: InstallContext): InstallationStrategy {
   const strategy = [
+    new LovelyInstaller(),
     new GameReplacementStrategy(),
     new SingleFileStrategy(),
     new StandardModStrategy(),

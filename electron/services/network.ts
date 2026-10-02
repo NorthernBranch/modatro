@@ -1,7 +1,8 @@
 import { version } from '../../package.json';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
+import { gunzipSync } from 'node:zlib';
 import { HttpsUrl } from '../../src/shared/model';
 import { UserError } from './errors';
 const DOWNLOAD_HOSTS = new Set([
@@ -13,6 +14,7 @@ const DOWNLOAD_HOSTS = new Set([
   'release-assets.githubusercontent.com',
 ]);
 export type RemoteSource = 'github' | 'thunderstore';
+const retryNotBefore = new Map<string, number>();
 export function validateRemoteUrl(value: string, source: RemoteSource = 'github') {
   HttpsUrl.parse(value);
   const url = new URL(value);
@@ -20,12 +22,15 @@ export function validateRemoteUrl(value: string, source: RemoteSource = 'github'
     source === 'github'
       ? DOWNLOAD_HOSTS.has(url.hostname)
       : (url.hostname === 'thunderstore.io' &&
-          (url.pathname === '/c/balatro/api/v1/package/' ||
+          (url.pathname === '/c/balatro/api/v1/package-listing-index/' ||
             /^\/package\/download\/[A-Za-z0-9_]+\/[A-Za-z0-9_]+\/\d+\.\d+\.\d+\/$/.test(
               url.pathname,
             ))) ||
         (['ccdn.thunderstore.io', 'gcdn.thunderstore.io'].includes(url.hostname) &&
-          /^\/live\/repository\/packages\/[A-Za-z0-9_.-]+\.zip$/.test(url.pathname));
+          (/^\/live\/repository\/packages\/[A-Za-z0-9_.-]+\.zip$/.test(url.pathname) ||
+            /^\/live\/blob-storage\/sha256\/[a-f0-9]{64}\.[A-Za-z0-9_.-]+\.blob$/.test(
+              url.pathname,
+            )));
   if (
     !supported ||
     (url.port && url.port !== '443') ||
@@ -45,8 +50,19 @@ export async function safeFetch(
   source: RemoteSource = 'github',
 ): Promise<Response> {
   let current = url;
+  let retries = 0;
   for (let i = 0; i < 6; i++) {
-    validateRemoteUrl(current, source);
+    const target = validateRemoteUrl(current, source);
+    const cooldown = source === 'thunderstore' ? retryNotBefore.get(target.hostname) : undefined;
+    if (cooldown && cooldown > Date.now())
+      throw new UserError(
+        `Thunderstore requested a cooldown. Try refreshing again in ${Math.ceil((cooldown - Date.now()) / 1000)} seconds; your cached catalogue is available.`,
+        undefined,
+        undefined,
+        { retryable: true },
+        429,
+      );
+    if (cooldown) retryNotBefore.delete(target.hostname);
     const response = await fetch(current, {
       redirect: 'manual',
       signal: signal
@@ -69,6 +85,48 @@ export async function safeFetch(
     }
     if (!response.ok) {
       await response.body?.cancel();
+      if (
+        source === 'thunderstore' &&
+        response.status === 429 &&
+        response.headers.has('retry-after')
+      ) {
+        const value = response.headers.get('retry-after')!;
+        const until = /^\d+$/.test(value) ? Date.now() + Number(value) * 1000 : Date.parse(value);
+        if (Number.isFinite(until) && until > Date.now())
+          retryNotBefore.set(target.hostname, until);
+      }
+      if (
+        source === 'thunderstore' &&
+        (response.status === 429 || response.status >= 500) &&
+        retries < 2
+      ) {
+        const retryAfter = response.headers.get('retry-after');
+        const delay = retryAfter
+          ? /^\d+$/.test(retryAfter)
+            ? Number(retryAfter) * 1000
+            : Math.max(0, Date.parse(retryAfter) - Date.now())
+          : 500 * 2 ** retries;
+        // Long server cooldowns are respected by ending this request; never
+        // retry sooner than the server asks or tie up startup indefinitely.
+        if (Number.isFinite(delay) && delay <= 30000) {
+          retries++;
+          await new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(done, delay);
+            function done() {
+              signal?.removeEventListener('abort', cancelled);
+              resolve();
+            }
+            function cancelled() {
+              clearTimeout(timer);
+              reject(signal?.reason);
+            }
+            if (signal?.aborted) cancelled();
+            else signal?.addEventListener('abort', cancelled, { once: true });
+          });
+          i--;
+          continue;
+        }
+      }
       throw new UserError(
         response.status === 403 || response.status === 429
           ? `${source === 'github' ? 'GitHub' : 'Thunderstore'}’s request limit was reached. Your cached catalogue is still available; try refreshing later.`
@@ -104,11 +162,17 @@ export async function remoteJson(url: string): Promise<unknown> {
   return JSON.parse((await boundedBody(await safeFetch(url), 20 * 1024 * 1024)).toString('utf8'));
 }
 export async function remoteThunderstoreJson(url: string): Promise<unknown> {
-  return JSON.parse(
-    (await boundedBody(await safeFetch(url, undefined, 'thunderstore'), 20 * 1024 * 1024)).toString(
-      'utf8',
-    ),
-  );
+  let bytes = await boundedBody(await safeFetch(url, undefined, 'thunderstore'), 20 * 1024 * 1024);
+  const expected = /\/live\/blob-storage\/sha256\/([a-f0-9]{64})\./.exec(
+    new URL(url).pathname,
+  )?.[1];
+  if (expected && createHash('sha256').update(bytes).digest('hex') !== expected)
+    throw new UserError(
+      'The catalogue chunk is incomplete or does not match its content hash. Keeping the previous catalogue.',
+    );
+  if (bytes[0] === 0x1f && bytes[1] === 0x8b)
+    bytes = gunzipSync(bytes, { maxOutputLength: 40 * 1024 * 1024 });
+  return JSON.parse(bytes.toString('utf8'));
 }
 export async function remoteText(url: string): Promise<string> {
   return (await boundedBody(await safeFetch(url), 100000)).toString('utf8');

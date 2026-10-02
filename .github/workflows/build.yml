@@ -11,7 +11,39 @@ permissions:
   contents: read
 
 jobs:
+  validate:
+    name: Test and compile
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: pnpm/action-setup@v6
+      - name: Assign automatic app version
+        run: node scripts/build-version.mjs
+      - run: pnpm install --frozen-lockfile
+      - name: Check formatting, catalogue, types, unit tests and build
+        run: pnpm check
+      - run: pnpm exec install-electron
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Run browser and source desktop tests
+        run: xvfb-run -a pnpm test:ui
+      - name: Share tested application build
+        uses: actions/upload-artifact@v7
+        with:
+          name: tested-desktop-build
+          path: |
+            dist/
+            dist-electron/
+            package.json
+          if-no-files-found: error
+          retention-days: 14
+
   build:
+    name: Package (${{ matrix.artifact }})
+    needs: validate
     strategy:
       fail-fast: false
       matrix:
@@ -44,16 +76,14 @@ jobs:
           node-version: '24'
           package-manager-cache: false
       - uses: pnpm/action-setup@v6
-      - name: Assign automatic app version
-        run: node scripts/build-version.mjs
+      - name: Restore tested application build and version
+        uses: actions/download-artifact@v8
+        with:
+          name: tested-desktop-build
       - run: pnpm install --frozen-lockfile
-      - run: pnpm check
-      - run: pnpm exec install-electron
-      - if: runner.os != 'Linux'
-        run: pnpm exec playwright install chromium
       - if: runner.os == 'Linux'
-        run: pnpm exec playwright install --with-deps chromium
-      - run: ${{ matrix.headless }} pnpm test:ui
+        name: Install Linux desktop runtime dependencies
+        run: pnpm exec playwright install-deps chromium
       - name: Package installers
         run: pnpm package:desktop ${{ matrix.target }}
         env:
@@ -95,13 +125,15 @@ jobs:
         with:
           node-version: '24'
           package-manager-cache: false
+      - name: Restore tested application build and version
+        uses: actions/download-artifact@v8
+        with:
+          name: tested-desktop-build
       - uses: actions/download-artifact@v8
         with:
           pattern: Modatro-*
           path: release-artifacts
           merge-multiple: true
-      - name: Assign the matching release version
-        run: node scripts/build-version.mjs
       - name: Publish tested installers
         run: node scripts/release.mjs
         env:

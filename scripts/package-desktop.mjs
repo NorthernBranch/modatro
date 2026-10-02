@@ -12,7 +12,48 @@ const macCredentials = [
   'APPLE_TEAM_ID',
 ];
 
+// Actions expands missing secrets to empty strings. electron-builder treats an
+// empty CSC_LINK as a relative certificate filename (the working directory).
+export function packagingEnvironment(env = process.env) {
+  const result = { ...env };
+  for (const key of [
+    ...macCredentials,
+    'CSC_INSTALLER_LINK',
+    'CSC_INSTALLER_KEY_PASSWORD',
+    'WIN_CSC_LINK',
+    'WIN_CSC_KEY_PASSWORD',
+  ])
+    if (typeof result[key] === 'string' && !result[key].trim()) delete result[key];
+  return result;
+}
+export async function withPackagingEnvironment(env, mode, work) {
+  const clean = packagingEnvironment(env);
+  const keys = [
+    ...macCredentials,
+    'CSC_INSTALLER_LINK',
+    'CSC_INSTALLER_KEY_PASSWORD',
+    'WIN_CSC_LINK',
+    'WIN_CSC_KEY_PASSWORD',
+    'CSC_IDENTITY_AUTO_DISCOVERY',
+  ];
+  const original = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  for (const key of keys) {
+    if (clean[key] === undefined) delete process.env[key];
+    else process.env[key] = clean[key];
+  }
+  if (mode) process.env.CSC_IDENTITY_AUTO_DISCOVERY = mode === 'notarized' ? 'true' : 'false';
+  try {
+    return await work();
+  } finally {
+    for (const key of keys) {
+      if (original[key] === undefined) delete process.env[key];
+      else process.env[key] = original[key];
+    }
+  }
+}
+
 export function macSigningConfiguration(base, env = process.env) {
+  env = packagingEnvironment(env);
   const provided = macCredentials.filter((key) => !!env[key]);
   if (!provided.length)
     return {
@@ -90,6 +131,7 @@ export function verifyMacApp(
 }
 
 export async function packageDesktop(args = process.argv.slice(2), env = process.env) {
+  env = packagingEnvironment(env);
   const targets = args.filter((arg) => ['--mac', '--win', '--linux'].includes(arg));
   const archs = args.filter((arg) => ['--arm64', '--x64'].includes(arg)).map((arg) => arg.slice(2));
   if (
@@ -110,14 +152,15 @@ export async function packageDesktop(args = process.argv.slice(2), env = process
   if (target === '--mac')
     for (const arch of archs)
       await rm(path.join(output, `signing-macos-${arch}.json`), { force: true });
-  const { build, Platform, Arch } = await import('electron-builder');
-  const platform =
-    target === '--mac' ? Platform.MAC : target === '--win' ? Platform.WINDOWS : Platform.LINUX;
-  if (signing.mode === 'notarized') process.env.CSC_IDENTITY_AUTO_DISCOVERY = 'true';
-  await build({
-    config: signing.config,
-    targets: platform.createTarget(undefined, ...archs.map((arch) => Arch[arch])),
-    publish: 'never',
+  await withPackagingEnvironment(env, signing.mode, async () => {
+    const { build, Platform, Arch } = await import('electron-builder');
+    const platform =
+      target === '--mac' ? Platform.MAC : target === '--win' ? Platform.WINDOWS : Platform.LINUX;
+    await build({
+      config: signing.config,
+      targets: platform.createTarget(undefined, ...archs.map((arch) => Arch[arch])),
+      publish: 'never',
+    });
   });
   if (target === '--mac')
     for (const arch of archs) {

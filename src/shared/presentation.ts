@@ -1,6 +1,7 @@
 import { canAcceptUnverified, evaluateDependencies, hasUpdate } from './dependencies';
 import type { DependencyStatus, ModDefinition, Snapshot } from './model';
 import { automationReason } from './trust';
+import { resolveDependencyGraph } from './dependency-graph';
 export function plainText(markdown = ''): string {
   return markdown
     .replace(/<[^>]*>/g, '')
@@ -41,6 +42,14 @@ export function eligibility(mod: ModDefinition, snapshot: Snapshot): string | un
   if (mod.installation.type === 'unsupported') return 'Automatic install not supported';
   if (!snapshot.validation?.valid || !snapshot.settings.modsPath)
     return 'Set up Balatro to install';
+  if (mod.source?.provider === 'thunderstore') {
+    try {
+      resolveDependencyGraph([mod], snapshot.catalogue.mods, snapshot.prerequisites);
+      return undefined;
+    } catch {
+      /* Show the existing per-requirement guidance when a graph cannot be installed. */
+    }
+  }
   return requirements(mod, snapshot).find(
     (r) => r.required && r.state !== 'satisfied' && !canAcceptUnverified(r),
   )?.reason;

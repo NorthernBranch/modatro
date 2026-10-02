@@ -108,6 +108,7 @@ export function LocalRow({
           {local.state === 'update-available' && mod ? ` → Latest ${mod.version}` : ''}
           <span>·</span>
           {local.managed ? 'Managed by Modatro' : 'Installed externally'}
+          {local.deprecated ? ' · Deprecated' : ''}
         </p>
         {local.availabilityReason && <p className="muted-text">{local.availabilityReason}</p>}
         {local.packageVersionUnknown && (
@@ -129,6 +130,12 @@ export function LocalRow({
                   : sourceLabel(local.provenance.sourceType)}
             </p>
             {local.provenance?.downloadUrl && <p>Download: {local.provenance.downloadUrl}</p>}
+            {local.provenance?.namespace && (
+              <p>
+                Package: {local.provenance.namespace}/{local.provenance.packageName} ·{' '}
+                {local.provenance.packageVersion}
+              </p>
+            )}
             {local.provenance?.releaseTag && <p>Release: {local.provenance.releaseTag}</p>}
             {local.provenance?.commitSha && <p>Commit: {local.provenance.commitSha}</p>}
             {local.provenance?.downloadedAt && (

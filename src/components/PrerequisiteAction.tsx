@@ -1,8 +1,7 @@
 import type { DependencyRequirement, ModAction, ModDefinition, Snapshot } from '../shared/model';
-import { evaluateDependency, hasUpdate } from '../shared/dependencies';
+import { evaluateDependency, externalLoaderRequirement, hasUpdate } from '../shared/dependencies';
 import { eligibility } from '../shared/presentation';
 import { AsyncButton } from './AsyncButton';
-import { thunderstoreId } from '../shared/thunderstore';
 import type { Requests } from '../hooks/useRequests';
 
 interface Props {
@@ -21,14 +20,20 @@ export function PrerequisiteAction({
   review,
   openLink,
 }: Props) {
-  const prerequisite = snapshot.prerequisites.find(
-    (p) => p.id.toLowerCase() === requirement.id.toLowerCase(),
-  );
+  const prerequisite =
+    snapshot.prerequisites.find((p) =>
+      requirement.packageId
+        ? p.packageId === requirement.packageId
+        : p.id.toLowerCase() === requirement.id.toLowerCase(),
+    ) ??
+    (externalLoaderRequirement(requirement)
+      ? snapshot.prerequisites.find(
+          (p) => !p.packageId && p.id.toLowerCase() === requirement.id.toLowerCase(),
+        )
+      : undefined);
   const matches = snapshot.catalogue.mods.filter((mod) =>
     requirement.packageId
-      ? !!mod.thunderstore &&
-        thunderstoreId(mod.thunderstore.namespace, mod.thunderstore.name).toLowerCase() ===
-          requirement.packageId.toLowerCase()
+      ? !!mod.source && mod.source.externalId.toLowerCase() === requirement.packageId.toLowerCase()
       : mod.title.toLowerCase() === requirement.id.toLowerCase() ||
         (mod.metadataId ?? mod.id.split(/[@/]/).pop())?.toLowerCase() ===
           requirement.id.toLowerCase(),
@@ -39,7 +44,7 @@ export function PrerequisiteAction({
   if (snapshot.preview) return null;
   if (
     requirement.id === 'Lovely' &&
-    !mod?.thunderstore &&
+    mod?.source?.provider !== 'thunderstore' &&
     ['win32', 'linux'].includes(snapshot.platform) &&
     (!prerequisite?.installed ||
       snapshot.localMods.some((mod) => mod.managed && mod.id === 'Lovely'))
@@ -69,8 +74,7 @@ export function PrerequisiteAction({
   if (mod && !mod.unavailableReason && mod.installation.type !== 'unsupported') {
     const local = snapshot.localMods.find((entry) => entry.managed && entry.id === mod.id);
     const external = snapshot.localMods.filter(
-      (entry) =>
-        !entry.managed && entry.canAdopt && entry.title.toLowerCase() === mod.title.toLowerCase(),
+      (entry) => !entry.managed && entry.canAdopt && entry.catalogueId === mod.id,
     );
     if (prerequisite?.installed && !local && external.length === 1)
       return (
@@ -87,11 +91,12 @@ export function PrerequisiteAction({
         id: requirement.id,
         displayName: requirement.displayName,
         installed: true,
-        installedVersion: mod.thunderstore && !requirement.packageId ? undefined : mod.version,
-        packageId: mod.thunderstore
-          ? thunderstoreId(mod.thunderstore.namespace, mod.thunderstore.name)
-          : undefined,
-        packageVersion: mod.thunderstore?.packageVersion,
+        installedVersion:
+          mod.source?.provider === 'thunderstore' && !requirement.packageId
+            ? undefined
+            : mod.version,
+        packageId: mod.source?.externalId,
+        packageVersion: mod.source?.provider === 'thunderstore' ? mod.version : undefined,
         sourceUrl: mod.repositoryUrl ?? mod.downloadUrl,
       },
     ]);
@@ -101,7 +106,7 @@ export function PrerequisiteAction({
     if (
       (canInstall || canUpdate) &&
       (candidateStatus.state === 'satisfied' ||
-        (mod.thunderstore && candidateStatus.state === 'unknown'))
+        (mod.source?.provider === 'thunderstore' && candidateStatus.state === 'unknown'))
     ) {
       const reason = eligibility(mod, snapshot);
       return (

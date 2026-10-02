@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import {
   useRef,
+  useMemo,
+  useEffect,
   useState,
   type Dispatch,
   type ReactNode,
@@ -44,29 +46,29 @@ export function DiscoverPage({
   refreshing,
   setError,
 }: Props) {
-  const mods = (snapshot?.catalogue.mods ?? []).filter(
-    (mod) =>
-      mod.permissions?.display !== false &&
-      !['opted-out', 'blocked'].includes(mod.approvalStatus ?? 'legacy-index'),
+  const mods = useMemo(
+    () =>
+      (snapshot?.catalogue.mods ?? []).filter(
+        (mod) =>
+          mod.permissions?.display !== false &&
+          (!mod.deprecated ||
+            snapshot?.localMods.some(
+              (local) => local.id === mod.id || local.catalogueId === mod.id,
+            )) &&
+          !['opted-out', 'blocked'].includes(mod.approvalStatus ?? 'legacy-index'),
+      ),
+    [snapshot?.catalogue.mods, snapshot?.localMods],
   );
   const installed = snapshot?.localMods ?? [];
   const updates = installed.filter((m) => m.state === 'update-available');
-  const defaultCategories = [
-    'All mods',
-    'Content',
-    'Jokers',
-    'Quality of Life',
-    'Resource Packs',
-    'Extensions',
-    'APIs',
-    'Technical',
-  ];
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All mods');
   const [filter, setFilter] = useState('all');
   const [author, setAuthor] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const [view, setView] = useState<'grid' | 'list'>('grid');
+  const [limit, setLimit] = useState(60);
+  useEffect(() => setLimit(60), [query, category, author, filter]);
   const catalogueRef = useRef<HTMLElement>(null);
   const visible = mods.filter(
     (mod) =>
@@ -84,8 +86,8 @@ export function DiscoverPage({
             : !installed.some((m) => m.id === mod.id))),
   );
   const categories = [
-    ...defaultCategories,
-    ...new Set(mods.flatMap((m) => m.categories).filter((c) => !defaultCategories.includes(c))),
+    'All mods',
+    ...[...new Set(mods.flatMap((m) => m.categories))].sort((a, b) => a.localeCompare(b)),
   ];
   return (
     <>
@@ -294,9 +296,7 @@ export function DiscoverPage({
                 : `Explore ${category.toLowerCase()} mods`}
           </span>
           <span>
-            {snapshot?.preview
-              ? 'Preview from Thunderstore'
-              : 'From Thunderstore and registered GitHub projects'}
+            {snapshot?.preview ? 'Preview from Thunderstore' : 'Source: Thunderstore'}
             <ExternalLink size={11} />
           </span>
         </div>
@@ -308,7 +308,7 @@ export function DiscoverPage({
           </div>
         ) : visible.length ? (
           <div className={view === 'grid' ? 'mod-grid' : 'mod-list'}>
-            {visible.map((mod) => (
+            {visible.slice(0, limit).map((mod) => (
               <article className={`mod-card ${view === 'list' ? 'list-card' : ''}`} key={mod.id}>
                 <button
                   className="card-main"
@@ -332,6 +332,9 @@ export function DiscoverPage({
                       'Explore this community-made addition to Balatro.'}
                   </p>
                   <span className="muted-text">{approvalLabel(mod)}</span>
+                  {mod.deprecated && (
+                    <span className="state-badge missing">Installed · Deprecated</span>
+                  )}
                   <div className="requirement-badges">
                     {mod.prerequisites.length ? (
                       mod.prerequisites.slice(0, 2).map((p) => (
@@ -390,6 +393,14 @@ export function DiscoverPage({
               </AsyncButton>
             }
           />
+        )}
+        {visible.length > limit && (
+          <button
+            className="button button-secondary"
+            onClick={() => setLimit((value) => value + 60)}
+          >
+            Show more mods ({visible.length - limit} remaining)
+          </button>
         )}
         <div className="catalogue-footer">
           <ShieldCheck size={14} />
