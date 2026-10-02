@@ -10,6 +10,8 @@ import { allowedDescription } from '../../src/shared/trust';
 import { readAuthorManifest, readLatestGitHubRelease } from './distribution';
 import type { CatalogueOptions, ModSource } from './sources/mod-source';
 import { readThunderstoreCatalogue } from './sources/thunderstore-client';
+import { ConfiguredModIndex } from './mod-index';
+import { sameRepository } from '../../src/shared/trust';
 const CacheSchema = z.object({
   schemaVersion: z.union([z.literal(1), z.literal(2)]),
   fetchedAt: z.iso.datetime(),
@@ -299,16 +301,26 @@ export class NativeModRepository implements ModRepository {
 }
 
 export class ModatroCatalogueRepository implements ModRepository {
+  index?: ConfiguredModIndex;
   readonly thunderstore: ThunderstoreModSource;
   readonly native: NativeModRepository;
   private refreshing?: Promise<void>;
   constructor(
-    storage: Storage,
-    logger: Logger,
+    private storage: Storage,
+    private logger: Logger,
     private changed: () => void = () => {},
   ) {
     this.thunderstore = new ThunderstoreModSource(storage, logger, changed);
     this.native = new NativeModRepository(storage, logger);
+  }
+  async configureIndex(url?: string) {
+    if ((url || undefined) === this.index?.location.url) return;
+    this.index = url ? new ConfiguredModIndex(url, this.storage, this.logger) : undefined;
+    if (this.index) {
+      await this.index.loadCache();
+      await this.index.refresh();
+    }
+    this.changed();
   }
   get catalogue(): Catalogue {
     const native =
@@ -323,6 +335,14 @@ export class ModatroCatalogueRepository implements ModRepository {
               fetchedAt: undefined,
             },
       registry = this.thunderstore.catalogue;
+    const indexMods = this.index?.catalogue.mods ?? [];
+    const duplicate = (mod: ModDefinition, entry: ModDefinition) =>
+      mod.id.toLowerCase() === entry.id.toLowerCase() ||
+      mod.legacyIds?.some((id) => id.toLowerCase() === entry.id.toLowerCase()) ||
+      (sameRepository(mod.repositoryUrl, entry.repositoryUrl) &&
+        registry.mods.filter((candidate) =>
+          sameRepository(candidate.repositoryUrl, entry.repositoryUrl),
+        ).length === 1);
     const replacements = new Set(
       native.mods
         .flatMap((mod) => [mod.id, ...(mod.legacyIds ?? [])])
@@ -330,9 +350,25 @@ export class ModatroCatalogueRepository implements ModRepository {
     );
     return {
       mods: [
+        ...indexMods
+          .filter((entry) => !registry.mods.some((mod) => duplicate(mod, entry)))
+          .map((mod) => ({
+            ...mod,
+            unavailableReason: this.index?.catalogue.stale
+              ? 'Connect and refresh the additional index before installing or updating.'
+              : mod.unavailableReason,
+          })),
         ...native.mods,
         ...registry.mods
           .map((mod) => {
+            const aliases = indexMods
+              .filter((entry) => duplicate(mod, entry))
+              .map((entry) => entry.id);
+            if (aliases.length)
+              mod = {
+                ...mod,
+                legacyIds: [...new Set([...(mod.legacyIds ?? []), ...aliases])].slice(0, 20),
+              };
             const matches = this.native.overrides.filter(
               (entry) =>
                 entry.package?.toLowerCase() === mod.id.toLowerCase() ||
@@ -357,14 +393,21 @@ export class ModatroCatalogueRepository implements ModRepository {
       fetchedAt: [native.fetchedAt, registry.fetchedAt].filter((v): v is string => !!v).sort()[0],
       stale: native.stale || registry.stale,
       refreshing: !!this.refreshing || registry.refreshing,
-      rejected: native.rejected + registry.rejected,
-      error: [native.error, registry.error].filter(Boolean).join('\n') || undefined,
+      rejected: native.rejected + registry.rejected + (this.index?.catalogue.rejected ?? 0),
+      error:
+        [native.error, registry.error, this.index?.catalogue.error].filter(Boolean).join('\n') ||
+        undefined,
     };
   }
   async getMods() {
     return this.catalogue.mods;
   }
   async assertAvailable(mod: ModDefinition) {
+    if (mod.source?.provider === 'mod-index') {
+      if (!this.index) throw new UserError('This additional index is no longer configured.');
+      this.index.assertAvailable(mod);
+      return;
+    }
     if (process.env.ENABLE_LEGACY_BMI_SOURCE !== 'true') {
       await this.thunderstore.assertAvailable(mod);
       return;
@@ -384,12 +427,18 @@ export class ModatroCatalogueRepository implements ModRepository {
     await this.thunderstore.assertAvailable(mod);
   }
   async loadCache() {
+    const url = this.storage.state.settings.modIndexUrl;
+    if (url) {
+      this.index = new ConfiguredModIndex(url, this.storage, this.logger);
+      await this.index.loadCache();
+    }
     await this.thunderstore.loadCache();
     if (process.env.ENABLE_LEGACY_BMI_SOURCE === 'true') await this.native.loadCache();
   }
   async refresh() {
     if (this.refreshing) return this.refreshing;
     this.refreshing = Promise.all([
+      ...(this.index ? [this.index.refresh()] : []),
       ...(process.env.ENABLE_LEGACY_BMI_SOURCE === 'true' ? [this.native.refresh()] : []),
       this.thunderstore.refresh(),
     ]).then(() => undefined);

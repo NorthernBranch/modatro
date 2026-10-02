@@ -13,6 +13,7 @@ import {
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
+import { ModIndexUrl } from '../src/shared/mod-index';
 import { ModId, RelativePath, RootSchema } from '../src/shared/model';
 import { ModatroApplication } from './application';
 import { errorReply, UserError } from './services/errors';
@@ -176,7 +177,13 @@ void app
     });
     handle(
       'saveSettings',
-      z.object({ theme: z.enum(['dark', 'light', 'system']), setupComplete: z.boolean() }).strict(),
+      z
+        .object({
+          theme: z.enum(['dark', 'light', 'system']),
+          setupComplete: z.boolean(),
+          modIndexUrl: ModIndexUrl.optional(),
+        })
+        .strict(),
       (settings) => application.saveSettings(settings),
     );
     handle(

@@ -300,7 +300,11 @@ export function DiscoverPage({
                 : `Explore ${category.toLowerCase()} mods`}
           </span>
           <span>
-            {snapshot?.preview ? 'Preview from Thunderstore' : 'Source: Thunderstore'}
+            {snapshot?.preview
+              ? 'Preview from Thunderstore'
+              : snapshot?.settings.modIndexUrl
+                ? 'Thunderstore + additional index'
+                : 'Source: Thunderstore'}
             <ExternalLink size={11} />
           </span>
         </div>

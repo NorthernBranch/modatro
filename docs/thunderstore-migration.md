@@ -1,7 +1,9 @@
 # Thunderstore migration verification
 
-Production discovery uses the live Balatro listing index, not Skyline or a maintained
-Modatro package list. The development legacy adapter is disabled by default.
+Production discovery uses Thunderstore's live Balatro listing index. Users can optionally
+configure an additional Balatro mod index in Settings or during first-time setup.
+The lists are fetched at runtime and deduplicated with Thunderstore taking priority.
+The development legacy adapter is disabled by default.
 Existing ownership records, provenance, backups and uninstall behavior are retained;
 no source migration changes installed files or claims ownership by display name.
 

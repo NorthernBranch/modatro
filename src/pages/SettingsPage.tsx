@@ -2,6 +2,7 @@ import { ArrowUpRight, ChevronRight, FolderOpen, Info, Plus, ShieldCheck } from 
 import type { Dispatch, SetStateAction } from 'react';
 import { api } from '../api';
 import { AsyncButton } from '../components/AsyncButton';
+import { ModIndexSettings } from '../components/ModIndexSettings';
 import type { Requests } from '../hooks/useRequests';
 import { PageHeading, PaletteIcon, SettingsRow } from '../components/PageElements';
 import type { Reply, Snapshot } from '../shared/model';
@@ -63,6 +64,10 @@ export function SettingsPage({
       />
       {snapshot && (
         <div className="settings-layout">
+          <section className="settings-section">
+            <h2>Mod sources</h2>
+            <ModIndexSettings snapshot={snapshot} requests={requests} callSnapshot={callSnapshot} />
+          </section>
           <section className="settings-section">
             <h2>
               <FolderOpen size={19} />

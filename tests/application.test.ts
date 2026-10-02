@@ -9,6 +9,41 @@ afterEach(async () => {
   vi.unstubAllEnvs();
   for (const root of roots.splice(0)) await fs.rm(root, { recursive: true, force: true });
 });
+it('persists the optional index, preserves it across theme changes and explicitly clears it', async () => {
+  const root = await tempRoot();
+  roots.push(root);
+  vi.stubEnv('MODATRO_TEST_DATA', root);
+  const application = new ModatroApplication(
+    root,
+    'test',
+    'test',
+    () => {},
+    () => {},
+  );
+  await application.initialize();
+  const configure = vi.spyOn(application.repository, 'configureIndex').mockResolvedValue();
+  const url = 'https://github.com/community/index';
+  await application.saveSettings({
+    theme: 'dark',
+    setupComplete: false,
+    modIndexUrl: `${url}.git/`,
+  });
+  expect(application.storage.state.settings.modIndexUrl).toBe(url);
+  expect(configure).toHaveBeenLastCalledWith(url);
+  await application.saveSettings({ theme: 'light', setupComplete: false });
+  expect(application.storage.state.settings.modIndexUrl).toBe(url);
+  await expect(
+    application.saveSettings({
+      theme: 'light',
+      setupComplete: false,
+      modIndexUrl: 'https://example.com/index',
+    }),
+  ).rejects.toThrow();
+  expect(application.storage.state.settings.modIndexUrl).toBe(url);
+  await application.saveSettings({ theme: 'light', setupComplete: false, modIndexUrl: '' });
+  expect(application.storage.state.settings.modIndexUrl).toBe('');
+  expect(configure).toHaveBeenLastCalledWith('');
+});
 it('blocks game launch while a file operation is active', async () => {
   const root = await tempRoot();
   roots.push(root);

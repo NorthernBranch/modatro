@@ -15,6 +15,14 @@ release. Required package changes are staged together, reviewed when necessary, 
 installed in dependency order in one transaction. Local ZIP files and explicit GitHub
 definitions remain available under Settings → Advanced.
 
+An additional Balatro mod index can be added during first-time setup or under
+**Settings → Mod sources**. Paste its GitHub repository URL (including `/tree/branch` if
+needed). Modatro reads `mods/<id>/meta.json` from that repository and merges the results
+with Thunderstore. Matching GitHub repositories and known identities are deduplicated,
+with Thunderstore taking priority. Mod details and installation previews identify the
+source. Clear the URL and choose **Remove index** to return to Thunderstore alone;
+installed mods remain manageable. Index metadata is cached separately for each URL.
+
 ## Download
 
 Visit [Releases](https://github.com/NorthernBranch/modatro/releases) for available downloads

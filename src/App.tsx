@@ -23,6 +23,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import { AsyncButton } from './components/AsyncButton';
+import { ModIndexSettings } from './components/ModIndexSettings';
 import { EmptyState } from './components/PageElements';
 import { useRequests } from './hooks/useRequests';
 import { Dialog } from './components/Dialog';
@@ -836,7 +837,12 @@ export function App() {
                   onClick={() => void openLink(selected.source!.url!)}
                 >
                   <ExternalLink size={15} />
-                  Source: {selected.source.provider}
+                  Source:{' '}
+                  {selected.source.provider === 'mod-index'
+                    ? `Index · ${new URL(selected.source.url!).pathname.slice(1)}`
+                    : selected.source.provider === 'thunderstore'
+                      ? 'Thunderstore'
+                      : selected.source.provider}
                 </AsyncButton>
               )}
               <AsyncButton
@@ -978,6 +984,7 @@ export function App() {
               </div>
             </li>
           </ol>
+          <ModIndexSettings snapshot={snapshot} requests={requests} callSnapshot={callSnapshot} />
           {snapshot.preview && (
             <div className="banner subtle">
               <Info size={17} />
@@ -1040,6 +1047,7 @@ export function App() {
               {confirmation.plan.packages.map((entry) => (
                 <li key={entry.id}>
                   {entry.title} {entry.version} · {entry.update ? 'Update' : 'Install'}
+                  {entry.source && ` · ${entry.source}`}
                 </li>
               ))}
             </ul>

@@ -754,6 +754,12 @@ export class ModInstaller {
           prerequisites: prepared.flatMap((item) => item.dependencies),
           conflicts: [],
           packages: prepared.map((item) => ({
+            source:
+              item.mod.source?.provider === 'mod-index'
+                ? `Additional index: ${new URL(item.mod.source.url!).pathname.slice(1)}`
+                : item.mod.source?.provider === 'thunderstore'
+                  ? 'Thunderstore'
+                  : item.mod.source?.provider,
             id: item.mod.id,
             title: item.mod.title,
             version:

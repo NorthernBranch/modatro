@@ -599,6 +599,40 @@ test('theme save failures preserve the previous theme and allow retry', async ({
   await expect(page.getByLabel('Theme', { exact: true })).toBeEnabled();
 });
 
+test('an optional mod index can be saved during setup and removed from Settings', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.settings.setupComplete = false;
+  await mockDesktop(page, state);
+  const index = 'https://github.com/community/balatro-mod-index';
+  await page.getByLabel('Additional mod index (optional)').fill(index);
+  await page.getByRole('button', { name: 'Save index', exact: true }).click();
+  await expect(page.getByText(`Configured index: ${index}`)).toBeVisible();
+  await page.getByRole('button', { name: 'Start exploring', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page.getByLabel('Additional mod index (optional)')).toHaveValue(index);
+  await page.getByLabel('Theme', { exact: true }).selectOption('light');
+  await expect(page.getByLabel('Additional mod index (optional)')).toHaveValue(index);
+  await page.getByLabel('Additional mod index (optional)').fill('');
+  await page.getByRole('button', { name: 'Remove index', exact: true }).click();
+  await expect(page.getByText(`Configured index: ${index}`)).toHaveCount(0);
+});
+
+test('mod details identify the configured index before installation', async ({ page }) => {
+  const state = fixture();
+  state.settings.modIndexUrl = 'https://github.com/community/index';
+  state.catalogue.mods[0]!.source = {
+    provider: 'mod-index',
+    externalId: 'fixture',
+    url: state.settings.modIndexUrl,
+  };
+  await mockDesktop(page, state);
+  await page.getByRole('button', { name: 'Details for Fixture mod', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Source: Index · community/index' })).toBeVisible();
+});
+
 test('Updates distinguishes an ongoing check from a failed catalogue refresh', async ({ page }) => {
   await mockDesktop(page, fixture(), { refresh: 'hold' });
   await page.getByRole('button', { name: 'Updates', exact: true }).click();

@@ -2032,6 +2032,24 @@ details > p {
 .requirement-row > button {
   margin-left: auto;
 }
+.mod-index-settings {
+  margin: 16px 0;
+}
+.mod-index-settings form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+.mod-index-settings input {
+  flex: 1;
+  min-width: 220px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: inherit;
+}
 .requirement-trail {
   padding-bottom: 16px;
   color: var(--muted);

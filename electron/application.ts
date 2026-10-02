@@ -2,6 +2,7 @@ import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { z } from 'zod';
+import { indexLocation, ModIndexUrl } from '../src/shared/mod-index';
 import {
   ModSchema,
   type ConflictDecision,
@@ -296,7 +297,11 @@ export class ModatroApplication {
       return this.snapshot();
     });
   }
-  async saveSettings(settings: Pick<Settings, 'theme' | 'setupComplete'>) {
+  async saveSettings(settings: Pick<Settings, 'theme' | 'setupComplete' | 'modIndexUrl'>) {
+    if (settings.modIndexUrl !== undefined) {
+      const value = ModIndexUrl.parse(settings.modIndexUrl);
+      settings = { ...settings, modIndexUrl: value ? indexLocation(value).url : '' };
+    }
     return this.transactions.locked(async () => {
       if (
         settings.setupComplete &&
@@ -308,6 +313,7 @@ export class ModatroApplication {
         ...this.storage.state,
         settings: { ...this.storage.state.settings, ...settings },
       });
+      await this.repository.configureIndex(this.storage.state.settings.modIndexUrl);
       return this.snapshot();
     });
   }

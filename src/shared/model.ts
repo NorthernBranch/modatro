@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ModIndexUrl } from './mod-index';
 
 export const SafeName = z
   .string()
@@ -242,6 +243,7 @@ export interface GameCandidate {
   validation: PathValidationResult;
 }
 export const SettingsSchema = z.object({
+  modIndexUrl: ModIndexUrl.optional(),
   gamePath: z.string().optional(),
   modsPath: z.string().optional(),
   theme: z.enum(['dark', 'light', 'system']).default('dark'),
@@ -454,7 +456,7 @@ export interface InstallPlan {
   remove: PlannedFile[];
   prerequisites: DependencyStatus[];
   conflicts: FileConflict[];
-  packages?: { id: string; title: string; version: string; update: boolean }[];
+  packages?: { id: string; title: string; version: string; update: boolean; source?: string }[];
 }
 export interface ModatroApi {
   snapshot(): Promise<Reply<Snapshot>>;
@@ -462,7 +464,9 @@ export interface ModatroApi {
   detect(): Promise<Reply<Snapshot>>;
   choosePath(kind: 'game' | 'mods'): Promise<Reply<Snapshot>>;
   selectCandidate(path: string): Promise<Reply<Snapshot>>;
-  saveSettings(settings: Pick<Settings, 'theme' | 'setupComplete'>): Promise<Reply<Snapshot>>;
+  saveSettings(
+    settings: Pick<Settings, 'theme' | 'setupComplete' | 'modIndexUrl'>,
+  ): Promise<Reply<Snapshot>>;
   action(
     id: string,
     action: ModAction,
