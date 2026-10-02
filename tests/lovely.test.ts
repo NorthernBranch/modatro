@@ -132,6 +132,14 @@ it.skipIf(process.platform === 'darwin').each([false, true])(
     vi.spyOn(app.detection, 'validate').mockImplementation((selected) =>
       detection.validate(selected),
     );
+    // Treat the isolated fixture root as home for the real Unix folder-safety check.
+    const folderDetection = new GameDetectionService(
+      process.platform === 'win32' ? 'linux' : process.platform,
+      f.root,
+    );
+    vi.spyOn(app.detection, 'validateMods').mockImplementation((selected, gamePath, create) =>
+      folderDetection.validateMods(selected, gamePath, create),
+    );
     vi.spyOn(app.launch, 'assertClosed').mockResolvedValue();
     vi.spyOn(DownloadService.prototype, 'download').mockImplementation(
       async (url, _signal, _progress, provider) => {

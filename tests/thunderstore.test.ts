@@ -235,6 +235,14 @@ it('installs a registry mod through the application after checking public policy
   vi.spyOn(application.detection, 'validate').mockImplementation((selected) =>
     detection.validate(selected),
   );
+  // Treat the isolated fixture root as home for the real Unix folder-safety check.
+  const folderDetection = new GameDetectionService(
+    process.platform === 'win32' ? 'linux' : process.platform,
+    f.root,
+  );
+  vi.spyOn(application.detection, 'validateMods').mockImplementation((selected, gamePath, create) =>
+    folderDetection.validateMods(selected, gamePath, create),
+  );
   vi.spyOn(application.launch, 'assertClosed').mockResolvedValue();
   vi.spyOn(DownloadService.prototype, 'download').mockImplementation(async (url) => {
     const selected = [entry, dependency].find((item) => item.downloadUrl === url)!;
@@ -582,6 +590,14 @@ it('installs a GitHub manual archive through registry discovery and records actu
   vi.spyOn(application.detection, 'validate').mockImplementation((selected) =>
     detection.validate(selected),
   );
+  // Treat the isolated fixture root as home for the real Unix folder-safety check.
+  const folderDetection = new GameDetectionService(
+    process.platform === 'win32' ? 'linux' : process.platform,
+    f.root,
+  );
+  vi.spyOn(application.detection, 'validateMods').mockImplementation((selected, gamePath, create) =>
+    folderDetection.validateMods(selected, gamePath, create),
+  );
   vi.spyOn(application.launch, 'assertClosed').mockResolvedValue();
   const download = vi
     .spyOn(DownloadService.prototype, 'download')
@@ -682,6 +698,14 @@ it('returns an installed Steamodded prerequisite immediately after a GitHub-back
   const detection = new GameDetectionService('win32', f.root);
   vi.spyOn(application.detection, 'validate').mockImplementation((selected) =>
     detection.validate(selected),
+  );
+  // Treat the isolated fixture root as home for the real Unix folder-safety check.
+  const folderDetection = new GameDetectionService(
+    process.platform === 'win32' ? 'linux' : process.platform,
+    f.root,
+  );
+  vi.spyOn(application.detection, 'validateMods').mockImplementation((selected, gamePath, create) =>
+    folderDetection.validateMods(selected, gamePath, create),
   );
   vi.spyOn(application.launch, 'assertClosed').mockResolvedValue();
   vi.spyOn(DownloadService.prototype, 'download').mockImplementation(async (url) => {
