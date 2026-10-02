@@ -39,7 +39,14 @@ export class GitHubStars {
     }
     const repos = [
       ...new Set(
-        mods
+        // The optional index is merged before Thunderstore for discovery. Do not
+        // let that ordering consume the whole API budget before registry lookups.
+        [...mods]
+          .sort(
+            (a, b) =>
+              Number(!!b.thunderstore || b.source?.provider === 'thunderstore') -
+              Number(!!a.thunderstore || a.source?.provider === 'thunderstore'),
+          )
           .map((mod) => repositoryPath(mod.repositoryUrl)?.toLowerCase())
           .filter((repo): repo is string => !!repo),
       ),
@@ -59,8 +66,18 @@ export class GitHubStars {
         const data = z
           .object({ full_name: z.string(), stargazers_count: z.number().int().nonnegative() })
           .parse(JSON.parse((await boundedBody(response, 256000)).toString('utf8')));
-        if (data.full_name.toLowerCase() !== repo) continue;
+        if (data.full_name.toLowerCase() !== repo) {
+          // GitHub redirects repository renames. Accept the new identity only
+          // when the actual API response URL proves the redirect destination.
+          const destination = response.url ? new URL(response.url) : undefined;
+          if (
+            destination?.hostname !== 'api.github.com' ||
+            destination.pathname.toLowerCase() !== `/repos/${data.full_name.toLowerCase()}`
+          )
+            continue;
+        }
         this.cache[repo] = { stars: data.stargazers_count, checkedAt: Date.now() };
+        this.cache[data.full_name.toLowerCase()] = this.cache[repo];
         // Leave API capacity for release discovery and installation.
         const remaining = response.headers.get('x-ratelimit-remaining');
         if (remaining !== null && Number(remaining) <= 20) {
