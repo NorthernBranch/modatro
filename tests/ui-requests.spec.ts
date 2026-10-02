@@ -128,6 +128,7 @@ async function mockDesktop(page: Page, state = fixture(), behavior: Record<strin
         }
       };
       const api: ModatroApi = {
+        githubStars: async () => ({ ok: true, value: { fixture: 42, popular: 1200, zero: 0 } }),
         snapshot: () => call('snapshot', control.state),
         detect: () => call('detect', control.state),
         refresh: () => call('refresh', control.state),
@@ -631,6 +632,33 @@ test('mod details identify the configured index before installation', async ({ p
   await mockDesktop(page, state);
   await page.getByRole('button', { name: 'Details for Fixture mod', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Source: Index · community/index' })).toBeVisible();
+});
+
+test('GitHub stars sort mods by popularity, with zero ahead of unknown counts', async ({
+  page,
+}) => {
+  const state = fixture();
+  const original = state.catalogue.mods[0]!;
+  state.catalogue.mods = [
+    original,
+    { ...original, id: 'unknown', title: 'Unknown' },
+    { ...original, id: 'zero', title: 'Zero' },
+    { ...original, id: 'popular', title: 'Popular' },
+  ];
+  await mockDesktop(page, state);
+  await expect(page.getByLabel('42 GitHub stars', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('0 GitHub stars', { exact: true })).toBeVisible();
+  await page.getByLabel('Sort mods', { exact: true }).selectOption('popular');
+  await expect(page.locator('.mod-card h3')).toHaveText([
+    'Popular',
+    'Fixture mod',
+    'Zero',
+    'Unknown',
+  ]);
+  await page.getByRole('button', { name: 'List view' }).click();
+  await expect(page.getByLabel('1200 GitHub stars', { exact: true })).toBeVisible();
+  await page.getByLabel('Search mods', { exact: true }).fill('Fixture');
+  await expect(page.locator('.mod-card h3')).toHaveText(['Fixture mod']);
 });
 
 test('Updates distinguishes an ongoing check from a failed catalogue refresh', async ({ page }) => {

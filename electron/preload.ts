@@ -7,6 +7,7 @@ const api: ModatroApi = {
   choosePath: (kind) => ipcRenderer.invoke('modatro:choosePath', kind),
   selectCandidate: (path) => ipcRenderer.invoke('modatro:selectCandidate', path),
   saveSettings: (settings) => ipcRenderer.invoke('modatro:saveSettings', settings),
+  githubStars: () => ipcRenderer.invoke('modatro:githubStars'),
   action: (id, action, decisions, confirmationToken, acceptedUnverified) =>
     ipcRenderer.invoke('modatro:action', {
       id,

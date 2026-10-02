@@ -459,6 +459,7 @@ export interface InstallPlan {
   packages?: { id: string; title: string; version: string; update: boolean; source?: string }[];
 }
 export interface ModatroApi {
+  githubStars?(): Promise<Reply<Record<string, number>>>;
   snapshot(): Promise<Reply<Snapshot>>;
   refresh(): Promise<Reply<Snapshot>>;
   detect(): Promise<Reply<Snapshot>>;

@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
+  Star,
 } from 'lucide-react';
 import {
   useRef,
@@ -23,6 +24,7 @@ import {
   type SetStateAction,
 } from 'react';
 import { AsyncButton } from '../components/AsyncButton';
+import { api } from '../api';
 import { ModArt } from '../components/ModArt';
 import { EmptyState } from '../components/PageElements';
 import type { AppError, ModDefinition, Snapshot } from '../shared/model';
@@ -70,8 +72,26 @@ export function DiscoverPage({
   const [author, setAuthor] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const [view, setView] = useState<'grid' | 'list'>('grid');
+  const [sort, setSort] = useState('default');
+  const [stars, setStars] = useState<Record<string, number>>({});
+  const catalogueKey = mods.map((mod) => `${mod.id}:${mod.repositoryUrl ?? ''}`).join('|');
+  useEffect(() => {
+    let cancelled = false;
+    setStars({});
+    if (!snapshot?.preview && api.githubStars) {
+      void api
+        .githubStars()
+        .then((reply) => {
+          if (!cancelled && reply.ok) setStars(reply.value);
+        })
+        .catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [catalogueKey, snapshot?.catalogue.fetchedAt, snapshot?.preview]);
   const [limit, setLimit] = useState(60);
-  useEffect(() => setLimit(60), [query, category, author, filter]);
+  useEffect(() => setLimit(60), [query, category, author, filter, sort]);
   const catalogueRef = useRef<HTMLElement>(null);
   const visible = mods.filter(
     (mod) =>
@@ -92,6 +112,11 @@ export function DiscoverPage({
     'All mods',
     ...[...new Set(mods.flatMap((m) => m.categories))].sort((a, b) => a.localeCompare(b)),
   ];
+  if (sort === 'popular')
+    visible.sort(
+      (a, b) => (stars[b.id] ?? -1) - (stars[a.id] ?? -1) || a.title.localeCompare(b.title),
+    );
+  if (sort === 'name') visible.sort((a, b) => a.title.localeCompare(b.title));
   return (
     <>
       <section className="hero">
@@ -247,6 +272,16 @@ export function DiscoverPage({
               <List size={18} />
             </button>
           </div>
+          <select
+            aria-label="Sort mods"
+            className="mod-sort"
+            value={sort}
+            onChange={(event) => setSort(event.target.value)}
+          >
+            <option value="default">Default order</option>
+            <option value="popular">Popularity · GitHub stars</option>
+            <option value="name">Name A–Z</option>
+          </select>
         </div>
         {showFilters && (
           <div className="expanded-filters">
@@ -308,6 +343,11 @@ export function DiscoverPage({
             <ExternalLink size={11} />
           </span>
         </div>
+        {sort === 'popular' && (
+          <p className="muted-text">
+            Popularity uses GitHub repository stars. Mods without a known count appear last.
+          </p>
+        )}
         {!snapshot ? (
           <div className="mod-grid">
             {Array.from({ length: 6 }, (_, i) => (
@@ -329,12 +369,36 @@ export function DiscoverPage({
                   </div>
                   <div className="mod-title-row">
                     <h3>{mod.title}</h3>
+                    {mod.repositoryUrl?.startsWith('https://github.com/') && (
+                      <span
+                        className="github-stars"
+                        title={
+                          stars[mod.id] === undefined
+                            ? 'GitHub star count unavailable'
+                            : `${stars[mod.id]!.toLocaleString()} GitHub stars`
+                        }
+                        aria-label={
+                          stars[mod.id] === undefined
+                            ? 'GitHub stars unavailable'
+                            : `${stars[mod.id]} GitHub stars`
+                        }
+                      >
+                        <Star size={12} aria-hidden="true" />
+                        {stars[mod.id] === undefined
+                          ? '—'
+                          : Intl.NumberFormat(undefined, {
+                              notation: 'compact',
+                              maximumFractionDigits: 1,
+                            }).format(stars[mod.id]!)}
+                      </span>
+                    )}
                     <ArrowUpRight size={16} />
                   </div>
                   <div className="mod-author">
                     by {mod.author}
                     <span title={`Version ${mod.version}`}>{mod.version}</span>
                   </div>
+
                   <p className="mod-description">
                     {plainText(allowedDescription(mod)) ||
                       'Explore this community-made addition to Balatro.'}

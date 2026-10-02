@@ -23,6 +23,11 @@ with Thunderstore taking priority. Mod details and installation previews identif
 source. Clear the URL and choose **Remove index** to return to Thunderstore alone;
 installed mods remain manageable. Index metadata is cached separately for each URL.
 
+Discover shows GitHub repository stars beside mod titles and offers a popularity sort.
+Counts are fetched at runtime and cached for offline browsing. Repositories shared by
+multiple listings use the same count; unavailable counts appear last when sorting by
+popularity. GitHub rate limits never block catalogue browsing or installation.
+
 ## Download
 
 Visit [Releases](https://github.com/NorthernBranch/modatro/releases) for available downloads

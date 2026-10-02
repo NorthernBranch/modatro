@@ -274,6 +274,7 @@ void app
         throw new UserError('This external link is not on a supported upstream website.');
       await shell.openExternal(url);
     });
+    handle('githubStars', z.undefined(), () => application.githubStars());
     handle('launch', z.boolean(), (modded) =>
       application.launchGame(modded, async (s) => {
         if (process.platform === 'darwin' && modded) {

@@ -35,9 +35,11 @@ import {
 import { resolveDistribution } from './services/distribution';
 import { LocalModSource } from './services/sources/mod-source';
 import { lovelyDistribution } from './services/lovely';
+import { GitHubStars } from './services/github-stars';
 
 export class ModatroApplication {
   readonly storage: Storage;
+  private stars: GitHubStars;
   readonly logger: Logger;
   readonly detection = new GameDetectionService();
   readonly launch = new LaunchService();
@@ -64,6 +66,7 @@ export class ModatroApplication {
     private changed: (value: Snapshot) => void,
   ) {
     this.storage = new Storage(dataRoot);
+    this.stars = new GitHubStars(this.storage);
     this.logger = new Logger(this.storage, os.homedir());
     this.trust = new CatalogueTrust(this.storage, this.logger, remoteJson, () => {
       if (this.initialized) void this.publish();
@@ -168,6 +171,9 @@ export class ModatroApplication {
         });
       },
     );
+  }
+  async githubStars() {
+    return this.stars.get(this.allMods());
   }
   async snapshot(): Promise<Snapshot> {
     const gamePath = this.storage.state.settings.gamePath;
