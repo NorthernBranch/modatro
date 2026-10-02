@@ -1,5 +1,6 @@
 import { Info, PackageCheck, RefreshCw } from 'lucide-react';
 import { AsyncButton } from '../components/AsyncButton';
+import { ExistingInstallNotice } from '../components/ExistingInstallNotice';
 import { PrerequisiteAction } from '../components/PrerequisiteAction';
 import type { Requests } from '../hooks/useRequests';
 import { PageHeading } from '../components/PageElements';
@@ -31,6 +32,7 @@ export function PrerequisitesPage({
         title="A little setup. A lot more game."
         description="Everything your mods need, with nothing left to guess."
       />
+      <ExistingInstallNotice />
       {snapshot && (
         <div className="prerequisites-grid">
           {snapshot.prerequisites

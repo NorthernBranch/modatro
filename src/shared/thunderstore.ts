@@ -75,6 +75,24 @@ export function thunderstoreDependency(value: string): DependencyRequirement {
 export function thunderstoreDownload(namespace: string, name: string, version: string) {
   return `https://thunderstore.io/package/download/${namespace}/${name}/${version}/`;
 }
+export function isThunderstoreModManager(
+  mod: Pick<ModDefinition, 'title' | 'categories' | 'repositoryUrl'>,
+) {
+  const compact = (value: string) => value.replace(/[\s_-]/g, '').toLowerCase();
+  const name = compact(mod.title);
+  const repository = mod.repositoryUrl
+    ?.replace(/\/$/, '')
+    .replace(/\.git$/, '')
+    .toLowerCase();
+  return (
+    ['r2modman', 'r2modmanplus'].includes(name) ||
+    /modmanager(?:plus)?$/.test(name) ||
+    mod.categories.some((category) => /^modmanagers?$/.test(compact(category))) ||
+    ['https://github.com/ebkr/r2modmanplus', 'https://github.com/kesomannen/gale'].includes(
+      repository ?? '',
+    )
+  );
+}
 export function normalizeThunderstore(raw: unknown): ModDefinition | undefined {
   const pkg = ThunderstorePackageSchema.parse(raw);
   if (
@@ -115,6 +133,9 @@ export function normalizeThunderstore(raw: unknown): ModDefinition | undefined {
   }
   if (steamodded) repositoryUrl = 'https://github.com/Steamodded/smods';
   if (lovely) repositoryUrl = 'https://github.com/ethangreen-dev/lovely-injector';
+  // These are standalone applications, not files that belong in Balatro's Mods folder.
+  if (isThunderstoreModManager({ title: pkg.name, categories: pkg.categories, repositoryUrl }))
+    return undefined;
   return ModSchema.parse({
     id: thunderstoreId(pkg.owner, pkg.name),
     title: lovely ? 'Lovely' : pkg.name.replaceAll('_', ' '),

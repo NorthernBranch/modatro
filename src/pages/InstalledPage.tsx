@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import type { Dispatch, SetStateAction } from 'react';
 import { AsyncButton } from '../components/AsyncButton';
+import { ExistingInstallNotice } from '../components/ExistingInstallNotice';
 import { EmptyState, LocalRow, PageHeading } from '../components/PageElements';
 import type { LocalMod, ModAction, ModDefinition } from '../shared/model';
 
@@ -67,6 +68,7 @@ export function InstalledPage({
           </AsyncButton>
         }
       />
+      {page === 'updates' && <ExistingInstallNotice />}
       {(page === 'installed' ? installed : updates).length ? (
         <div className="installed-list">
           {(page === 'installed' ? installed : updates).map((local) => (

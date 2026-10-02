@@ -2,7 +2,11 @@ import { z } from 'zod';
 import { Catalogue, ModDefinition, ModSchema } from '../../src/shared/model';
 import { UserError } from './errors';
 import { remoteJson, remoteThunderstoreJson } from './network';
-import { normalizeThunderstore, thunderstoreId } from '../../src/shared/thunderstore';
+import {
+  isThunderstoreModManager,
+  normalizeThunderstore,
+  thunderstoreId,
+} from '../../src/shared/thunderstore';
 import { Logger, Storage } from './storage';
 import { CatalogueOverridesSchema, NativeCatalogueSchema } from '../../src/shared/catalogue-schema';
 import overridesBaseline from '../../catalogue/overrides.json';
@@ -60,18 +64,20 @@ export class ThunderstoreModSource implements ModRepository, ModSource {
         if (cache.mods.some((mod) => !mod.thunderstore)) throw new Error('Invalid registry cache.');
         this.catalogue = {
           ...cache,
-          mods: cache.mods.map((mod) =>
-            ModSchema.parse({
-              ...mod,
-              source: mod.source ?? {
-                provider: 'thunderstore',
-                externalId: thunderstoreId(mod.thunderstore!.namespace, mod.thunderstore!.name),
-                namespace: mod.thunderstore!.namespace,
-                packageName: mod.thunderstore!.name,
-                url: mod.thunderstore!.packageUrl,
-              },
-            }),
-          ),
+          mods: cache.mods
+            .filter((mod) => !isThunderstoreModManager(mod))
+            .map((mod) =>
+              ModSchema.parse({
+                ...mod,
+                source: mod.source ?? {
+                  provider: 'thunderstore',
+                  externalId: thunderstoreId(mod.thunderstore!.namespace, mod.thunderstore!.name),
+                  namespace: mod.thunderstore!.namespace,
+                  packageName: mod.thunderstore!.name,
+                  url: mod.thunderstore!.packageUrl,
+                },
+              }),
+            ),
           stale: true,
           refreshing: false,
         };

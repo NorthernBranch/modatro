@@ -63,6 +63,54 @@ it('blocks conflicting namespace and UUID overrides instead of selecting one per
 });
 
 describe('live Thunderstore catalogue', () => {
+  it('excludes standalone mod managers by name, category and known repository while keeping game mods and loaders', () => {
+    for (const options of [
+      { name: 'r2modman', categories: ['Tools'] },
+      { name: 'GaleModManager' },
+      { name: 'Balatro_Mod_Manager' },
+      { name: 'Launcher', categories: ['Mod Managers'] },
+      { name: 'Renamed', website: 'https://github.com/Kesomannen/gale' },
+      { name: 'Renamed', website: 'https://github.com/ebkr/r2modmanPlus/releases' },
+    ])
+      expect(normalizeThunderstore(thunderstorePackage(options))).toBeUndefined();
+    for (const options of [
+      { name: 'TagManager' },
+      { name: 'Brainstorm', categories: ['Tools'] },
+      { namespace: 'Steamodded', name: 'Steamodded' },
+      { namespace: 'Thunderstore', name: 'lovely' },
+    ])
+      expect(normalizeThunderstore(thunderstorePackage(options))).toBeDefined();
+  });
+  it('removes managers from existing offline caches and refreshed feeds without counting them as invalid', async () => {
+    const f = await fixture();
+    const gameMod = normalizeThunderstore(thunderstorePackage())!;
+    const cachedManager = {
+      ...gameMod,
+      id: 'thunderstore/ebkr-r2modman',
+      title: 'r2modman',
+      categories: ['Tools'],
+    };
+    await f.storage.write('catalogue-cache/thunderstore.json', cache([gameMod, cachedManager]));
+    const repository = new ThunderstoreRepository(
+      f.storage,
+      f.logger,
+      undefined,
+      listing([
+        thunderstorePackage(),
+        thunderstorePackage({ name: 'r2modman' }),
+        thunderstorePackage({ name: 'GaleModManager' }),
+      ]),
+    );
+    await repository.loadCache();
+    expect(repository.catalogue.mods).toEqual([gameMod]);
+    await repository.refresh();
+    expect(repository.catalogue.mods).toEqual([gameMod]);
+    expect(repository.catalogue.rejected).toBe(0);
+    expect(repository.catalogue.stale).toBe(false);
+    const restored = new ThunderstoreRepository(f.storage, f.logger);
+    await restored.loadCache();
+    expect(restored.catalogue.mods).toEqual([gameMod]);
+  });
   it('normalizes versioned distribution and dependencies without copying artwork or descriptions', () => {
     const entry = normalizeThunderstore({
       ...thunderstorePackage({ dependencies: ['Steamodded-Steamodded-1.0.0'] }),

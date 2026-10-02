@@ -3,6 +3,8 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { exists, hashFile } from '../electron/services/files';
 import { DownloadService } from '../electron/services/network';
+import { normalizeIndexEntry } from '../electron/services/mod-index';
+import { resolveDistribution } from '../electron/services/distribution';
 import { mod, put, setup, zip } from './helpers';
 const roots: string[] = [];
 async function fixture(checkpoint?: (phase: string, index?: number) => Promise<void>) {
@@ -410,6 +412,55 @@ it('records the version proved by staged metadata instead of a stale catalogue v
   expect(prepared.plan.version).toBe('2.3.0');
   await f.installer.commitPrepared(prepared);
   expect(f.storage.state.installations[0]?.modVersion).toBe('2.3.0');
+});
+
+it.each([
+  { version: '20260820_090743', download: 'releases/download/Mod/mod.zip' },
+  { version: 'Demo-2.3.0', download: 'archive/refs/tags/Demo-2.3.0.zip' },
+  { version: 'old-label', download: 'releases/latest/download/mod.zip' },
+])('installs index release $download using its loader version', async ({ version, download }) => {
+  const f = await fixture();
+  const indexed = normalizeIndexEntry(
+    'Fixture@Mod',
+    {
+      title: 'Test mod',
+      author: 'Fixture',
+      repo: 'https://github.com/fixture/mod',
+      downloadURL: `https://github.com/fixture/mod/${download}`,
+      version,
+    },
+    'https://github.com/kasimeka/balatro-mod-index',
+  );
+  const resolved = await resolveDistribution(indexed, async () => ({
+    tag_name: 'Demo-2.3.0',
+    draft: false,
+    prerelease: false,
+    published_at: '2026-10-01T00:00:00Z',
+    assets: [
+      {
+        name: 'mod.zip',
+        browser_download_url: 'https://github.com/fixture/mod/releases/download/Demo-2.3.0/mod.zip',
+      },
+    ],
+  }));
+  await put(path.join(f.stage, 'main.lua'), 'return true');
+  await put(path.join(f.stage, 'mod.json'), JSON.stringify({ id: 'test-mod', version: '2.3.0' }));
+  const prepared = await f.installer.plan(resolved, f.stage);
+  expect(prepared.mod.releaseSource).toEqual(resolved.releaseSource);
+  expect(prepared.plan.version).toBe('2.3.0');
+  await f.installer.commitPrepared(prepared);
+  expect(f.storage.state.installations[0]?.modVersion).toBe('2.3.0');
+});
+
+it('still rejects a mismatched version for a published catalogue release', async () => {
+  const f = await fixture();
+  await put(path.join(f.stage, 'main.lua'), 'return true');
+  await put(path.join(f.stage, 'mod.json'), JSON.stringify({ id: 'test-mod', version: '2.3.0' }));
+  await expect(
+    f.installer.plan(mod({ releaseSource: { sourceType: 'tag', releaseTag: 'v1.0.0' } }), f.stage),
+  ).rejects.toThrow('differs from the published release');
+  expect(f.storage.state.installations).toEqual([]);
+  expect(await fs.readdir(f.mods)).toEqual([]);
 });
 
 it('rejects a declared missing entry point before installation', async () => {

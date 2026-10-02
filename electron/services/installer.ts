@@ -408,11 +408,12 @@ export class ModInstaller {
         throw new UserError(
           'The downloaded files identify a different mod from the managed installation. No files were changed.',
         );
-      // A structured version describes the files being installed more precisely
-      // than a catalogue entry whose URL may point at a moving branch.
+      // Index versions can be commit hashes, timestamps or release labels, including
+      // for fixed release URLs. Loader metadata supplies the actual runtime version.
       if (metadata?.version) {
         if (
           !mod.thunderstore &&
+          mod.source?.provider !== 'mod-index' &&
           ['release-asset', 'tag'].includes(mod.releaseSource?.sourceType ?? '') &&
           metadata.version.replace(/^v/, '') !== mod.version.replace(/^v/, '')
         )

@@ -23,6 +23,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import { AsyncButton } from './components/AsyncButton';
+import { ExistingInstallNotice } from './components/ExistingInstallNotice';
 import { ModIndexSettings } from './components/ModIndexSettings';
 import { EmptyState } from './components/PageElements';
 import { useRequests } from './hooks/useRequests';
@@ -998,6 +999,7 @@ export function App() {
               </div>
             </li>
           </ol>
+          <ExistingInstallNotice />
           <ModIndexSettings snapshot={snapshot} requests={requests} callSnapshot={callSnapshot} />
           {snapshot.preview && (
             <div className="banner subtle">
