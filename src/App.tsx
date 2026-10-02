@@ -986,7 +986,7 @@ export function App() {
               disabled={!gameReady || snapshot.preview || configuring}
               onClick={() =>
                 void callSnapshot('settings', 'Saving setup', () =>
-                  api.saveSettings({ ...snapshot.settings, setupComplete: true }),
+                  api.saveSettings({ theme: snapshot.settings.theme, setupComplete: true }),
                 ).then((reply) => {
                   if (reply?.ok) {
                     setSetup(false);

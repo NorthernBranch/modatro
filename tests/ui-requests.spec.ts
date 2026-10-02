@@ -770,7 +770,110 @@ test('archive-discovered requirements offer a direct prerequisite action after f
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
-test('a failed prerequisite check shows the last known release and the failure', async ({
+test('prerequisites keep external loader versions visible when package versions are unrecorded', async ({
+  page,
+}) => {
+  const state = fixture();
+  Object.assign(state.prerequisites[0]!, {
+    installed: true,
+    latestVersion: '0.10.0',
+    latestPackageId: 'thunderstore/Thunderstore-lovely',
+  });
+  for (const [id, version, latestVersion, latestPackageId] of [
+    ['Steamodded', '1.0.0~BETA-0827c', '26.829.0', 'thunderstore/Steamodded-Steamodded'],
+    ['Talisman', '2.7', '2.7.0', 'thunderstore/MathIsFun_-Talisman'],
+  ]) {
+    state.prerequisites.push({
+      id: id!,
+      displayName: id!,
+      installed: true,
+      installedVersion: version,
+      latestVersion,
+      latestPackageId,
+      sourceUrl: 'https://github.com/tests/prerequisite',
+    });
+    state.localMods.push({
+      id: `external:${id}`,
+      title: id!,
+      folderName: id!,
+      version,
+      state: 'unmanaged',
+      managed: false,
+      canAdopt: false,
+      problems: [],
+    });
+  }
+  await mockDesktop(page, state);
+  await page
+    .locator('.sidebar')
+    .getByRole('button', { name: /^Installed/ })
+    .click();
+  await expect(page.locator('.local-row-info')).toContainText(['1.0.0~BETA-0827c', '2.7']);
+  await page.getByRole('button', { name: 'Prerequisites', exact: true }).click();
+  for (const [id, version] of [
+    ['Steamodded', '1.0.0~BETA-0827c'],
+    ['Talisman', '2.7'],
+  ]) {
+    const card = page.locator('.prerequisite-card').filter({ hasText: id! });
+    await expect(card.locator('.state-badge')).toContainText('Installed');
+    await expect(card.locator('dd').first()).toHaveText(version!);
+    await expect(card).toContainText('automatic update comparison is unavailable');
+    await expect(card).not.toContainText('Update available');
+  }
+  const lovely = page.locator('.prerequisite-card').filter({ hasText: 'Lovely' });
+  await expect(lovely.locator('.state-badge')).toHaveText('Installed · version unknown');
+  await expect(lovely.locator('.state-badge')).not.toHaveClass(/missing/);
+  await expect(lovely.locator('dd').first()).toHaveText('Version unknown');
+});
+
+test('prerequisites compare only recorded versions from the same package source', async ({
+  page,
+}) => {
+  const state = fixture();
+  const packageId = 'thunderstore/Steamodded-Steamodded';
+  state.prerequisites.push({
+    id: 'Steamodded',
+    displayName: 'Steamodded',
+    installed: true,
+    installedVersion: '1.0.0~BETA-0827c',
+    packageId,
+    packageVersion: '1.827.2',
+    latestPackageId: packageId,
+    latestVersion: '26.829.0',
+    sourceUrl: 'https://github.com/Steamodded/smods',
+  });
+  Object.assign(state.prerequisites[0]!, {
+    installed: true,
+    installedVersion: '0.9.0',
+    packageId: 'thunderstore/Other-Lovely',
+    packageVersion: '0.1.0',
+    latestPackageId: 'thunderstore/Thunderstore-lovely',
+    latestVersion: '0.10.0',
+  });
+  state.prerequisites.push({
+    id: 'Talisman',
+    displayName: 'Talisman',
+    installed: false,
+    sourceUrl: 'https://github.com/SpectralPack/Talisman',
+  });
+  await mockDesktop(page, state);
+  await page.getByRole('button', { name: 'Prerequisites', exact: true }).click();
+  const steamodded = page.locator('.prerequisite-card').filter({ hasText: 'Steamodded' });
+  await expect(steamodded.locator('.state-badge')).toContainText('Update available');
+  await expect(steamodded).toContainText('Installed package version');
+  await expect(steamodded).toContainText('1.827.2');
+  await expect(steamodded).toContainText('Runtime version');
+  await expect(steamodded).toContainText('1.0.0~BETA-0827c');
+  const lovely = page.locator('.prerequisite-card').filter({ hasText: 'Lovely' });
+  await expect(lovely.locator('.state-badge')).toContainText('Installed');
+  await expect(lovely.locator('dd').first()).toHaveText('0.9.0');
+  await expect(lovely).not.toContainText('Update available');
+  const talisman = page.locator('.prerequisite-card').filter({ hasText: 'Talisman' });
+  await expect(talisman.locator('.state-badge')).toContainText('Optional');
+  await expect(talisman.locator('dd').first()).toHaveText('Not installed');
+});
+
+test('a failed prerequisite check preserves installed status and shows the last known release', async ({
   page,
 }) => {
   const state = fixture();
@@ -785,7 +888,7 @@ test('a failed prerequisite check shows the last known release and the failure',
   const card = page.locator('.prerequisite-card');
   await expect(card).toContainText('Unable to check latest version');
   await expect(card).toContainText('Showing the last known release');
-  await expect(card).toContainText('Unable to determine');
+  await expect(card.locator('.state-badge')).toContainText('Installed');
   await expect(card).toContainText('0.9.0');
 });
 

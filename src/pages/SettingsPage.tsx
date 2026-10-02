@@ -147,8 +147,8 @@ export function SettingsPage({
                 onChange={(e) =>
                   void callSnapshot('settings', 'Saving theme', () =>
                     api.saveSettings({
-                      ...snapshot.settings,
                       theme: e.target.value as 'dark' | 'light' | 'system',
+                      setupComplete: snapshot.settings.setupComplete,
                     }),
                   )
                 }

@@ -5,7 +5,6 @@ import type { Requests } from '../hooks/useRequests';
 import { PageHeading } from '../components/PageElements';
 import type { ModAction, ModDefinition, Snapshot } from '../shared/model';
 import { isNewer } from '../shared/presentation';
-import { cleanVersion } from '../shared/dependencies';
 
 interface Props {
   snapshot?: Snapshot;
@@ -37,15 +36,18 @@ export function PrerequisitesPage({
           {snapshot.prerequisites
             .filter((p) => ['Lovely', 'Steamodded', 'Talisman'].includes(p.id))
             .map((prerequisite, index) => {
-              const installedVersion = prerequisite.latestPackageId
-                ? prerequisite.packageVersion
+              const packageVersion =
+                prerequisite.latestPackageId &&
+                prerequisite.packageId?.toLowerCase() === prerequisite.latestPackageId.toLowerCase()
+                  ? prerequisite.packageVersion
+                  : undefined;
+              const installedVersion = packageVersion ?? prerequisite.installedVersion;
+              const comparisonVersion = prerequisite.latestPackageId
+                ? packageVersion
                 : prerequisite.installedVersion;
-              const update = isNewer(installedVersion, prerequisite.latestVersion);
-              const unknown =
-                prerequisite.installed &&
-                (!cleanVersion(installedVersion) ||
-                  !cleanVersion(prerequisite.latestVersion) ||
-                  !!prerequisite.latestError);
+              const update =
+                !prerequisite.latestError && isNewer(comparisonVersion, prerequisite.latestVersion);
+              const unknown = prerequisite.installed && !installedVersion;
               return (
                 <article className="prerequisite-card" key={prerequisite.id}>
                   <div className={`prerequisite-icon prerequisite-${index}`}>
@@ -54,14 +56,14 @@ export function PrerequisitesPage({
                   <div className="prerequisite-heading">
                     <h2>{prerequisite.displayName}</h2>
                     <span
-                      className={`state-badge ${prerequisite.installed ? (update ? 'update' : unknown ? 'missing' : 'ready') : 'missing'}`}
+                      className={`state-badge ${prerequisite.installed ? (update ? 'update' : unknown ? '' : 'ready') : prerequisite.id === 'Talisman' ? '' : 'missing'}`}
                     >
                       {prerequisite.installed
                         ? update
                           ? '↑ Update available'
                           : unknown
-                            ? 'Unable to determine'
-                            : '✓ Ready'
+                            ? 'Installed · version unknown'
+                            : '✓ Installed'
                         : prerequisite.id === 'Talisman'
                           ? '○ Optional'
                           : '× Missing'}
@@ -76,15 +78,23 @@ export function PrerequisitesPage({
                   </p>
                   <dl className="version-facts">
                     <div>
-                      <dt>Installed version</dt>
+                      <dt>{packageVersion ? 'Installed package version' : 'Installed version'}</dt>
                       <dd>
                         {prerequisite.installed
                           ? (installedVersion ?? 'Version unknown')
                           : 'Not installed'}
                       </dd>
                     </div>
+                    {packageVersion && prerequisite.installedVersion && (
+                      <div>
+                        <dt>Runtime version</dt>
+                        <dd>{prerequisite.installedVersion}</dd>
+                      </div>
+                    )}
                     <div>
-                      <dt>Latest version</dt>
+                      <dt>
+                        {prerequisite.latestPackageId ? 'Latest package version' : 'Latest version'}
+                      </dt>
                       <dd aria-busy={refreshing || undefined}>
                         {refreshing
                           ? 'Checking…'
@@ -94,6 +104,20 @@ export function PrerequisitesPage({
                       </dd>
                     </div>
                   </dl>
+                  {unknown && (
+                    <p className="muted-text">
+                      Detected on disk. This copy’s installed version could not be verified.
+                    </p>
+                  )}
+                  {prerequisite.installed &&
+                    installedVersion &&
+                    prerequisite.latestPackageId &&
+                    !packageVersion && (
+                      <p className="muted-text">
+                        The local version is shown above. Its Thunderstore package version is not
+                        recorded, so automatic update comparison is unavailable.
+                      </p>
+                    )}
                   {prerequisite.provenance && (
                     <details>
                       <summary>Installed source</summary>

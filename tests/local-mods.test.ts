@@ -2,7 +2,8 @@ import { afterEach, expect, it } from 'vitest';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { InstalledModsService } from '../electron/services/local-mods';
-import { setup, mod, put } from './helpers';
+import { setup, mod, put, thunderstorePackage } from './helpers';
+import { normalizeThunderstore } from '../src/shared/thunderstore';
 const roots: string[] = [];
 async function fixture() {
   const f = await setup();
@@ -28,20 +29,47 @@ it('detects Steamodded by structured metadata in a differently named unmanaged f
     JSON.stringify({ name: 'Steamodded', version_number: '26.829.0', dependencies: [] }),
   );
   await put(path.join(f.mods, 'DifferentFolder', 'version.lua'), 'return \"26.829.0\"');
-  const scan = await new InstalledModsService(f.storage, f.logger).scan([]);
+  const source = normalizeThunderstore(
+    thunderstorePackage({ namespace: 'Steamodded', name: 'Steamodded', version: '26.927.0' }),
+  )!;
+  const scan = await new InstalledModsService(f.storage, f.logger).scan([source]);
   expect(scan.prerequisites.find((p) => p.id === 'Steamodded')).toMatchObject({
     installed: true,
     installedVersion: '26.829.0',
+    latestVersion: '26.927.0',
+    latestPackageId: source.id,
   });
-  expect(scan.mods[0]).toMatchObject({ managed: false, state: 'unmanaged' });
+  expect(scan.prerequisites.find((p) => p.id === 'Steamodded')?.packageVersion).toBeUndefined();
+  expect(scan.mods[0]).toMatchObject({ managed: false, state: 'unmanaged', version: '26.829.0' });
+});
+it('preserves a legacy Talisman version without treating it as a registry package version', async () => {
+  const f = await fixture();
+  await put(
+    path.join(f.mods, 'Talisman', 'steamodded_metadata.lua'),
+    '--- STEAMODDED HEADER\n--- MOD_NAME: Talisman\n--- MOD_ID: Talisman\n--- VERSION: 2.7\n',
+  );
+  const source = normalizeThunderstore(
+    thunderstorePackage({ namespace: 'MathIsFun_', name: 'Talisman', version: '2.7.0' }),
+  )!;
+  const scan = await new InstalledModsService(f.storage, f.logger).scan([source]);
+  expect(scan.prerequisites.find((p) => p.id === 'Talisman')).toMatchObject({
+    installed: true,
+    installedVersion: '2.7',
+    latestVersion: '2.7.0',
+  });
+  expect(scan.prerequisites.find((p) => p.id === 'Talisman')?.packageVersion).toBeUndefined();
+  expect(scan.mods[0]?.version).toBe('2.7');
 });
 it('reports positive Lovely binary evidence as installed with an unknown version', async () => {
   const f = await fixture();
   await fs.writeFile(path.join(f.game, libraryName), lovelyBinary());
-  const scan = await new InstalledModsService(f.storage, f.logger).scan([]);
+  const service = new InstalledModsService(f.storage, f.logger);
+  service.latest.set('Lovely', { version: '0.10.0' });
+  const scan = await service.scan([]);
   expect(scan.prerequisites.find((p) => p.id === 'Lovely')).toMatchObject({
     installed: true,
     installedVersion: undefined,
+    latestVersion: '0.10.0',
   });
 });
 it('rejects an unrelated or non-native file merely named like Lovely', async () => {

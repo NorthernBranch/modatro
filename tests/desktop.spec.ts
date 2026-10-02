@@ -87,3 +87,82 @@ test('desktop has an isolated renderer, working preload and validated IPC', asyn
     await fs.rm(data, { recursive: true, force: true });
   }
 });
+
+test('setup and theme saves preserve selected folders through validated desktop IPC', async () => {
+  const root = await fs.realpath(
+    await fs.mkdtemp(path.join(os.tmpdir(), 'modatro-settings-test-')),
+  );
+  const data = path.join(root, 'profile');
+  const gamePath = path.join(root, 'Balatro');
+  const modsPath = path.join(root, 'Mods');
+  await fs.mkdir(path.join(data, 'data'), { recursive: true });
+  await fs.mkdir(modsPath);
+  if (process.platform === 'darwin') {
+    const contents = path.join(gamePath, 'Balatro.app', 'Contents');
+    await fs.mkdir(path.join(contents, 'MacOS'), { recursive: true });
+    await fs.mkdir(path.join(contents, 'Resources'));
+    await fs.writeFile(
+      path.join(contents, 'Info.plist'),
+      '<plist><string>Balatro</string></plist>',
+    );
+    await fs.writeFile(path.join(contents, 'MacOS', 'love'), Buffer.from('cffaedfe', 'hex'));
+    await fs.writeFile(path.join(contents, 'Resources', 'Balatro.love'), 'fixture');
+  } else {
+    await fs.cp(path.resolve('fixtures/balatro-valid'), gamePath, { recursive: true });
+  }
+  await fs.writeFile(
+    path.join(data, 'data', 'state.json'),
+    JSON.stringify({
+      schemaVersion: 2,
+      settings: { theme: 'dark', setupComplete: false, gamePath, modsPath },
+      installations: [],
+    }),
+  );
+  const env: Record<string, string> = {
+    ...Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== undefined)),
+    MODATRO_TEST_DATA: data,
+    MODATRO_DEV_URL: '',
+  };
+  delete env.ELECTRON_RUN_AS_NODE;
+  const packagedExecutable = process.env.MODATRO_PACKAGED_EXECUTABLE;
+  const application = await electron.launch({
+    args: packagedExecutable ? [] : ['.'],
+    executablePath: packagedExecutable,
+    env,
+  });
+  try {
+    const page = await application.firstWindow();
+    await expect(page.getByRole('button', { name: 'Start exploring' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Start exploring' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByLabel('Theme', { exact: true }).selectOption('light');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    const reply = await page.evaluate(() => window.modatro!.snapshot());
+    expect(reply.ok).toBe(true);
+    if (reply.ok)
+      expect(reply.value.settings).toEqual({
+        theme: 'light',
+        setupComplete: true,
+        gamePath,
+        modsPath,
+      });
+    const invalidSettings = await page.evaluate(() => {
+      const settings = {
+        theme: 'dark' as const,
+        setupComplete: true,
+        gamePath: '/unexpected-game',
+        modsPath: '/unexpected-mods',
+      };
+      return window.modatro!.saveSettings(settings);
+    });
+    expect(invalidSettings.ok).toBe(false);
+    if (!invalidSettings.ok) expect(invalidSettings.error.details).toContain('gamePath');
+    const saved = JSON.parse(await fs.readFile(path.join(data, 'data', 'state.json'), 'utf8'));
+    expect(saved.settings).toEqual({ theme: 'light', setupComplete: true, gamePath, modsPath });
+  } finally {
+    await application.close();
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});

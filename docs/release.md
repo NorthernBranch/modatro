@@ -141,6 +141,11 @@ and ambiguous folder layouts require the mod author's manual installation instru
 **Prerequisites** shows installed components and the latest versions available from
 their upstream projects. Each mod's requirements are checked separately.
 
+Detected components stay marked as installed even when their version or the latest
+release cannot be checked. Local loader versions remain visible separately from
+Thunderstore package versions. External installations without a recorded package
+version cannot establish whether a newer Thunderstore package is available.
+
 - **Lovely:** automatic installation is available on Windows and Linux with Proton. An older `version.dll`
   installation requires Lovely's upstream upgrade instructions. On macOS, use
   **Official instructions**, then launch through **Launch Modded Balatro** once the
