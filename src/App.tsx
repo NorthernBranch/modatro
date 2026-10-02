@@ -1026,7 +1026,14 @@ export function App() {
               ? 'Modatro removes only recorded files and restores verified originals. If a file has changed, you’ll choose how to handle it.'
               : confirmation.action === 'adopt'
                 ? 'Modatro will inspect and record the existing files before managing them. Future uninstall removes these recorded files only; changes will be protected.'
-                : 'Review the packages and file changes below. Modatro will back up existing files before replacing them.'}
+                : confirmation.plan?.packages && confirmation.plan.packages.length > 1
+                  ? `${confirmation.title} requires ${confirmation.plan.packages
+                      .filter((entry) => entry.id !== confirmation.plan!.modId)
+                      .map((entry) => entry.title)
+                      .join(
+                        ', ',
+                      )}. These dependencies will be installed or updated first, followed by ${confirmation.title}. Do you want to proceed?`
+                  : 'Review the packages and file changes below. Modatro will back up existing files before replacing them.'}
           </p>
           {!!confirmation.plan?.packages?.length && (
             <ul>
@@ -1077,7 +1084,9 @@ export function App() {
                 ? 'Uninstall'
                 : confirmation.action === 'adopt'
                   ? 'Adopt existing files'
-                  : 'Back up & install'}
+                  : confirmation.plan?.packages && confirmation.plan.packages.length > 1
+                    ? 'Install mod and dependencies'
+                    : 'Back up & install'}
             </button>
           </div>
         </Dialog>

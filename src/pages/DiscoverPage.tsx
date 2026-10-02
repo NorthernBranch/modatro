@@ -46,6 +46,9 @@ export function DiscoverPage({
   refreshing,
   setError,
 }: Props) {
+  const mac =
+    snapshot?.platform === 'darwin' ||
+    ((!snapshot || snapshot.platform === 'browser') && /Mac/i.test(navigator.platform));
   const mods = useMemo(
     () =>
       (snapshot?.catalogue.mods ?? []).filter(
@@ -215,8 +218,9 @@ export function DiscoverPage({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               aria-label="Search mods"
+              aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'}
             />
-            <kbd>⌘ K</kbd>
+            <kbd>{mac ? '⌘ K' : 'Ctrl K'}</kbd>
           </label>
           <button
             className={`button filter-button ${showFilters ? 'selected' : ''}`}

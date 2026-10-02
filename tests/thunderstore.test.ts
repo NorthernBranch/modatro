@@ -745,3 +745,215 @@ it('returns an installed Steamodded prerequisite immediately after a GitHub-back
     ).state,
   ).toBe('satisfied');
 });
+
+it.each([[false, true], [true, true], ...(process.platform === 'darwin' ? [] : [[false, false]])])(
+  'checks Amulet archive requirements and confirms missing Steamodded before installation (Steamodded installed=%s, Lovely installed=%s)',
+  async (alreadyInstalled, lovelyInstalled) => {
+    const f = await fixture();
+    vi.stubEnv('MODATRO_TEST_DATA', f.storage.root);
+    const amulet = normalizeThunderstore(
+      thunderstorePackage({
+        name: 'Amulet',
+        version: '3.6.2',
+        website: 'https://github.com/frostice482/amulet',
+        dependencies: ['Thunderstore-lovely-0.8.0'],
+      }),
+    )!;
+    const steamodded = normalizeThunderstore(
+      thunderstorePackage({
+        namespace: 'Steamodded',
+        name: 'Steamodded',
+        version: '26.829.0',
+        website: 'https://smods.dev',
+      }),
+    )!;
+    const lovely = normalizeThunderstore(
+      thunderstorePackage({
+        namespace: 'Thunderstore',
+        name: 'lovely',
+        version: '0.10.0',
+        website: 'https://github.com/ethangreen-dev/lovely-injector',
+      }),
+    )!;
+    if (lovelyInstalled) {
+      const library = process.platform === 'darwin' ? 'liblovely.dylib' : 'winmm.dll';
+      await fs.writeFile(
+        path.join(f.game, library),
+        Buffer.concat([
+          process.platform === 'darwin' ? Buffer.from('cffaedfe', 'hex') : Buffer.from('MZ'),
+          Buffer.from('Lovely fixture'),
+        ]),
+      );
+      // Known external Lovely versions need explicit consent. Record ownership instead.
+      const lovelyFile = path.join(f.game, library);
+      const { hashFile } = await import('../electron/services/files');
+      await f.storage.save({
+        ...f.storage.state,
+        installations: [
+          {
+            modId: 'Lovely',
+            title: 'Lovely',
+            modVersion: '0.10.0',
+            installedAt: new Date().toISOString(),
+            files: [
+              {
+                root: 'game',
+                path: library,
+                operation: 'created',
+                installedHash: await hashFile(lovelyFile),
+              },
+            ],
+            dependencies: [],
+            folderName: 'Lovely',
+            transactionId: 'fixture',
+            metadataId: 'Lovely',
+            disabled: false,
+            adopted: false,
+          },
+        ],
+      });
+    }
+    if (alreadyInstalled) {
+      await put(
+        path.join(f.mods, 'ExternalSteamodded', 'manifest.json'),
+        JSON.stringify({ name: 'Steamodded', dependencies: [] }),
+      );
+      await put(path.join(f.mods, 'ExternalSteamodded', 'version.lua'), 'return "26.829.0"');
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const policy = policyResponse(url);
+        if (policy) return policy;
+        if (url === 'https://api.github.com/repos/frostice482/amulet/releases/latest')
+          return new Response(JSON.stringify(release('3.6.2')), {
+            headers: { 'content-type': 'application/json' },
+          });
+        if (url === 'https://api.github.com/repos/ethangreen-dev/lovely-injector/releases/latest')
+          return new Response(
+            JSON.stringify(
+              release('0.10.0', [
+                {
+                  name: 'lovely-x86_64-pc-windows-msvc.zip',
+                  browser_download_url:
+                    'https://github.com/ethangreen-dev/lovely-injector/releases/download/v0.10.0/lovely-x86_64-pc-windows-msvc.zip',
+                },
+              ]),
+            ),
+            { headers: { 'content-type': 'application/json' } },
+          );
+        expect(url).toBe('https://api.github.com/repos/Steamodded/smods/releases/latest');
+        expect(alreadyInstalled).toBe(false);
+        return new Response(JSON.stringify(release('26.829.0')), {
+          headers: { 'content-type': 'application/json' },
+        });
+      }),
+    );
+    const app = new ModatroApplication(
+      f.storage.root,
+      'test',
+      'test',
+      () => {},
+      () => {},
+    );
+    await app.initialize();
+    app.repository.thunderstore.catalogue = {
+      mods: [amulet, steamodded, lovely],
+      fetchedAt: new Date().toISOString(),
+      stale: false,
+      refreshing: false,
+      rejected: 0,
+    };
+    const detection = new GameDetectionService('win32', f.root);
+    const folders = new GameDetectionService(
+      process.platform === 'win32' ? 'linux' : process.platform,
+      f.root,
+    );
+    vi.spyOn(app.detection, 'validate').mockImplementation((selected) =>
+      detection.validate(selected),
+    );
+    vi.spyOn(app.detection, 'validateMods').mockImplementation((selected, game, create) =>
+      folders.validateMods(selected, game, create),
+    );
+    vi.spyOn(app.launch, 'assertClosed').mockResolvedValue();
+    const download = vi
+      .spyOn(DownloadService.prototype, 'download')
+      .mockImplementation(async (url) => {
+        if (url.includes('lovely-injector')) {
+          const file = path.join(f.root, 'lovely.zip');
+          await fs.writeFile(file, zip([{ name: 'winmm.dll', data: 'MZ Lovely fixture release' }]));
+          return file;
+        }
+        const isSteamodded = url.includes('Steamodded/smods');
+        const file = path.join(f.root, `${isSteamodded ? 'steamodded' : 'amulet'}.zip`);
+        await fs.writeFile(
+          file,
+          zip(
+            isSteamodded
+              ? [
+                  {
+                    name: 'smods/manifest.json',
+                    data: JSON.stringify({ name: 'Steamodded', dependencies: [] }),
+                  },
+                  { name: 'smods/version.lua', data: 'return "26.829.0"' },
+                  { name: 'smods/lovely/init.toml', data: '[manifest]\nversion = "1.0.0"' },
+                ]
+              : [
+                  {
+                    name: 'Amulet/smods.json',
+                    data: JSON.stringify({
+                      id: 'Amulet',
+                      version: '3.6.2',
+                      main_file: 'smods.lua',
+                      dependencies: ['Steamodded (>=1.0.0~BETA-0827c)'],
+                    }),
+                  },
+                  { name: 'Amulet/smods.lua', data: 'return true' },
+                ],
+          ),
+        );
+        return file;
+      });
+    let result;
+    if (alreadyInstalled) {
+      result = await app.action(amulet.id, 'install');
+      expect(download).toHaveBeenCalledOnce();
+    } else {
+      const pending = await app.action(amulet.id, 'install').catch(errorReply);
+      expect(pending, JSON.stringify(pending)).toHaveProperty('confirmation');
+      const confirmation = (pending as ReturnType<typeof errorReply>).confirmation!;
+      expect(confirmation.plan.packages?.map((p) => p.title)).toEqual(
+        lovelyInstalled ? ['Steamodded', 'Amulet'] : ['Lovely', 'Steamodded', 'Amulet'],
+      );
+      expect(app.storage.state.installations.map((p) => p.modId)).toEqual(
+        lovelyInstalled ? ['Lovely'] : [],
+      );
+      expect(await fs.readdir(f.mods)).toEqual([]);
+      result = await app.action(amulet.id, 'install', [], confirmation.token);
+      expect(
+        app.storage.state.installations
+          .slice(lovelyInstalled ? 1 : 0)
+          .map((p) => [p.modId, p.automaticallyInstalled]),
+      ).toEqual([
+        ...(!lovelyInstalled ? [[lovely.id, true]] : []),
+        [steamodded.id, true],
+        [amulet.id, false],
+      ]);
+      expect(
+        new Set(
+          app.storage.state.installations
+            .slice(lovelyInstalled ? 1 : 0)
+            .map((p) => p.transactionId),
+        ).size,
+      ).toBe(1);
+    }
+    expect(result.localMods.find((p) => p.id === amulet.id)).toMatchObject({
+      state: 'installed',
+      packageVersionUnknown: false,
+    });
+    expect(result.prerequisites.find((p) => p.id === 'Steamodded')).toMatchObject({
+      installed: true,
+      installedVersion: '26.829.0',
+    });
+  },
+);

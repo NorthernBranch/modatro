@@ -54,7 +54,15 @@ function loaderVersion(id: string, value?: string): string | undefined {
   if (id.toLowerCase() !== 'steamodded' || !value) return cleanVersion(value);
   if (/~BETA(?:$|[^-])/i.test(value)) return undefined;
   // Steamodded uses '~' for prereleases, which is not a SemVer delimiter.
-  return cleanVersion(value.replace(/~BETA-(\d+)([a-z])/i, '-beta.$1.$2').replace('~', '-'));
+  return cleanVersion(
+    value
+      .replace(
+        /~BETA-(\d+)([a-z]+)/i,
+        (_match, build: string, suffix: string) =>
+          `-beta.${build.replace(/^0+(?=\d)/, '')}.${suffix.toLowerCase()}`,
+      )
+      .replace('~', '-'),
+  );
 }
 function loaderRange(id: string, range: string): string | null {
   if (id.toLowerCase() === 'balatro')
@@ -68,7 +76,13 @@ function loaderRange(id: string, range: string): string | null {
   if (id.toLowerCase() === 'steamodded' && /~BETA(?:$|[^-])/i.test(range)) return null;
   return semver.validRange(
     id.toLowerCase() === 'steamodded'
-      ? range.replace(/~BETA-(\d+)([a-z])/gi, '-beta.$1.$2').replace(/(\d+\.\d+\.\d+)~/g, '$1-')
+      ? range
+          .replace(
+            /~BETA-(\d+)([a-z]+)/gi,
+            (_match, build: string, suffix: string) =>
+              `-beta.${build.replace(/^0+(?=\d)/, '')}.${suffix.toLowerCase()}`,
+          )
+          .replace(/(\d+\.\d+\.\d+)~/g, '$1-')
       : range,
   );
 }

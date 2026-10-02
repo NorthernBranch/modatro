@@ -135,7 +135,15 @@ export const ModSchema = z
     repositoryUrl: HttpsUrl.optional(),
     websiteUrl: HttpsUrl.optional(),
     downloadUrl: HttpsUrl,
-    categories: z.array(z.string()).max(30),
+    categories: z
+      .array(z.string())
+      .max(30)
+      .transform((categories) => {
+        const visible = categories.filter(
+          (category) => !/^ai[\s_-]+generated$/i.test(category.trim()),
+        );
+        return categories.length && !visible.length ? ['Other'] : visible;
+      }),
     // Registry metadata remains the discovery identity when downloading upstream.
     downloadProvider: z.literal('github').optional(),
     sourceCategories: z.array(z.string()).optional(),

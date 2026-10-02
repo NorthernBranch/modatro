@@ -113,10 +113,17 @@ cannot override a known restriction. No private-repository configuration is requ
 
 ## Installed loaders show an unverified version
 
+Missing supported dependencies from either the catalogue or downloaded archive are
+included in an installation confirmation. Modatro lists their versions and installs
+them before the requested mod after approval. Cancelling leaves installed files
+unchanged; a failed dependency check blocks the whole plan. An installed loader with
+an unknown version still requires explicit verification rather than automatic replacement.
+
 Discover shows loader presence separately from version compatibility. An external
 Steamodded or Lovely installation can be detected without proving which Thunderstore
 package was installed. Canonical loader requirements use a known runtime version when
-the package version is unrecorded. Steamodded's beta build numbers and newer date-based
+the package version is unrecorded. Steamodded's beta build numbers (including zero-padded
+requirements such as Amulet's `1.0.0~BETA-0827c`) and newer date-based
 versions are compared in their supported formats. Unknown runtime versions require the
 existing per-operation consent; missing or known incompatible requirements still block.
 

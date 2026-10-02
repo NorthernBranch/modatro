@@ -15,6 +15,32 @@ afterEach(async () => {
   for (const p of roots.splice(0)) await fs.rm(p, { recursive: true, force: true });
 });
 describe('Balatro path validation', () => {
+  it.each([
+    '1.0.1o-FULL\n1.0.1o\nPROD_PC_Console',
+    '1.0.1o-FULL\r\n1.0.1o\r\nPROD_PC_Console\r\n',
+    '1.0.1o-FULL\n1.0.1o',
+  ])('reads retail multiline version metadata: %s', async (data) => {
+    const r = await root();
+    const game = await fakeGame(r);
+    const executable = path.join(game, 'Balatro.exe');
+    await fs.writeFile(
+      executable,
+      Buffer.concat([Buffer.from('MZ'), zip([{ name: 'version.jkr', data }])]),
+    );
+    expect(await new GameDetectionService('win32', r).validate(game)).toMatchObject({
+      valid: true,
+      detectedVersion: '1.0.1o',
+    });
+  });
+  it.each([
+    '1.0.1o-FULL\n99.0.0\nPROD_PC_Console',
+    '1.0.1o-FULL\nunrelated text',
+    '1.0.1o-FULL\n1.0.1o\nPROD_PC_Console\nextra',
+  ])('rejects contradictory or unsupported version metadata: %s', async (data) => {
+    const file = path.join(await root(), 'game.love');
+    await fs.writeFile(file, zip([{ name: 'version.jkr', data }]));
+    expect(await readGameVersion(file)).toBeUndefined();
+  });
   it('reads the game version from a fused executable without running or extracting it', async () => {
     const r = await root(),
       game = await fakeGame(r);

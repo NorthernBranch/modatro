@@ -1211,8 +1211,77 @@ test('shows the server-generated file plan and returns its confirmation token', 
   });
   await expect(page.getByRole('dialog')).toContainText('replace: game/game.lua');
   await expect(page.getByRole('dialog')).toContainText('Required package 1.2.0');
-  await page.getByRole('dialog').getByRole('button', { name: 'Back up & install' }).click();
+  await expect(page.getByRole('dialog')).toContainText('Fixture mod requires Required package');
+  await expect(page.getByRole('dialog')).toContainText(
+    'installed or updated first, followed by Fixture mod',
+  );
+  expect(await page.evaluate(() => window.requestsTest.actions.length)).toBe(1);
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Install mod and dependencies' })
+    .click();
   expect((await page.evaluate(() => window.requestsTest.actions)).at(-1)?.token).toBe(
     'actual-plan-token',
   );
+});
+test('cancelling a dependency confirmation sends no installation request', async ({ page }) => {
+  const state = fixture();
+  addPrerequisite(state, 'Talisman');
+  state.catalogue.mods[0]!.prerequisites = [
+    { id: 'Talisman', displayName: 'Talisman', required: true, versionConstraint: '>=2.0.0' },
+  ];
+  await mockDesktop(page, state, { action: 'hold' });
+  await page.getByRole('button', { name: 'Install', exact: true }).first().click();
+  await page.evaluate(() =>
+    window.requestsTest.finish('action', {
+      ok: false,
+      error: {
+        message: 'Review dependencies',
+        confirmation: {
+          token: 'dependency-plan-token',
+          plan: {
+            modId: 'fixture',
+            version: '1.0.0',
+            create: [{ root: 'mods', path: 'dependency/main.lua' }],
+            replace: [],
+            remove: [],
+            prerequisites: [],
+            conflicts: [],
+            packages: [
+              { id: 'dependency', title: 'Required dependency', version: '1.0.0', update: false },
+              { id: 'fixture', title: 'Fixture mod', version: '1.0.0', update: false },
+            ],
+          },
+        },
+      },
+    }),
+  );
+  await expect(page.getByRole('dialog')).toContainText('Fixture mod requires Required dependency');
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(await page.evaluate(() => window.requestsTest.actions.length)).toBe(1);
+});
+test('a managed GitHub catalogue installation does not offer catalogue replacement', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.localMods.push({
+    id: 'fixture',
+    title: 'Fixture mod',
+    version: '1.0.0',
+    state: 'installed',
+    managed: true,
+    folderName: 'fixture',
+    canAdopt: false,
+    problems: [],
+    packageVersionUnknown: false,
+    provenance: { provider: 'github', sourceType: 'release-asset' },
+  });
+  await mockDesktop(page, state);
+  await page
+    .getByRole('navigation')
+    .getByRole('button', { name: /^Installed/ })
+    .click();
+  await expect(page.getByRole('button', { name: 'Install catalogue release' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Uninstall', exact: true })).toBeVisible();
 });

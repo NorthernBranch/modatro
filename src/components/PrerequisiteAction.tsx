@@ -127,21 +127,28 @@ export function PrerequisiteAction({
     ) {
       const reason = eligibility(mod, snapshot);
       return (
-        <AsyncButton
-          className="button button-primary"
-          pending={requests.isPending('mod-action')}
-          pendingLabel={`Installing ${requirement.displayName}…`}
-          disabled={busy || !!snapshot.safetyError}
-          onClick={() =>
-            reason
-              ? review(mod)
-              : requestAction(mod.id, canUpdate ? 'update' : 'install', mod.title, mod)
-          }
-        >
-          {reason
-            ? `Review ${requirement.displayName} requirements`
-            : `${canUpdate ? 'Update' : 'Install'} ${requirement.displayName}`}
-        </AsyncButton>
+        <>
+          <AsyncButton
+            className="button button-primary"
+            pending={requests.isPending('mod-action')}
+            pendingLabel={`Installing ${requirement.displayName}…`}
+            disabled={busy || !!snapshot.safetyError}
+            onClick={() =>
+              reason
+                ? review(mod)
+                : requestAction(mod.id, canUpdate ? 'update' : 'install', mod.title, mod)
+            }
+          >
+            {reason
+              ? `Review ${requirement.displayName} requirements`
+              : `${canUpdate ? 'Update' : 'Install'} ${requirement.displayName}`}
+          </AsyncButton>
+          {!reason && mod.prerequisites.some((entry) => entry.required) && (
+            <button className="button button-secondary" disabled={busy} onClick={() => review(mod)}>
+              Review {requirement.displayName} requirements
+            </button>
+          )}
+        </>
       );
     }
     if (local?.state === 'disabled')

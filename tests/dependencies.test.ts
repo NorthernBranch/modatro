@@ -140,6 +140,21 @@ it('compares Steamodded beta requirements from manual archives using their build
     ).toBe(state);
   }
 });
+it('compares Amulet’s zero-padded Steamodded beta requirement with known installed runtimes', () => {
+  const requested = parseRequirement('Steamodded (>=1.0.0~BETA-0827c)');
+  for (const [version, state] of [
+    ['26.829.0', 'satisfied'],
+    ['1.0.0~BETA-1620a', 'satisfied'],
+    ['1.0.0~BETA-0827c', 'satisfied'],
+    ['1.0.0~BETA-0827b', 'outdated'],
+    ['1.0.0~BETA-0826c', 'outdated'],
+    ['1.0.0~BETA', 'unknown'],
+  ]) {
+    expect(
+      evaluateDependency(requested, [{ ...installed[0]!, installedVersion: version }]).state,
+    ).toBe(state);
+  }
+});
 
 it('compares Balatro letter releases without accepting an older patch or inventing a version', () => {
   const requested = parseRequirement('Balatro (>=1.0.1o)');

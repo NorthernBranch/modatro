@@ -106,9 +106,19 @@ export async function readGameVersion(file: string): Promise<string | undefined>
               finish();
               return;
             }
-            version = /^(\d+\.\d+\.\d+[a-z]?)(?:-(?:FULL|DEMO))?\s*$/i.exec(
-              bytes.toString('utf8'),
-            )?.[1];
+            const lines = bytes.toString('utf8').trim().split(/\r?\n/);
+            const declared = /^(\d+\.\d+\.\d+[a-z]?)(?:-(?:FULL|DEMO))?$/i.exec(lines[0]!)?.[1];
+            // Retail builds also include the plain version and a build identifier,
+            // e.g. "1.0.1o-FULL\n1.0.1o\nPROD_PC_Console". Require the second
+            // version to agree; never infer a version from arbitrary trailing text.
+            version =
+              declared &&
+              (lines.length === 1 ||
+                (lines.length <= 3 &&
+                  lines[1] === declared &&
+                  (lines.length === 2 || /^[A-Za-z][A-Za-z0-9_]{0,100}$/.test(lines[2]!))))
+                ? declared
+                : undefined;
             zip.readEntry();
           });
         });

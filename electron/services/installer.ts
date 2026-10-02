@@ -4,6 +4,7 @@ import path from 'node:path';
 import type {
   ConflictDecision,
   DependencyStatus,
+  DependencyRequirement,
   FileConflict,
   FileRoot,
   InstallationRecord,
@@ -64,6 +65,7 @@ export interface PreparedInstallation {
   dependencies: DependencyStatus[];
   metadataId?: string;
   runtimeVersion?: string;
+  declaredConflicts?: DependencyRequirement[];
   previous?: InstallationRecord;
   provenance?: InstallationSource;
 }
@@ -354,6 +356,7 @@ export class ModInstaller {
     const stageRoot = await canonicalDirectory(staging);
     let requirements = mod.prerequisites;
     let metadataId: string | undefined = mod.metadataId;
+    let declaredConflicts: DependencyRequirement[] = [];
     let runtimeVersion = ['game-replacement', 'lovely-injector'].includes(mod.installation.type)
       ? mod.version
       : undefined;
@@ -428,6 +431,7 @@ export class ModInstaller {
           { id: 'Lovely', displayName: 'Lovely', required: true },
         ]);
       const prerequisites = await this.getPrerequisites();
+      declaredConflicts = metadata?.conflicts ?? [];
       for (const conflict of metadata?.conflicts ?? []) {
         const found = evaluateDependencies([conflict], prerequisites)[0];
         if (
@@ -551,6 +555,7 @@ export class ModInstaller {
       dependencies,
       metadataId,
       runtimeVersion,
+      declaredConflicts,
       previous,
       folderName: SafeName.parse(defaultFolder(mod)),
     };
@@ -627,6 +632,7 @@ export class ModInstaller {
     confirmationToken?: string,
     accepted: UnverifiedPrerequisite[] = [],
     inspect = false,
+    resolveDependencies?: (staged: ModDefinition[]) => Promise<ModDefinition[]>,
   ) {
     return this.transactions.locked(async () => {
       await this.guard();
@@ -637,7 +643,10 @@ export class ModInstaller {
       const abort = new AbortController();
       this.abort = abort;
       try {
-        for (const [index, input] of inputs.entries()) {
+        const queue = [...inputs];
+        for (const [index, input] of queue.entries()) {
+          if (index >= 128)
+            throw new UserError('The dependency plan is too large. No files were changed.');
           let mod = ModSchema.parse(input);
           const previous = this.storage.state.installations.find(
             (record) => record.modId === mod.id,
@@ -664,7 +673,9 @@ export class ModInstaller {
               await hashFile(download),
             );
             provenance.finalUrl = downloader.finalUrl ?? mod.downloadUrl;
-            if (
+            const directFile = new URL(mod.downloadUrl).pathname.endsWith('.lua');
+            if (directFile) await atomicCopy(download, path.join(stage, 'mod.lua'));
+            else if (
               mod.installation.type === 'lovely-injector' &&
               new URL(mod.downloadUrl).pathname.endsWith('.tar.gz')
             )
@@ -672,13 +683,27 @@ export class ModInstaller {
             else await new ArchiveService().extract(download, stage, abort.signal);
             await validateThunderstoreArchive(mod, stage);
             this.progress({ modId: mod.id, phase: 'planning' });
-            const item = await this.plan(mod, stage);
+            const item = await this.plan(mod, stage, directFile);
             item.provenance = provenance;
             prepared.push(item);
           } finally {
             await fs.rm(download, { force: true });
           }
           abort.signal.throwIfAborted();
+          if (resolveDependencies && index === queue.length - 1) {
+            const graph = await resolveDependencies(
+              prepared.map((item) =>
+                ModSchema.parse({ ...item.mod, prerequisites: item.dependencies }),
+              ),
+            );
+            queue.push(...graph.filter((mod) => !prepared.some((item) => item.mod.id === mod.id)));
+            if (index === queue.length - 1) {
+              const ordered = graph.map((mod) => prepared.find((item) => item.mod.id === mod.id)!);
+              if (ordered.some((item) => !item))
+                throw new UserError('The dependency plan changed. Refresh and try again.');
+              prepared.splice(0, prepared.length, ...ordered);
+            }
+          }
         }
         const resolved = prepared.map((item) => item.mod);
         const future = projectedPrerequisites(resolved, await this.getPrerequisites());
@@ -689,10 +714,19 @@ export class ModInstaller {
             id: item.metadataId ?? item.mod.id,
             displayName: item.mod.title,
             installed: true,
-            installedVersion: item.runtimeVersion,
+            installedVersion:
+              item.runtimeVersion ??
+              (item.mod.installation.type === 'lovely-injector' ? item.mod.version : undefined),
             sourceUrl: item.mod.downloadUrl,
           });
         for (const item of prepared) {
+          const conflict = evaluateDependencies(item.declaredConflicts ?? [], future).find(
+            (entry) => entry.state === 'satisfied' || entry.state === 'unknown',
+          );
+          if (conflict)
+            throw new UserError(
+              `${item.mod.title} declares a conflict with ${conflict.displayName} in this plan. No files were changed.`,
+            );
           item.dependencies = evaluateDependencies(item.dependencies, future);
           item.plan.prerequisites = item.dependencies;
           this.assertDependencies(item.dependencies, accepted);
@@ -730,7 +764,7 @@ export class ModInstaller {
           })),
         });
         if (inspect) return visible;
-        if (inputs.length > 1 || changes.some((change) => change.root === 'game')) {
+        if (prepared.length > 1 || changes.some((change) => change.root === 'game')) {
           const fingerprint = createHash('sha256').update(JSON.stringify(visible)).digest('hex');
           if (
             !confirmationToken ||
@@ -759,7 +793,9 @@ export class ModInstaller {
             id: item.metadataId ?? item.mod.id,
             displayName: item.mod.title,
             installed: true,
-            installedVersion: item.runtimeVersion,
+            installedVersion:
+              item.runtimeVersion ??
+              (item.mod.installation.type === 'lovely-injector' ? item.mod.version : undefined),
             sourceUrl: item.mod.downloadUrl,
           });
         for (const item of prepared)
@@ -770,7 +806,7 @@ export class ModInstaller {
           ...this.storage.state,
           installations: [
             ...this.storage.state.installations.filter(
-              (record) => !inputs.some((mod) => mod.id === record.modId),
+              (record) => !prepared.some((item) => item.mod.id === record.modId),
             ),
             ...prepared.map((item, index) =>
               this.installationRecord(item, journal, index < prepared.length - 1),
@@ -782,7 +818,7 @@ export class ModInstaller {
           this.progress({ modId: item.mod.id, phase: 'complete', percent: 100 });
         }
         await this.logger.log('install.batch.complete', {
-          packages: inputs.map((mod) => mod.id),
+          packages: prepared.map((item) => item.mod.id),
           transaction: this.storage.state.lastTransaction,
         });
       } catch (error) {

@@ -36,6 +36,34 @@ async function replacement(f: Awaited<ReturnType<typeof fixture>>, version = '1.
   return plan;
 }
 describe('manifest-based installation and removal', () => {
+  it('rejects conflicts with another planned package before confirming or writing files', async () => {
+    const f = await fixture();
+    const packages = ['Dependency', 'Root'].map((id) =>
+      mod({ id, metadataId: id, downloadUrl: `https://github.com/fixture/mod/archive/${id}.zip` }),
+    );
+    vi.spyOn(DownloadService.prototype, 'download').mockImplementation(async (url) => {
+      const id = url.includes('/Dependency.zip') ? 'Dependency' : 'Root';
+      const archive = path.join(f.root, `${id}.zip`);
+      await fs.writeFile(
+        archive,
+        zip([
+          {
+            name: 'mod.json',
+            data: JSON.stringify({
+              id,
+              version: '1.0.0',
+              conflicts: id === 'Root' ? ['Dependency (>=1.0.0)'] : [],
+            }),
+          },
+          { name: 'main.lua', data: 'return true' },
+        ]),
+      );
+      return archive;
+    });
+    await expect(f.installer.installMany(packages)).rejects.toThrow('conflict with Dependency');
+    expect(f.storage.state.installations).toEqual([]);
+    expect(await fs.readdir(f.mods)).toEqual([]);
+  });
   it('installs a standard mod in the separate Mods directory with hashes and a record', async () => {
     const f = await fixture();
     await standard(f);

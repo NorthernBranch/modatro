@@ -26,7 +26,12 @@ import { TransactionEngine } from './services/transaction';
 import { CatalogueTrust } from './services/trust';
 import { allowedDescription, automationReason } from '../src/shared/trust';
 import { DependencyGraphError, resolveDependencyGraph } from '../src/shared/dependency-graph';
-import { canAcceptUnverified } from '../src/shared/dependencies';
+import {
+  canAcceptUnverified,
+  blockingDependencies,
+  evaluateDependency,
+} from '../src/shared/dependencies';
+import { resolveDistribution } from './services/distribution';
 import { LocalModSource } from './services/sources/mod-source';
 import { lovelyDistribution } from './services/lovely';
 
@@ -306,6 +311,64 @@ export class ModatroApplication {
       return this.snapshot();
     });
   }
+  private async dependencyPlan(
+    root: ModDefinition,
+    accepted: UnverifiedPrerequisite[],
+    staged: ModDefinition[] = [],
+  ) {
+    const installed = (await this.snapshot()).prerequisites;
+    const candidates = new Map([...this.allMods(), root, ...staged].map((mod) => [mod.id, mod]));
+    const visited = new Set<string>();
+    const visit = async (input: ModDefinition) => {
+      if (visited.has(input.id)) return;
+      if (visited.size >= 128)
+        throw new UserError('The dependency plan is too large. No files were changed.');
+      visited.add(input.id);
+      const mod =
+        staged.find((entry) => entry.id === input.id) ?? (await resolveDistribution(input));
+      candidates.set(mod.id, mod);
+      for (const requirement of mod.prerequisites.filter((entry) => entry.required)) {
+        const status = evaluateDependency(requirement, installed);
+        if (!blockingDependencies([status], accepted).length || status.state === 'unknown')
+          continue;
+        let matches = [...candidates.values()].filter((candidate) =>
+          requirement.packageId
+            ? candidate.source?.externalId.toLowerCase() === requirement.packageId.toLowerCase()
+            : (candidate.metadataId ?? candidate.id).toLowerCase() === requirement.id.toLowerCase(),
+        );
+        if (!matches.length && requirement.id === 'Lovely' && !requirement.packageId) {
+          const lovely = await lovelyDistribution();
+          candidates.set(lovely.id, lovely);
+          matches = [lovely];
+        }
+        if (matches.length === 1) await visit(matches[0]!);
+      }
+    };
+    try {
+      await visit(candidates.get(root.id)!);
+      return resolveDependencyGraph(
+        [candidates.get(root.id)!],
+        [...candidates.values()],
+        installed,
+        accepted,
+      );
+    } catch (error) {
+      if (error instanceof UserError) throw error;
+      throw new UserError(
+        error instanceof Error ? error.message : String(error),
+        undefined,
+        undefined,
+        error instanceof DependencyGraphError
+          ? {
+              requirements: error.requirements,
+              unverifiedPrerequisites: error.requirements.every(canAcceptUnverified)
+                ? error.requirements
+                : undefined,
+            }
+          : undefined,
+      );
+    }
+  }
   async action(
     id: string,
     action: ModAction,
@@ -356,32 +419,17 @@ export class ModatroApplication {
         throw new UserError('This mod is not in the validated catalogue. Refresh and try again.');
       const existing = this.storage.state.installations.find((r) => r.modId === mod!.id);
       try {
-        if (mod.source?.provider === 'thunderstore') {
-          let graph: ModDefinition[];
-          try {
-            graph = resolveDependencyGraph(
-              [mod],
-              mods,
-              (await this.snapshot()).prerequisites,
-              acceptedUnverified,
-            );
-          } catch (error) {
-            throw new UserError(
-              error instanceof Error ? error.message : String(error),
-              undefined,
-              undefined,
-              error instanceof DependencyGraphError
-                ? {
-                    requirements: error.requirements,
-                    unverifiedPrerequisites: error.requirements.every(canAcceptUnverified)
-                      ? error.requirements
-                      : undefined,
-                  }
-                : undefined,
-            );
-          }
+        if (mod.source?.provider !== 'local') {
+          const target = mod;
+          const graph = await this.dependencyPlan(target, acceptedUnverified);
           await this.logger.log('dependencies.resolved', { ids: graph.map((entry) => entry.id) });
-          await this.installer.installMany(graph, confirmationToken, acceptedUnverified);
+          await this.installer.installMany(
+            graph,
+            confirmationToken,
+            acceptedUnverified,
+            false,
+            (staged) => this.dependencyPlan(target, acceptedUnverified, staged),
+          );
         } else {
           const archive = this.localArchives.get(mod.id);
           if (mod.source?.provider === 'local' && !archive)
@@ -442,13 +490,11 @@ export class ModatroApplication {
   async previewPlan(id: string) {
     const mod = this.allMods().find((entry) => entry.id === id);
     if (!mod) throw new UserError('This mod has no current catalogue definition.');
-    if (mod.source?.provider === 'thunderstore') {
-      const graph = resolveDependencyGraph(
-        [mod],
-        this.allMods(),
-        (await this.snapshot()).prerequisites,
+    if (mod.source?.provider !== 'local') {
+      const graph = await this.dependencyPlan(mod, []);
+      return this.installer.installMany(graph, undefined, [], true, (staged) =>
+        this.dependencyPlan(mod, [], staged),
       );
-      return this.installer.installMany(graph, undefined, [], true);
     }
     const plan = await this.installer.install(
       mod,

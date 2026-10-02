@@ -107,7 +107,10 @@ export class InstalledModsService {
         managed: true,
         folderName: record.folderName,
         canAdopt: false,
-        packageVersionUnknown: !!latest?.thunderstore && !record.packageVersion,
+        packageVersionUnknown:
+          !!latest?.thunderstore &&
+          !record.packageVersion &&
+          record.provenance?.provider !== 'github',
         deprecated: latest?.deprecated,
         problems,
         dependencies: record.dependencies,

@@ -5,7 +5,11 @@ import type {
   Prerequisite,
   UnverifiedPrerequisite,
 } from './model';
-import { blockingDependencies, evaluateDependency } from './dependencies';
+import {
+  blockingDependencies,
+  evaluateDependency,
+  externalLoaderRequirement,
+} from './dependencies';
 import { automationReason } from './trust';
 
 export function packageIdentity(mod: ModDefinition) {
@@ -22,9 +26,21 @@ export function projectedPrerequisites(
   installed: Prerequisite[],
 ): Prerequisite[] {
   const replaced = new Set(mods.map((mod) => packageIdentity(mod).toLowerCase()));
+  const replacedLoaders = new Set(
+    mods
+      .filter((mod) =>
+        externalLoaderRequirement({
+          id: mod.metadataId ?? mod.id,
+          packageId: mod.source?.provider === 'thunderstore' ? mod.source.externalId : undefined,
+        }),
+      )
+      .map((mod) => (mod.metadataId ?? mod.id).toLowerCase()),
+  );
   return [
-    ...installed.filter(
-      (entry) => !entry.packageId || !replaced.has(entry.packageId.toLowerCase()),
+    ...installed.filter((entry) =>
+      entry.packageId
+        ? !replaced.has(entry.packageId.toLowerCase())
+        : !replacedLoaders.has(entry.id.toLowerCase()),
     ),
     ...mods.map((mod) => ({
       id: mod.metadataId ?? mod.id,

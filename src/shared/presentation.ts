@@ -50,9 +50,28 @@ export function eligibility(mod: ModDefinition, snapshot: Snapshot): string | un
       /* Show the existing per-requirement guidance when a graph cannot be installed. */
     }
   }
-  return requirements(mod, snapshot).find(
+  const blocked = requirements(mod, snapshot).filter(
     (r) => r.required && r.state !== 'satisfied' && !canAcceptUnverified(r),
-  )?.reason;
+  );
+  if (
+    blocked.length &&
+    blocked.every((requirement) => {
+      if (!['missing', 'outdated'].includes(requirement.state)) return false;
+      const candidates = snapshot.catalogue.mods.filter((candidate) =>
+        requirement.packageId
+          ? candidate.source?.externalId.toLowerCase() === requirement.packageId.toLowerCase()
+          : (candidate.metadataId ?? candidate.id).toLowerCase() === requirement.id.toLowerCase(),
+      );
+      if (!candidates.length && requirement.id === 'Lovely' && !requirement.packageId)
+        return ['win32', 'linux', 'darwin'].includes(snapshot.platform);
+      return (
+        candidates.length === 1 &&
+        !automationReason(candidates[0]!, requirement.state === 'outdated')
+      );
+    })
+  )
+    return undefined;
+  return blocked[0]?.reason;
 }
 export function isNewer(installed?: string, latest?: string): boolean {
   return !!installed && !!latest && hasUpdate(installed, latest);
