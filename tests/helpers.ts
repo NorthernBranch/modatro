@@ -9,6 +9,21 @@ import { ModInstaller } from '../electron/services/installer';
 import { Logger, Storage } from '../electron/services/storage';
 import { TransactionEngine } from '../electron/services/transaction';
 import { ModSchema, type ModDefinition, type Prerequisite } from '../src/shared/model';
+import revocations from '../catalogue/revocations.json';
+import blocked from '../catalogue/blocked-releases.json';
+
+export function policyResponse(url: string): Response | undefined {
+  const base = 'https://raw.githubusercontent.com/NorthernBranch/modatro/main/catalogue';
+  const policy =
+    url === `${base}/revocations.json`
+      ? revocations
+      : url === `${base}/blocked-releases.json`
+        ? blocked
+        : undefined;
+  return policy
+    ? new Response(JSON.stringify(policy), { headers: { 'content-type': 'application/json' } })
+    : undefined;
+}
 export async function tempRoot() {
   return fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'modatro-test-')));
 }

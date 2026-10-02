@@ -17,7 +17,7 @@ import {
 import { ModatroCatalogueRepository } from './services/catalogue';
 import { GameDetectionService, LaunchService } from './services/detection';
 import { UserError } from './services/errors';
-import { contained, exists, readSmall, safeDestination } from './services/files';
+import { contained, readSmall, safeDestination } from './services/files';
 import { ModInstaller } from './services/installer';
 import { InstalledModsService } from './services/local-mods';
 import { remoteJson } from './services/network';
@@ -28,6 +28,7 @@ import { allowedDescription, automationReason } from '../src/shared/trust';
 import { DependencyGraphError, resolveDependencyGraph } from '../src/shared/dependency-graph';
 import { canAcceptUnverified } from '../src/shared/dependencies';
 import { LocalModSource } from './services/sources/mod-source';
+import { lovelyDistribution } from './services/lovely';
 
 export class ModatroApplication {
   readonly storage: Storage;
@@ -339,67 +340,21 @@ export class ModatroApplication {
       await this.installer.adopt(external.folderName, matches[0]);
     } else {
       let mod = mods.find((m) => m.id === id);
-      if (!mod && id === 'prerequisite:Lovely') {
-        const candidates = mods.filter((entry) => entry.installation.type === 'lovely-injector');
-        if (candidates.length === 1) mod = candidates[0];
-      }
-      if (!mod && id === 'prerequisite:Lovely' && ['win32', 'linux'].includes(process.platform)) {
-        if (
-          this.storage.state.settings.gamePath &&
-          (await exists(path.join(this.storage.state.settings.gamePath, 'version.dll')))
-        )
-          throw new UserError(
-            'An older Lovely version.dll may still be installed. Follow Lovely’s official upgrade instructions before using automatic installation.',
-          );
-        const release = z
-          .object({
-            tag_name: z.string(),
-            assets: z.array(
-              z.object({
-                name: z.string(),
-                browser_download_url: z.url(),
-                digest: z.string().nullable().optional(),
-              }),
-            ),
-          })
-          .parse(
-            await remoteJson(
-              'https://api.github.com/repos/ethangreen-dev/lovely-injector/releases/latest',
-            ),
-          );
-        const asset = release.assets.find((a) => a.name === 'lovely-x86_64-pc-windows-msvc.zip');
-        if (!asset)
-          throw new UserError(
-            'The official Windows Lovely asset could not be identified. Use the official instructions.',
-          );
-        mod = ModSchema.parse({
-          id: 'Lovely',
-          title: 'Lovely',
-          author: 'ethangreen-dev',
-          version: release.tag_name.replace(/^v/, ''),
-          categories: ['Technical'],
-          downloadUrl: asset.browser_download_url,
-          repositoryUrl: 'https://github.com/ethangreen-dev/lovely-injector',
-          approvalStatus: 'legacy-index',
-          releaseSource: {
-            sourceType: 'release-asset',
-            releaseTag: release.tag_name,
-            sha256: /^sha256:([a-f0-9]{64})$/.exec(asset.digest ?? '')?.[1],
-          },
-          prerequisites: [],
-          installation: {
-            type: 'lovely-injector',
-          },
-        });
+      if (id === 'prerequisite:Lovely') {
+        const candidates = mods.filter(
+          (entry) => entry.installation.type === 'lovely-injector' && entry.metadataId === 'Lovely',
+        );
+        if (candidates.length > 1)
+          throw new UserError('Multiple Lovely sources exist. Choose a specific source.');
+        mod = await lovelyDistribution(candidates[0]);
+        if (!mod.thunderstore) {
+          this.custom = [...this.custom.filter((entry) => entry.id !== mod!.id), mod];
+          await this.storage.write('data/custom-mods.json', this.custom);
+        }
       }
       if (!mod)
         throw new UserError('This mod is not in the validated catalogue. Refresh and try again.');
       const existing = this.storage.state.installations.find((r) => r.modId === mod!.id);
-      // Keep the known Lovely definition for subsequent updates and detail views.
-      if (id === 'prerequisite:Lovely' && !mod.thunderstore) {
-        this.custom = [...this.custom.filter((m) => m.id !== mod!.id), mod];
-        await this.storage.write('data/custom-mods.json', this.custom);
-      }
       try {
         if (mod.source?.provider === 'thunderstore') {
           let graph: ModDefinition[];

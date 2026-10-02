@@ -699,8 +699,8 @@ export function App() {
             {requirements(selected, snapshot).length ? (
               requirements(selected, snapshot).map((r) => (
                 <div className="requirement-row" key={`${r.id}:${r.versionConstraint}`}>
-                  <span className={`requirement-symbol ${r.state}`}>
-                    {r.state === 'satisfied' ? '✓' : r.state === 'unknown' ? '?' : '×'}
+                  <span className={`requirement-symbol ${r.state}`} title={r.reason}>
+                    {r.state === 'satisfied' || r.state === 'unknown' ? '✓' : '×'}
                   </span>
                   <div>
                     <strong>{r.displayName}</strong>
@@ -711,7 +711,7 @@ export function App() {
                   </div>
                   <div>
                     <strong>
-                      {r.state === 'satisfied'
+                      {r.state === 'satisfied' || r.state === 'unknown'
                         ? 'Installed'
                         : r.state === 'outdated'
                           ? 'Update required'
@@ -720,12 +720,16 @@ export function App() {
                             : 'Check version'}
                     </strong>
                     <span>
-                      {r.installedVersion ??
-                        (r.state === 'satisfied'
-                          ? 'Version unknown'
-                          : r.required
-                            ? 'Required'
-                            : 'Optional')}
+                      {r.state === 'unknown'
+                        ? r.packageId
+                          ? 'Package version unverified'
+                          : 'Version unverified'
+                        : (r.installedVersion ??
+                          (r.state === 'satisfied'
+                            ? 'Version unknown'
+                            : r.required
+                              ? 'Required'
+                              : 'Optional'))}
                     </span>
                   </div>
                   {r.state !== 'satisfied' && (
@@ -758,6 +762,11 @@ export function App() {
             </button>
           </section>
           <div className="detail-install">
+            {selected.thunderstore &&
+              selected.repositoryUrl &&
+              selected.metadataId !== 'Lovely' && (
+                <p className="muted-text">Downloads use the project’s GitHub manual archive.</p>
+              )}
             {selected.deprecated && (
               <p className="muted-text">Deprecated · Existing installations remain manageable.</p>
             )}

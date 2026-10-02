@@ -60,8 +60,8 @@ folders because their installation records refer to the existing locations.
 ## A prerequisite is missing or its version is unknown
 
 Open **Prerequisites**, follow the linked project instructions, and choose
-**Check prerequisites again**. On macOS, Lovely is installed manually using its
-official instructions.
+**Check prerequisites again**. Lovely offers **Install Lovely**, or **Manage Lovely**
+for an existing manual copy, using official platform-specific releases.
 
 Installed status and version compatibility are separate checks. If a mod requires a
 specific version and the local files do not prove it, Modatro asks you to check it.
@@ -105,10 +105,59 @@ explicitly uninstall a managed copy. A vanished repository is not evidence of ma
 
 ## Install is unavailable while offline
 
-Catalogue browsing shows the saved refresh time. Independent removal/release checks
-must succeed before new downloads and updates. Local uninstall and enable/disable
+Catalogue browsing shows the saved refresh time. Thunderstore and the public
+repository's removal/release feeds must be reachable for new downloads and updates.
+Bundled and saved restrictions remain in effect. Local uninstall and enable/disable
 remain available for managed files. Refresh when connected; an older saved catalogue
-cannot override a known restriction.
+cannot override a known restriction. No private-repository configuration is required.
+
+## Installed loaders show an unverified version
+
+Discover shows loader presence separately from version compatibility. An external
+Steamodded or Lovely installation can be detected without proving which Thunderstore
+package was installed. Canonical loader requirements use a known runtime version when
+the package version is unrecorded. Steamodded's beta build numbers and newer date-based
+versions are compared in their supported formats. Unknown runtime versions require the
+existing per-operation consent; missing or known incompatible requirements still block.
+
+Modatro verifies a managed Lovely version against the installed binary's recorded
+hash. A manual installation may remain unversioned. Lovely writes its reported version
+to `Mods/lovely/log` when Balatro starts; an old log does not prove the version of a
+DLL that has since been replaced.
+
+## GitHub downloads and manual installations
+
+When a Thunderstore listing links to a GitHub repository, Modatro prefers the author's
+GitHub manual mod archive. A uniquely named `-raw.zip` or `-manual.zip` asset takes
+precedence over bundled launcher ZIPs; ambiguous releases remain blocked. Projects
+without releases use a commit-pinned archive of their default branch. A failed GitHub
+request does not silently switch back to a Thunderstore installer.
+
+Registry discovery identity and restrictions remain intact, while installation
+provenance records the actual GitHub URL, release or commit and archive hash. GitHub
+downloads do not invent a Thunderstore package version. Archives still pass the
+existing metadata, prerequisite, conflict and file-plan checks. Developer scripts in
+`.github` and supported release-script files in `scripts` are excluded; external
+installers elsewhere in a mod remain unsupported.
+
+For managed GitHub copies, a verified runtime version can satisfy a requirement for
+the same recorded package identity. Saved dependencies from the installed archive are
+checked instead of borrowing the latest registry package's dependency tree. Unmanaged
+mods cannot satisfy another namespace's requirements by sharing a name.
+
+Lovely can be installed, updated and uninstalled on Windows, Linux with Proton,
+and Intel or Apple Silicon Macs. Game-file changes require a preview and confirmation.
+Existing files at the destination are backed up and restored on uninstall. Managed
+releases expose their verified version immediately. Legacy manual `version.dll` copies
+must follow the official upgrade instructions before installing `winmm.dll`; Modatro
+refuses to leave two injectors active. Steamodded's identity manifest is retained during installation so the
+Prerequisites page continues to recognize the loader; healthy older managed copies
+whose manifest was omitted are recognized from verified file ownership.
+
+Balatro version requirements use `version.jkr` read from its game-data archive,
+including the Windows fused executable and macOS `.love` file. The executable is
+never run to obtain its version. Invalid, oversized or ambiguous version data stays
+unknown; letter releases such as `1.0.1o` are compared explicitly.
 
 ## A release's archive hash changed
 

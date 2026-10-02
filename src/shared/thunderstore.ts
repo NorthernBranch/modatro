@@ -100,18 +100,21 @@ export function normalizeThunderstore(raw: unknown): ModDefinition | undefined {
   let repositoryUrl: string | undefined;
   try {
     const url = new URL(release.website_url);
+    const project = /^\/([\w.-]+)\/([\w.-]+)(?:\/|$)/.exec(url.pathname);
     if (
       url.protocol === 'https:' &&
       url.hostname === 'github.com' &&
-      /^\/[\w.-]+\/[\w.-]+\/?$/.test(url.pathname) &&
+      project &&
       !url.username &&
       !url.password &&
       !url.port
     )
-      repositoryUrl = url.href.replace(/\/$/, '');
+      repositoryUrl = `https://github.com/${project[1]}/${project[2]!.replace(/\.git$/, '')}`;
   } catch {
-    /* Website links are optional and cannot expand download permissions. */
+    /* Unrecognized website links remain informational. */
   }
+  if (steamodded) repositoryUrl = 'https://github.com/Steamodded/smods';
+  if (lovely) repositoryUrl = 'https://github.com/ethangreen-dev/lovely-injector';
   return ModSchema.parse({
     id: thunderstoreId(pkg.owner, pkg.name),
     title: lovely ? 'Lovely' : pkg.name.replaceAll('_', ' '),
@@ -150,16 +153,20 @@ export function normalizeThunderstore(raw: unknown): ModDefinition | undefined {
     // Registry publication is labelled separately from explicit Modatro author approval.
     releaseSource: { sourceType: 'registry', releaseTag: release.version_number },
     prerequisites: release.dependencies.map(thunderstoreDependency),
-    installation: release.installers?.length
-      ? {
-          type: 'unsupported',
-          instructions:
-            'This package declares an installer Modatro does not support. Open its source page for manual installation.',
-        }
-      : lovely
-        ? { type: 'lovely-injector' }
+    installation: lovely
+      ? { type: 'lovely-injector' }
+      : release.installers?.length && !repositoryUrl
+        ? {
+            type: 'unsupported',
+            instructions:
+              'This package declares an installer Modatro does not support. Open its source page for manual installation.',
+          }
         : { type: 'auto' },
-    support: release.installers?.length ? 'manual-install' : lovely ? 'dependency-only' : undefined,
+    support: lovely
+      ? 'dependency-only'
+      : release.installers?.length && !repositoryUrl
+        ? 'manual-install'
+        : undefined,
     thunderstore: {
       packageId: pkg.uuid4,
       versionId: release.uuid4,

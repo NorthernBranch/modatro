@@ -42,35 +42,52 @@ export function PrerequisiteAction({
   const status = evaluateDependency(requirement, snapshot.prerequisites);
   const busy = requests.isBusy('configuration');
   if (snapshot.preview) return null;
-  if (
-    requirement.id === 'Lovely' &&
-    mod?.source?.provider !== 'thunderstore' &&
-    ['win32', 'linux'].includes(snapshot.platform) &&
-    (!prerequisite?.installed ||
-      snapshot.localMods.some((mod) => mod.managed && mod.id === 'Lovely'))
-  )
-    return (
-      <AsyncButton
-        className="button button-primary"
-        pending={requests.isPending('mod-action')}
-        pendingLabel="Installing Lovely…"
-        disabled={
-          busy ||
-          !snapshot.validation?.valid ||
-          !!snapshot.safetyError ||
-          snapshot.trust?.fresh === false
-        }
-        onClick={() =>
-          requestAction(
-            'prerequisite:Lovely',
-            prerequisite?.installed ? 'update' : 'install',
-            'Lovely',
-          )
-        }
-      >
-        {prerequisite?.installed ? 'Update Lovely' : 'Install Lovely'}
-      </AsyncButton>
+  if (requirement.id.toLowerCase() === 'lovely' && externalLoaderRequirement(requirement)) {
+    const managed = snapshot.localMods.find(
+      (entry) => entry.managed && (entry.metadataId === 'Lovely' || entry.id === 'Lovely'),
     );
+    const update =
+      managed &&
+      (hasUpdate(prerequisite?.installedVersion ?? '', prerequisite?.latestVersion ?? '') ||
+        status.state === 'outdated');
+    const actionable =
+      ['win32', 'linux', 'darwin'].includes(snapshot.platform) && (!managed || update);
+    return (
+      <>
+        {actionable && (
+          <AsyncButton
+            className="button button-primary"
+            pending={requests.isPending('mod-action')}
+            pendingLabel="Preparing Lovely…"
+            disabled={
+              busy ||
+              !snapshot.validation?.valid ||
+              !!snapshot.safetyError ||
+              snapshot.trust?.fresh === false
+            }
+            onClick={() =>
+              requestAction('prerequisite:Lovely', managed ? 'update' : 'install', 'Lovely')
+            }
+          >
+            {managed
+              ? 'Update Lovely'
+              : prerequisite?.installed
+                ? 'Manage Lovely'
+                : 'Install Lovely'}
+          </AsyncButton>
+        )}
+        <AsyncButton
+          className="button button-secondary"
+          pending={requests.isPending('link:https://github.com/ethangreen-dev/lovely-injector')}
+          pendingLabel="Opening instructions…"
+          disabled={requests.isBusy('external-link')}
+          onClick={() => void openLink('https://github.com/ethangreen-dev/lovely-injector')}
+        >
+          Lovely instructions
+        </AsyncButton>
+      </>
+    );
+  }
   if (mod && !mod.unavailableReason && mod.installation.type !== 'unsupported') {
     const local = snapshot.localMods.find((entry) => entry.managed && entry.id === mod.id);
     const external = snapshot.localMods.filter(

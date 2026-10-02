@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mergeRequirements, parseLuaHeader, parseRequirement } from '../electron/services/metadata';
 import { cleanVersion, evaluateDependency, hasUpdate } from '../electron/services/versions';
+import { thunderstoreDependency } from '../src/shared/thunderstore';
 const requirement = { id: 'Steamodded', displayName: 'Steamodded', required: true };
 const installed = [
   {
@@ -97,4 +98,67 @@ it('requires Steamodded for a positive legacy loader header even when no depende
     { id: 'Steamodded', displayName: 'Steamodded', required: true },
   );
   expect(parseLuaHeader('print("--- STEAMODDED HEADER")')).toBeUndefined();
+});
+
+it('checks canonical Steamodded registry requirements against a detected runtime version', () => {
+  const requested = thunderstoreDependency('Steamodded-Steamodded-1.1620.0');
+  for (const version of ['26.829.0', '26.927.0~dev-a', '1.0.0~BETA-1620a', '1.0.0~BETA-1814a']) {
+    const runtime = [{ ...installed[0]!, installedVersion: version }];
+    expect(evaluateDependency(requested, runtime)).toMatchObject({
+      state: 'satisfied',
+      installedVersion: version,
+    });
+    expect(runtime[0]).not.toHaveProperty('packageVersion');
+  }
+  expect(
+    evaluateDependency(requested, [{ ...installed[0]!, installedVersion: '1.0.0~BETA-1619a' }])
+      .state,
+  ).toBe('outdated');
+  expect(
+    evaluateDependency(requested, [{ ...installed[0]!, installedVersion: undefined }]).state,
+  ).toBe('unknown');
+  expect(
+    evaluateDependency(thunderstoreDependency('Impostor-Steamodded-1.1620.0'), installed).state,
+  ).toBe('missing');
+  expect(
+    evaluateDependency(thunderstoreDependency('AnotherTeam-Steamodded-1.1620.0'), [
+      { ...installed[0]!, packageId: 'thunderstore/AnotherTeam-Steamodded' },
+    ]).state,
+  ).toBe('unknown');
+});
+
+it('compares Steamodded beta requirements from manual archives using their build numbers', () => {
+  const requested = parseRequirement('Steamodded (>=1.0.0~BETA-1620a)');
+  for (const [version, state] of [
+    ['1.0.0~BETA-1619a', 'outdated'],
+    ['1.0.0~BETA-1620a', 'satisfied'],
+    ['1.0.0~BETA-1814a', 'satisfied'],
+    ['26.829.0', 'satisfied'],
+  ]) {
+    expect(
+      evaluateDependency(requested, [{ ...installed[0]!, installedVersion: version }]).state,
+    ).toBe(state);
+  }
+});
+
+it('compares Balatro letter releases without accepting an older patch or inventing a version', () => {
+  const requested = parseRequirement('Balatro (>=1.0.1o)');
+  for (const [version, state] of [
+    ['1.0.1n', 'outdated'],
+    ['1.0.1o', 'satisfied'],
+    ['1.0.1p', 'satisfied'],
+    ['1.0.2', 'satisfied'],
+    ['unknown', 'unknown'],
+  ])
+    expect(
+      evaluateDependency(requested, [
+        {
+          id: 'Balatro',
+          displayName: 'Balatro',
+          installed: true,
+          installedVersion: version,
+          sourceUrl: 'https://www.playbalatro.com',
+        },
+      ]).state,
+    ).toBe(state);
 });

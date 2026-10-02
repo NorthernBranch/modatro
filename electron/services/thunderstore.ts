@@ -4,7 +4,7 @@ import { readSmall, safeDestination } from './files';
 import { UserError } from './errors';
 
 export async function validateThunderstoreArchive(mod: ModDefinition, staging: string) {
-  if (!mod.thunderstore) return;
+  if (!mod.thunderstore || mod.downloadProvider === 'github') return;
   const manifest = ThunderstoreManifestSchema.parse(
     JSON.parse(await readSmall(await safeDestination(staging, 'manifest.json'))),
   );

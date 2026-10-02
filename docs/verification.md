@@ -103,7 +103,8 @@ alternatives and unsupported archive formats block automatic installation with a
 explanation. See the upstream [Steamodded metadata specification](https://docs.smods.dev/API%20Documentation/Mod-Metadata/)
 for its full version and dependency language.
 
-Lovely installation on macOS is manual. Modatro launches the validated native game
+Lovely installation on macOS selects the official Intel or Apple Silicon archive,
+extracts only regular supported files, and manages the library beside Balatro.app. Modatro launches the validated native game
 with Lovely's library using the environment and working-directory approach in the
 [official launcher](https://github.com/ethangreen-dev/lovely-injector/blob/master/crates/lovely-unix/run_lovely_macos.sh),
 without executing a downloaded script. A startup grace period catches immediate

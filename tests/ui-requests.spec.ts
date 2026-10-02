@@ -240,6 +240,57 @@ test('unverified loaders allow installation only after explicit risk consent', a
   await page.evaluate(() => window.requestsTest.finish('action'));
 });
 
+test('Discover verifies known Steamodded runtimes and keeps unknown Lovely versions explicit', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.trust = { fresh: true };
+  state.prerequisites[0]!.installed = true;
+  state.prerequisites.push({
+    id: 'Steamodded',
+    displayName: 'Steamodded',
+    installed: true,
+    installedVersion: '26.829.0',
+    sourceUrl: 'https://github.com/Steamodded/smods',
+  });
+  state.catalogue.mods[0]!.prerequisites = [
+    {
+      id: 'Lovely',
+      displayName: 'Lovely',
+      required: true,
+      versionConstraint: '>=0.9.0',
+      packageId: 'thunderstore/Thunderstore-lovely',
+    },
+    {
+      id: 'Steamodded',
+      displayName: 'Steamodded',
+      required: true,
+      versionConstraint: '>=1.1620.0',
+      packageId: 'thunderstore/Steamodded-Steamodded',
+    },
+  ];
+  await mockDesktop(page, state, { action: 'hold' });
+  await page.getByRole('button', { name: 'Details for Fixture mod' }).click();
+  const rows = page.locator('.requirement-row');
+  await expect(rows).toHaveCount(2);
+  for (const id of ['Lovely', 'Steamodded']) {
+    const row = rows.filter({ has: page.getByText(id, { exact: true }) });
+    await expect(row.getByText('Installed', { exact: true })).toBeVisible();
+    await expect(row.locator('.requirement-symbol')).toHaveText('✓');
+    if (id === 'Lovely') {
+      await expect(row).toContainText('Package version unverified');
+      await expect(row.locator('.requirement-symbol')).toHaveClass(/unknown/);
+    } else {
+      await expect(row).toContainText('26.829.0');
+      await expect(row.locator('.requirement-symbol')).toHaveClass(/satisfied/);
+      await expect(row).not.toContainText('unverified');
+    }
+  }
+  await expect(page.getByRole('dialog')).not.toContainText(
+    'Removal and release checks could not finish',
+  );
+});
+
 test('enabling an unverified mod can be cancelled without changing its state', async ({ page }) => {
   const state = fixture();
   state.localMods = [
@@ -280,6 +331,63 @@ test('enabling an unverified mod can be cancelled without changing its state', a
   expect(await page.evaluate(() => window.requestsTest.actions.length)).toBe(1);
   await expect(page.getByRole('button', { name: 'Enable', exact: true })).toBeEnabled();
 });
+
+for (const platform of ['win32', 'linux', 'darwin']) {
+  test(`Lovely installation is offered on ${platform}`, async ({ page }) => {
+    const state = fixture();
+    state.platform = platform;
+    state.catalogue.mods.push({
+      ...state.catalogue.mods[0]!,
+      id: 'Lovely',
+      title: 'Lovely',
+      metadataId: 'Lovely',
+      installation: { type: 'lovely-injector' },
+      repositoryUrl: 'https://github.com/ethangreen-dev/lovely-injector',
+    });
+    await mockDesktop(page, state);
+    await page.getByRole('button', { name: 'Details for Lovely' }).click();
+    await expect(page.getByRole('dialog').getByRole('button', { name: /^Install$/ })).toBeVisible();
+    await page.getByRole('button', { name: 'Close dialog' }).click();
+    await page.getByRole('button', { name: 'Prerequisites', exact: true }).click();
+    await page.getByRole('button', { name: 'Install Lovely' }).click();
+    expect(await page.evaluate(() => window.requestsTest.actions)).toMatchObject([
+      { id: 'prerequisite:Lovely', action: 'install' },
+    ]);
+    await page.getByRole('button', { name: 'Lovely instructions' }).click();
+    expect(await page.evaluate(() => window.requestsTest.calls.openLink)).toBe(1);
+  });
+}
+
+for (const managed of [false, true]) {
+  test(`Lovely offers ${managed ? 'Update' : 'Manage'} for an installed copy`, async ({ page }) => {
+    const state = fixture();
+    state.prerequisites[0] = {
+      ...state.prerequisites[0]!,
+      installed: true,
+      installedVersion: managed ? '0.9.0' : undefined,
+      latestVersion: '0.10.0',
+    };
+    if (managed)
+      state.localMods.push({
+        id: 'Lovely',
+        metadataId: 'Lovely',
+        title: 'Lovely',
+        version: '0.9.0',
+        managed: true,
+        state: 'installed',
+        folderName: 'Lovely',
+        canAdopt: false,
+        problems: [],
+      });
+    await mockDesktop(page, state, { action: 'hold' });
+    await page.getByRole('button', { name: 'Prerequisites', exact: true }).click();
+    await page.getByRole('button', { name: `${managed ? 'Update' : 'Manage'} Lovely` }).click();
+    expect(await page.evaluate(() => window.requestsTest.actions)).toMatchObject([
+      { id: 'prerequisite:Lovely', action: managed ? 'update' : 'install' },
+    ]);
+    await expect(page.getByRole('button', { name: 'Preparing Lovely…' })).toBeDisabled();
+  });
+}
 
 test('automatic discovery shows progress, prevents duplicate clicks and explains no results', async ({
   page,
@@ -940,7 +1048,7 @@ test('uninstall reports the precise preserved files and cleanup problems', async
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
-test('archive-discovered Lovely requirements open the Windows replacement confirmation', async ({
+test('archive-discovered Lovely requirements offer installation and prevent duplicate requests', async ({
   page,
 }) => {
   const state = fixture();
@@ -964,32 +1072,17 @@ test('archive-discovered Lovely requirements open the Windows replacement confir
       },
     }),
   );
-  await page.getByRole('dialog').getByRole('button', { name: 'Install Lovely' }).click();
-  await page.evaluate(() =>
-    window.requestsTest.finish('action', {
-      ok: false,
-      error: {
-        message: 'Review changes',
-        confirmation: {
-          token: 'confirmation-token',
-          plan: {
-            modId: 'Lovely',
-            version: '0.9.2',
-            create: [{ root: 'game', path: 'winmm.dll' }],
-            replace: [],
-            remove: [],
-            prerequisites: [],
-            conflicts: [],
-          },
-        },
-      },
-    }),
-  );
-  await expect(page.getByRole('dialog')).toHaveCount(1);
-  await expect(
-    page.getByRole('dialog').getByRole('button', { name: 'Back up & install' }),
-  ).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Install Lovely' })
+    .evaluate((button: HTMLButtonElement) => {
+      button.click();
+      button.click();
+    });
   expect(await page.evaluate(() => window.requestsTest.calls.action)).toBe(2);
+  expect(await page.evaluate(() => window.requestsTest.actions[1])).toMatchObject({
+    id: 'prerequisite:Lovely',
+    action: 'install',
+  });
 });
 
 test('author removal hides new installs and preserves local uninstall controls', async ({

@@ -42,7 +42,12 @@ export class StandardModStrategy implements InstallationStrategy {
       !(await exists(path.join(root, 'lovely')))
     )
       throw new UserError('The specified mod folder could not be identified.');
-    const files = await walkFiles(root);
+    const files = (await walkFiles(root)).filter(
+      (file) =>
+        !file.startsWith('.git/') &&
+        !file.startsWith('.github/') &&
+        !(mod.downloadProvider === 'github' && /^scripts\/.*\.(?:sh|ps1|bat|cmd)$/i.test(file)),
+    );
     if (
       files.some(
         (file) =>
@@ -63,7 +68,8 @@ export class StandardModStrategy implements InstallationStrategy {
           !(
             mod.source?.provider === 'thunderstore' &&
             root === staging &&
-            /^(manifest\.json|readme\.md|icon\.png|changelog\.md)$/i.test(f)
+            /^(manifest\.json|readme\.md|icon\.png|changelog\.md)$/i.test(f) &&
+            !(f.toLowerCase() === 'manifest.json' && metadata.id === 'Steamodded')
           ) &&
           !f.startsWith('.git/') &&
           !f.startsWith('.github/') &&
@@ -78,20 +84,21 @@ export class StandardModStrategy implements InstallationStrategy {
   }
 }
 export class LovelyInstaller implements InstallationStrategy {
+  constructor(private platform = process.platform) {}
   canHandle({ mod }: InstallContext) {
     return mod.installation.type === 'lovely-injector';
   }
   async plan({ staging }: InstallContext): Promise<StrategyFile[]> {
     const files = await walkFiles(staging);
     const libraries = files.filter((file) =>
-      process.platform === 'darwin' ? /\.dylib$/i.test(file) : /\.dll$/i.test(file),
+      this.platform === 'darwin' ? /\.dylib$/i.test(file) : /\.dll$/i.test(file),
     );
     const library = libraries[0];
     const destination = library && path.posix.basename(library);
     if (
       libraries.length !== 1 ||
       !destination ||
-      !(process.platform === 'darwin' ? /^liblovely\.dylib$/i : /^(winmm|version)\.dll$/i).test(
+      !(this.platform === 'darwin' ? /^liblovely\.dylib$/i : /^(winmm|version)\.dll$/i).test(
         destination,
       ) ||
       files.some(
@@ -101,7 +108,13 @@ export class LovelyInstaller implements InstallationStrategy {
             path.posix.basename(file),
           ),
       ) ||
-      !(await inspectLovelyLibrary(await safeDestination(staging, library!))).identified
+      !(
+        await inspectLovelyLibrary(
+          await safeDestination(staging, library!),
+          undefined,
+          this.platform,
+        )
+      ).identified
     )
       throw new UserError(
         'Automatic installation for this version of Lovely is not yet supported. Open the official instructions.',

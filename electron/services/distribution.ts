@@ -7,6 +7,7 @@ import { dependencyId } from './metadata';
 import { UserError } from './errors';
 import { remoteJson, validateRemoteUrl } from './network';
 import { thunderstoreDownload } from '../../src/shared/thunderstore';
+import { lovelyDistribution } from './lovely';
 
 export function repositoryPath(url?: string): string | undefined {
   if (!url) return undefined;
@@ -16,7 +17,7 @@ export function repositoryPath(url?: string): string | undefined {
     : undefined;
 }
 export function validateDistribution(mod: ModDefinition) {
-  if (mod.thunderstore) {
+  if (mod.thunderstore && mod.downloadProvider !== 'github') {
     const registry = mod.thunderstore;
     validateRemoteUrl(mod.downloadUrl, 'thunderstore');
     if (
@@ -141,9 +142,14 @@ export async function readLatestGitHubRelease(
   const assetName = entry.githubRelease.assetName
     ?.replaceAll('{version}', release.tag_name.replace(/^v(?=\d)/, ''))
     .replaceAll('{tag}', release.tag_name);
-  const assets = release.assets.filter((asset) =>
-    assetName ? asset.name === assetName : /\.zip$/i.test(asset.name),
+  let assets = release.assets.filter((asset) =>
+    assetName
+      ? asset.name === assetName
+      : /\.zip$/i.test(asset.name) && !/(?:installer|launcher|setup)/i.test(asset.name),
   );
+  // Authors may publish both a bundled launcher and a raw manual mod archive.
+  const manual = assets.filter((asset) => /(?:^|[-_])(?:raw|manual)\.zip$/i.test(asset.name));
+  if (!assetName && manual.length === 1) assets = manual;
   if ((entry.githubRelease.assetName && assets.length !== 1) || assets.length > 1)
     throw new UserError(
       'The release has no unambiguous mod archive. Register its asset filename or follow the author’s instructions.',
@@ -172,6 +178,44 @@ export async function resolveDistribution(
   entry: ModDefinition,
   json = remoteJson,
 ): Promise<ModDefinition> {
+  if (entry.installation.type === 'lovely-injector' && entry.downloadProvider !== 'github')
+    return lovelyDistribution(entry, process.platform, process.arch, json);
+  if (entry.thunderstore && entry.repositoryUrl && entry.downloadProvider !== 'github') {
+    const repo = repositoryPath(entry.repositoryUrl);
+    if (!repo) throw new UserError('The upstream repository is not a supported GitHub project.');
+    const upstream = ModSchema.parse({
+      ...entry,
+      downloadProvider: 'github',
+      githubRelease: entry.githubRelease ?? {},
+      releaseSource: undefined,
+      installer: undefined,
+    });
+    try {
+      return await readLatestGitHubRelease(upstream, json);
+    } catch (error) {
+      if (!(error instanceof UserError && error.statusCode === 404)) throw error;
+    }
+    // Projects without releases still have an author-controlled manual source.
+    // Pin its default branch to one commit before downloading.
+    const repository = z
+      .object({ default_branch: z.string().min(1).max(200) })
+      .parse(await json(`https://api.github.com/repos/${repo}`));
+    const commit = z
+      .object({ sha: z.string().regex(/^[a-f0-9]{40}$/) })
+      .parse(
+        await json(
+          `https://api.github.com/repos/${repo}/commits/${encodeURIComponent(repository.default_branch)}`,
+        ),
+      );
+    const pinned = ModSchema.parse({
+      ...upstream,
+      githubRelease: undefined,
+      downloadUrl: `https://github.com/${repo}/archive/${commit.sha}.zip`,
+      releaseSource: { sourceType: 'commit', commitSha: commit.sha },
+    });
+    validateDistribution(pinned);
+    return pinned;
+  }
   let mod = await readLatestGitHubRelease(await readAuthorManifest(entry, json), json);
   validateDistribution(mod);
   const type = mod.releaseSource?.sourceType ?? sourceType(mod.downloadUrl);

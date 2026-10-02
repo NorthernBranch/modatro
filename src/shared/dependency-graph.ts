@@ -30,10 +30,25 @@ export function projectedPrerequisites(
       id: mod.metadataId ?? mod.id,
       displayName: mod.title,
       installed: true,
-      installedVersion: mod.source?.provider === 'thunderstore' ? undefined : mod.version,
+      installedVersion:
+        mod.source?.provider === 'thunderstore' && mod.downloadProvider !== 'github'
+          ? undefined
+          : mod.version,
       packageId: mod.source?.externalId,
-      packageVersion: mod.source?.provider === 'thunderstore' ? mod.version : undefined,
+      packageVersion:
+        mod.source?.provider === 'thunderstore' && mod.downloadProvider !== 'github'
+          ? (mod.thunderstore?.packageVersion ?? mod.version)
+          : undefined,
       sourceUrl: mod.source?.url ?? mod.downloadUrl,
+      provenance:
+        mod.downloadProvider === 'github'
+          ? {
+              sourceType: mod.releaseSource?.sourceType ?? 'other',
+              provider: 'github',
+              repositoryUrl: mod.repositoryUrl,
+            }
+          : undefined,
+      dependencies: mod.downloadProvider === 'github' ? mod.prerequisites : undefined,
     })),
   ];
 }
@@ -63,6 +78,20 @@ export function resolveDependencyGraph(
       const observed = installed.find(
         (entry) => entry.packageId === requirement.packageId,
       )?.packageVersion;
+      // Presence or explicit consent for an external loader does not identify
+      // its package release. Do not substitute the latest release's dependency tree.
+      if (requirement.packageId && !observed) {
+        const upstream = installed.find(
+          (entry) => entry.packageId?.toLowerCase() === requirement.packageId!.toLowerCase(),
+        );
+        return candidate && upstream?.provenance?.provider === 'github' && upstream.dependencies
+          ? {
+              ...candidate,
+              version: upstream.installedVersion ?? candidate.version,
+              prerequisites: upstream.dependencies,
+            }
+          : undefined;
+      }
       const version = candidate?.versions?.find((entry) => entry.version === observed);
       return candidate
         ? {

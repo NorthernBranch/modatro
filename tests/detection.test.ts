@@ -3,7 +3,8 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { GameDetectionService, steamLibraries } from '../electron/services/detection';
 import { exists, safeDestination } from '../electron/services/files';
-import { fakeGame, put, tempRoot } from './helpers';
+import { fakeGame, put, tempRoot, zip } from './helpers';
+import { readGameVersion } from '../electron/services/game-version';
 const roots: string[] = [];
 async function root() {
   const p = await tempRoot();
@@ -14,6 +15,40 @@ afterEach(async () => {
   for (const p of roots.splice(0)) await fs.rm(p, { recursive: true, force: true });
 });
 describe('Balatro path validation', () => {
+  it('reads the game version from a fused executable without running or extracting it', async () => {
+    const r = await root(),
+      game = await fakeGame(r);
+    const executable = path.join(game, 'Balatro.exe');
+    await fs.writeFile(
+      executable,
+      Buffer.concat([
+        await fs.readFile(executable),
+        zip([{ name: 'version.jkr', data: '1.0.1o-FULL\n' }]),
+      ]),
+    );
+    expect(await new GameDetectionService('win32', r).validate(game)).toMatchObject({
+      valid: true,
+      detectedVersion: '1.0.1o',
+    });
+    await fs.writeFile(
+      executable,
+      Buffer.concat([
+        Buffer.from('MZ'),
+        zip([{ name: 'version.jkr', data: '1.0.1o-FULL', badCrc: true }]),
+      ]),
+    );
+    expect(await readGameVersion(executable)).toBeUndefined();
+    await fs.writeFile(executable, zip([{ name: 'version.jkr', data: 'x'.repeat(4097) }]));
+    expect(await readGameVersion(executable)).toBeUndefined();
+    await fs.writeFile(
+      executable,
+      zip([
+        { name: 'version.jkr', data: '1.0.1o-FULL' },
+        { name: 'version.jkr', data: '99.0.0-FULL' },
+      ]),
+    );
+    expect(await readGameVersion(executable)).toBeUndefined();
+  });
   it('accepts a Windows fixture with executable evidence and support files', async () => {
     const r = await root(),
       game = await fakeGame(r);
@@ -43,13 +78,18 @@ describe('Balatro path validation', () => {
       path.join(app, 'Contents', 'Info.plist'),
       '<key>CFBundleName</key><string>Balatro</string>',
     );
-    await put(path.join(app, 'Contents', 'Resources', 'Balatro.love'));
+    await fs.mkdir(path.join(app, 'Contents', 'Resources'), { recursive: true });
+    await fs.writeFile(
+      path.join(app, 'Contents', 'Resources', 'Balatro.love'),
+      zip([{ name: 'version.jkr', data: '1.0.1o-FULL' }]),
+    );
     await fs.mkdir(path.join(app, 'Contents', 'MacOS'), { recursive: true });
     await fs.writeFile(path.join(app, 'Contents', 'MacOS', 'love'), Buffer.from('cffaedfe', 'hex'));
     expect(await new GameDetectionService('darwin', r).validate(app)).toMatchObject({
       valid: true,
       canonicalPath: game,
       detectedPlatform: 'macos',
+      detectedVersion: '1.0.1o',
     });
   });
   it('rejects an installation from the wrong platform', async () => {

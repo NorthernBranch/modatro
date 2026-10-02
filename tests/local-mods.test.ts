@@ -148,3 +148,51 @@ it('does not reuse a managed Lovely version when its actual binary was changed o
   });
   expect(scan.mods.find((m) => m.id === 'Lovely')?.state).toBe('broken');
 });
+
+it('keeps Steamodded visible after installing a registry archive without a loader header', async () => {
+  const f = await fixture();
+  f.prerequisites.push({
+    id: 'Lovely',
+    displayName: 'Lovely',
+    installed: true,
+    sourceUrl: 'https://github.com/ethangreen-dev/lovely-injector',
+  });
+  const source = normalizeThunderstore(
+    thunderstorePackage({ namespace: 'Steamodded', name: 'Steamodded', version: '26.829.0' }),
+  )!;
+  await put(
+    path.join(f.stage, 'manifest.json'),
+    JSON.stringify({ name: 'Steamodded', version_number: '26.829.0', dependencies: [] }),
+  );
+  await put(path.join(f.stage, 'version.lua'), 'return "26.829.0"');
+  await put(path.join(f.stage, 'lovely', 'init.toml'), '[manifest]\nversion = "1.0.0"');
+  const prepared = await f.installer.plan(source, f.stage);
+  prepared.provenance = {
+    sourceType: 'registry',
+    provider: 'thunderstore',
+    packageId: source.thunderstore!.packageId,
+    namespace: 'Steamodded',
+    packageName: 'Steamodded',
+    packageVersion: '26.829.0',
+  };
+  await f.installer.commitPrepared(prepared);
+  const service = new InstalledModsService(f.storage, f.logger);
+  expect(
+    (await service.scan([source])).prerequisites.find((p) => p.id === 'Steamodded'),
+  ).toMatchObject({ installed: true, installedVersion: '26.829.0', packageVersion: '26.829.0' });
+  // Simulate a healthy installation made by the previous manifest-dropping build.
+  const record = f.storage.state.installations[0]!;
+  const manifest = record.files.find((file) => file.path.endsWith('/manifest.json'))!;
+  await fs.rm(path.join(f.mods, manifest.path));
+  await f.storage.save({
+    ...f.storage.state,
+    installations: [{ ...record, files: record.files.filter((file) => file !== manifest) }],
+  });
+  expect(
+    (await service.scan([source])).prerequisites.find((p) => p.id === 'Steamodded'),
+  ).toMatchObject({ installed: true, installedVersion: '26.829.0' });
+  await put(path.join(f.mods, record.folderName, 'version.lua'), 'return "99.0.0"');
+  expect(
+    (await service.scan([source])).prerequisites.find((p) => p.id === 'Steamodded')?.installed,
+  ).toBe(false);
+});

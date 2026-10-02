@@ -41,7 +41,11 @@ import { Logger, Storage } from './storage';
 import { selectStrategy } from './strategies';
 import { TransactionEngine, type Change, type TransactionJournal } from './transaction';
 import { evaluateDependencies } from './versions';
-import { blockingDependencies, canAcceptUnverified } from '../../src/shared/dependencies';
+import {
+  blockingDependencies,
+  canAcceptUnverified,
+  externalLoaderRequirement,
+} from '../../src/shared/dependencies';
 import { automationReason, defaultFolder } from '../../src/shared/trust';
 import { ArtifactHistory } from './artifacts';
 import { resolveDistribution, validateDistribution } from './distribution';
@@ -50,6 +54,7 @@ import { thunderstoreId } from '../../src/shared/thunderstore';
 import { AuthorManifestSchema } from '../../src/shared/catalogue-schema';
 import { projectedPrerequisites } from '../../src/shared/dependency-graph';
 import { inspectLovelyLibrary } from './lovely';
+import { extractLovelyTar } from './lovely-archive';
 
 export interface PreparedInstallation {
   plan: InstallPlan;
@@ -167,7 +172,7 @@ export class ModInstaller {
               mod.downloadUrl,
               abort.signal,
               (percent) => this.progress({ modId: mod.id, phase: 'downloading', percent }),
-              mod.thunderstore ? 'thunderstore' : 'github',
+              mod.thunderstore && mod.downloadProvider !== 'github' ? 'thunderstore' : 'github',
             );
         if (localArchive) await atomicCopy(localArchive, download);
         const provenance: InstallationSource = localArchive
@@ -190,6 +195,11 @@ export class ModInstaller {
         this.progress({ modId: mod.id, phase: 'validating' });
         const directFile = !localArchive && new URL(mod.downloadUrl).pathname.endsWith('.lua');
         if (directFile) await atomicCopy(download, path.join(stage, 'mod.lua'));
+        else if (
+          mod.installation.type === 'lovely-injector' &&
+          new URL(mod.downloadUrl).pathname.endsWith('.tar.gz')
+        )
+          await extractLovelyTar(download, stage, abort.signal);
         else await new ArchiveService().extract(download, stage, abort.signal);
         await validateThunderstoreArchive(mod, stage);
         abort.signal.throwIfAborted();
@@ -587,7 +597,10 @@ export class ModInstaller {
       folderName: prepared.folderName,
       transactionId: journal.id,
       metadataId: prepared.metadataId ?? prepared.previous?.metadataId,
-      packageVersion: prepared.mod.thunderstore?.packageVersion,
+      packageVersion:
+        prepared.mod.downloadProvider === 'github'
+          ? undefined
+          : prepared.mod.thunderstore?.packageVersion,
       disabled: false,
       automaticallyInstalled: prepared.previous?.automaticallyInstalled ?? automaticallyInstalled,
       files: destinations.map((file) => {
@@ -625,12 +638,13 @@ export class ModInstaller {
       this.abort = abort;
       try {
         for (const [index, input] of inputs.entries()) {
-          const mod = ModSchema.parse(input);
+          let mod = ModSchema.parse(input);
           const previous = this.storage.state.installations.find(
             (record) => record.modId === mod.id,
           );
           if (previous?.disabled) throw new UserError(`Enable ${mod.title} before updating it.`);
           await this.verifyTrust?.(mod, !!previous);
+          if (this.verifyTrust) mod = await resolveDistribution(mod);
           validateDistribution(mod);
           const reason = automationReason(mod, !!previous);
           if (reason) throw new UserError(reason);
@@ -642,7 +656,7 @@ export class ModInstaller {
             mod.downloadUrl,
             abort.signal,
             (percent) => this.progress({ modId: mod.id, phase: 'downloading', percent }),
-            mod.thunderstore ? 'thunderstore' : 'github',
+            mod.thunderstore && mod.downloadProvider !== 'github' ? 'thunderstore' : 'github',
           );
           try {
             const provenance = await new ArtifactHistory(this.storage, this.logger).verify(
@@ -650,7 +664,12 @@ export class ModInstaller {
               await hashFile(download),
             );
             provenance.finalUrl = downloader.finalUrl ?? mod.downloadUrl;
-            await new ArchiveService().extract(download, stage, abort.signal);
+            if (
+              mod.installation.type === 'lovely-injector' &&
+              new URL(mod.downloadUrl).pathname.endsWith('.tar.gz')
+            )
+              await extractLovelyTar(download, stage, abort.signal);
+            else await new ArchiveService().extract(download, stage, abort.signal);
             await validateThunderstoreArchive(mod, stage);
             this.progress({ modId: mod.id, phase: 'planning' });
             const item = await this.plan(mod, stage);
@@ -661,7 +680,8 @@ export class ModInstaller {
           }
           abort.signal.throwIfAborted();
         }
-        const future = projectedPrerequisites(inputs, await this.getPrerequisites());
+        const resolved = prepared.map((item) => item.mod);
+        const future = projectedPrerequisites(resolved, await this.getPrerequisites());
         // Runtime requirements discovered in downloaded metadata use the actual
         // loader version, while registry requirements use package versions.
         for (const item of prepared)
@@ -702,7 +722,10 @@ export class ModInstaller {
           packages: prepared.map((item) => ({
             id: item.mod.id,
             title: item.mod.title,
-            version: item.mod.thunderstore?.packageVersion ?? item.mod.version,
+            version:
+              item.mod.downloadProvider === 'github'
+                ? item.mod.version
+                : (item.mod.thunderstore?.packageVersion ?? item.mod.version),
             update: !!item.previous,
           })),
         });
@@ -730,7 +753,7 @@ export class ModInstaller {
         for (const item of prepared) await this.verifyTrust?.(item.mod, !!item.previous);
         // Refresh physical prerequisite evidence just before committing. Planned
         // packages are projected, never written early to satisfy another plan.
-        const rechecked = projectedPrerequisites(inputs, await this.getPrerequisites());
+        const rechecked = projectedPrerequisites(resolved, await this.getPrerequisites());
         for (const item of prepared)
           rechecked.unshift({
             id: item.metadataId ?? item.mod.id,
@@ -787,6 +810,9 @@ export class ModInstaller {
         record.modId,
         record.modId.split('@').pop(),
         registry ? thunderstoreId(registry[1]!, registry[2]!) : undefined,
+        record.provenance?.namespace && record.provenance.packageName
+          ? thunderstoreId(record.provenance.namespace, record.provenance.packageName)
+          : undefined,
       ]
         .filter((id): id is string => !!id)
         .map((id) => dependencyId(id).toLowerCase()),
@@ -799,7 +825,8 @@ export class ModInstaller {
           (d) =>
             d.required &&
             (d.packageId
-              ? identities.has(d.packageId.toLowerCase())
+              ? identities.has(d.packageId.toLowerCase()) ||
+                (externalLoaderRequirement(d) && identities.has(d.id.toLowerCase()))
               : identities.has(dependencyId(d.id).toLowerCase())),
         ),
     );
@@ -829,7 +856,8 @@ export class ModInstaller {
               (d) =>
                 d.required &&
                 (d.packageId
-                  ? identities.has(d.packageId.toLowerCase())
+                  ? identities.has(d.packageId.toLowerCase()) ||
+                    (externalLoaderRequirement(d) && identities.has(d.id.toLowerCase()))
                   : identities.has(dependencyId(d.id).toLowerCase())),
             )
           )

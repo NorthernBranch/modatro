@@ -20,12 +20,19 @@ import { mod, put, setup, zip } from './helpers';
 const roots: string[] = [];
 afterEach(async () => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   for (const root of roots.splice(0)) await fs.rm(root, { recursive: true, force: true });
 });
 async function fixture() {
   const f = await setup();
   roots.push(f.root);
   return f;
+}
+function remoteTrust(
+  f: Awaited<ReturnType<typeof fixture>>,
+  json: (url: string) => Promise<unknown>,
+) {
+  return new CatalogueTrust(f.storage, f.logger, json);
 }
 const revocations = {
   schemaVersion: 1,
@@ -55,7 +62,7 @@ it('applies an author removal to stale catalogue data and keeps installed files 
   const f = await fixture();
   await put(path.join(f.stage, 'main.lua'), 'local mod');
   await f.installer.commitPrepared(await f.installer.plan(mod(), f.stage));
-  const trust = new CatalogueTrust(f.storage, f.logger, async (url) =>
+  const trust = remoteTrust(f, async (url) =>
     url.endsWith('/revocations.json') ? revocations : empty,
   );
   await trust.refresh();
@@ -77,9 +84,9 @@ it('applies an author removal to stale catalogue data and keeps installed files 
 it('retains removals across restarts and rejects an older restriction feed', async () => {
   const f = await fixture();
   const json = async (url: string) => (url.endsWith('/revocations.json') ? revocations : empty);
-  const trust = new CatalogueTrust(f.storage, f.logger, json);
+  const trust = remoteTrust(f, json);
   await trust.refresh();
-  const restart = new CatalogueTrust(f.storage, f.logger, async (url) =>
+  const restart = remoteTrust(f, async (url) =>
     url.endsWith('/revocations.json') ? { ...revocations, revision: 1, revocations: [] } : empty,
   );
   await restart.initialize();
@@ -89,7 +96,7 @@ it('retains removals across restarts and rejects an older restriction feed', asy
 });
 it('applies a newer removal even if the other feed is unavailable', async () => {
   const f = await fixture();
-  const trust = new CatalogueTrust(f.storage, f.logger, async (url) => {
+  const trust = remoteTrust(f, async (url) => {
     if (url.endsWith('/revocations.json')) return revocations;
     throw new Error('offline');
   });
@@ -99,14 +106,87 @@ it('applies a newer removal even if the other feed is unavailable', async () => 
 });
 it('blocks new downloads when current restriction data cannot be established', async () => {
   const f = await fixture();
-  const trust = new CatalogueTrust(f.storage, f.logger, async () => {
+  const trust = remoteTrust(f, async () => {
     throw new Error('offline');
   });
   await expect(trust.assertAllowed(mod(), false)).rejects.toThrow('connect and refresh');
 });
+it('checks both public policy feeds by default and expires successful checks', async () => {
+  const f = await fixture();
+  const json = vi.fn(async (url: string) =>
+    url.endsWith('/revocations.json') ? { ...revocations, revocations: [] } : empty,
+  );
+  const trust = new CatalogueTrust(f.storage, f.logger, json);
+  await trust.initialize();
+  expect(trust.isFresh()).toBe(false);
+  await trust.assertAllowed(mod(), false);
+  expect(json.mock.calls.map(([url]) => url).sort()).toEqual([
+    'https://raw.githubusercontent.com/NorthernBranch/modatro/main/catalogue/blocked-releases.json',
+    'https://raw.githubusercontent.com/NorthernBranch/modatro/main/catalogue/revocations.json',
+  ]);
+  vi.useFakeTimers({ toFake: ['Date'] });
+  try {
+    vi.setSystemTime(Date.now() + 16 * 60 * 1000);
+    expect(trust.isFresh()).toBe(false);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+it('retains saved removals and release blocks when public feeds fail', async () => {
+  const f = await fixture();
+  const removed = {
+    ...revocations,
+    revocations: [{ ...revocations.revocations[0], modId: 'removed-mod' }],
+  };
+  const prior = remoteTrust(f, async (url) =>
+    url.endsWith('revocations.json') ? removed : blocked,
+  );
+  await prior.refresh();
+  const trust = remoteTrust(f, async () => {
+    throw new Error('offline');
+  });
+  await trust.initialize();
+  await trust.refresh();
+  expect(trust.apply(mod({ id: 'removed-mod' })).approvalStatus).toBe('opted-out');
+  expect(trust.apply(mod()).policyReason).toContain('blocked');
+  await expect(trust.assertAllowed(mod({ version: '2.0.0' }), true, false)).rejects.toThrow(
+    'could not finish',
+  );
+});
+it('requires a successful public refresh to recover invalid saved policy data', async () => {
+  const f = await fixture();
+  const file = f.storage.file('catalogue-cache/trust.json');
+  await fs.writeFile(file, '{invalid');
+  const trust = remoteTrust(f, async (url) =>
+    url.endsWith('/revocations.json') ? { ...revocations, revocations: [] } : empty,
+  );
+  await trust.initialize();
+  expect(trust.isFresh()).toBe(false);
+  expect(await fs.readFile(file, 'utf8')).toBe('{invalid');
+  await trust.assertAllowed(mod(), false);
+  expect(trust.isFresh()).toBe(true);
+});
+it('blocks installs if refreshed restrictions cannot be saved locally', async () => {
+  const f = await fixture();
+  vi.spyOn(f.storage, 'write').mockRejectedValue(new Error('permission denied'));
+  const trust = remoteTrust(f, async (url) =>
+    url.endsWith('/revocations.json') ? { ...revocations, revocations: [] } : empty,
+  );
+  await expect(trust.assertAllowed(mod(), false)).rejects.toThrow('could not finish');
+  expect(trust.isFresh()).toBe(false);
+});
+it('does not treat missing public feeds as empty policies', async () => {
+  const f = await fixture();
+  const trust = remoteTrust(f, async () => {
+    throw new UserError('Missing feed', undefined, undefined, undefined, 404);
+  });
+  await trust.refresh();
+  expect(trust.isFresh()).toBe(false);
+  await expect(trust.assertAllowed(mod(), false, false)).rejects.toThrow('could not finish');
+});
 it('applies repository revocations to an alias rather than trusting a renamed ID', async () => {
   const f = await fixture();
-  const trust = new CatalogueTrust(f.storage, f.logger, async (url) =>
+  const trust = remoteTrust(f, async (url) =>
     url.endsWith('/revocations.json')
       ? {
           ...revocations,
@@ -123,7 +203,7 @@ it('blocks just the flagged release and offers a safe newer version without chan
   const f = await fixture();
   await put(path.join(f.stage, 'main.lua'), 'original');
   await f.installer.commitPrepared(await f.installer.plan(mod(), f.stage));
-  const trust = new CatalogueTrust(f.storage, f.logger, async (url) =>
+  const trust = remoteTrust(f, async (url) =>
     url.endsWith('/revocations.json') ? { ...revocations, revocations: [] } : blocked,
   );
   await trust.refresh();

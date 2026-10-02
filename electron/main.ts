@@ -3,6 +3,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  Menu,
   net,
   protocol,
   session,
@@ -39,6 +40,7 @@ const rendererUrl =
   !app.isPackaged && process.env.MODATRO_DEV_URL === 'http://127.0.0.1:5173'
     ? process.env.MODATRO_DEV_URL
     : 'modatro://app/index.html';
+const development = !app.isPackaged && rendererUrl.startsWith('http:');
 const allowLink = (url: string) => {
   const u = new URL(url);
   return (
@@ -85,7 +87,7 @@ async function createWindow() {
     minHeight: 640,
     title: 'Modatro',
     backgroundColor: '#141c1b',
-    titleBarStyle: 'hiddenInset',
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 20, y: 20 },
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -93,6 +95,7 @@ async function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      devTools: development,
     },
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -111,6 +114,15 @@ void app
   .whenReady()
   .then(async () => {
     app.setName('Modatro');
+    Menu.setApplicationMenu(
+      process.platform === 'darwin'
+        ? Menu.buildFromTemplate([
+            { role: 'appMenu' },
+            { role: 'editMenu' },
+            { role: 'windowMenu' },
+          ])
+        : null,
+    );
     const assetRoot = path.resolve(__dirname, '..', 'dist');
     protocol.handle('modatro', (request) => {
       const url = new URL(request.url);

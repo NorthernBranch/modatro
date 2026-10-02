@@ -167,7 +167,7 @@ export function PrerequisitesPage({
                       review={review}
                       openLink={openLink}
                     />
-                    {prerequisite.installed && !update && (
+                    {prerequisite.id !== 'Lovely' && prerequisite.installed && !update && (
                       <AsyncButton
                         className="text-button"
                         pending={requests.isPending(`link:${prerequisite.sourceUrl}`)}

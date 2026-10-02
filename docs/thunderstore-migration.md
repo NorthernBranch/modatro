@@ -30,7 +30,9 @@ credentials fail explicitly and ad-hoc/Developer ID signatures are verified corr
 Both macOS architectures share this packaging wrapper. Native macOS packaging still
 requires a macOS runner; Windows tests cannot execute `codesign` or notarization.
 
-An unrecognized Balatro package layout or installer declaration remains manual-only.
+An unrecognized Balatro package layout remains manual-only. Registry installer
+declarations can use a validated manual GitHub archive when the listing links to its
+repository; external installers are not executed. Lovely uses official platform-specific GitHub assets and installs the library in the validated game folder, with confirmation, backups and ownership records.
 External loader presence never invents a Thunderstore package version. An arbitrary
 source name or matching folder cannot satisfy another namespace's dependency. Unknown
 external Lovely/Steamodded versions use the existing explicit consent flow; missing or

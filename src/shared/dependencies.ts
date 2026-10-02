@@ -44,6 +44,34 @@ export function blockingDependencies(
 export function cleanVersion(value?: string): string | undefined {
   return value ? (semver.valid(value.replace(/^v/i, '').trim()) ?? undefined) : undefined;
 }
+function loaderVersion(id: string, value?: string): string | undefined {
+  if (id.toLowerCase() === 'balatro' && value) {
+    const game = /^v?(\d+\.\d+\.\d+)([a-z])?(?:-FULL)?$/i.exec(value);
+    return game
+      ? cleanVersion(`${game[1]}-${game[2] ? game[2].toLowerCase().charCodeAt(0) - 96 : 0}`)
+      : undefined;
+  }
+  if (id.toLowerCase() !== 'steamodded' || !value) return cleanVersion(value);
+  if (/~BETA(?:$|[^-])/i.test(value)) return undefined;
+  // Steamodded uses '~' for prereleases, which is not a SemVer delimiter.
+  return cleanVersion(value.replace(/~BETA-(\d+)([a-z])/i, '-beta.$1.$2').replace('~', '-'));
+}
+function loaderRange(id: string, range: string): string | null {
+  if (id.toLowerCase() === 'balatro')
+    return semver.validRange(
+      range.replace(
+        /\b(\d+\.\d+\.\d+)([a-z])?\b/gi,
+        (_match, version: string, letter?: string) =>
+          `${version}-${letter ? letter.toLowerCase().charCodeAt(0) - 96 : 0}`,
+      ),
+    );
+  if (id.toLowerCase() === 'steamodded' && /~BETA(?:$|[^-])/i.test(range)) return null;
+  return semver.validRange(
+    id.toLowerCase() === 'steamodded'
+      ? range.replace(/~BETA-(\d+)([a-z])/gi, '-beta.$1.$2').replace(/(\d+\.\d+\.\d+)~/g, '$1-')
+      : range,
+  );
+}
 export function hasUpdate(installed: string, latest: string): boolean {
   const a = cleanVersion(installed),
     b = cleanVersion(latest);
@@ -83,21 +111,40 @@ export function evaluateDependency(
       state: 'satisfied',
       reason: 'Installed. Required version: not specified by mod.',
     };
-  const observedVersion = requirement.packageId
+  let observedVersion = requirement.packageId
     ? found.packageId?.toLowerCase() === requirement.packageId.toLowerCase()
       ? found.packageVersion
       : undefined
     : found.installedVersion;
-  const version = cleanVersion(observedVersion),
-    range = semver.validRange(requirement.versionConstraint);
+  const runtimeFallback =
+    !!requirement.packageId &&
+    !observedVersion &&
+    (externalLoaderRequirement(requirement) ||
+      (found.packageId?.toLowerCase() === requirement.packageId.toLowerCase() &&
+        found.provenance?.provider === 'github'));
+  if (runtimeFallback) observedVersion = found.installedVersion;
+  let version = loaderVersion(requirement.id, observedVersion);
+  const range = loaderRange(requirement.id, requirement.versionConstraint);
+  // The official legacy registry series encoded beta build N as 1.N.0.
+  // Compare the known runtime build without claiming a registry archive was installed.
+  if (
+    runtimeFallback &&
+    externalLoaderRequirement(requirement) &&
+    requirement.id.toLowerCase() === 'steamodded'
+  ) {
+    const beta = /^v?1\.0\.0~BETA-(\d+)[a-z]$/i.exec(observedVersion ?? '');
+    if (beta && /^>=1\.\d+\.0$/.test(requirement.versionConstraint))
+      version = cleanVersion(`1.${beta[1]}.0`);
+  }
   if (!version || !range)
     return {
       ...requirement,
       installedVersion: observedVersion,
       state: 'unknown',
-      reason: requirement.packageId
-        ? `Cannot verify the installed Thunderstore package version of ${requirement.displayName} against ${requirement.versionConstraint}.`
-        : `Cannot verify ${requirement.displayName} against ${requirement.versionConstraint}.`,
+      reason:
+        requirement.packageId && !runtimeFallback
+          ? `Cannot verify the installed Thunderstore package version of ${requirement.displayName} against ${requirement.versionConstraint}.`
+          : `Cannot verify ${requirement.displayName} against ${requirement.versionConstraint}.`,
     };
   if (semver.satisfies(version, range, { includePrerelease: true }))
     return {

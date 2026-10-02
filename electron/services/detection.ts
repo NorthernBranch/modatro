@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import type { GameCandidate, PathValidationResult } from '../../src/shared/model';
 import { UserError } from './errors';
 import { canonicalDirectory, contained, exists, readSmall } from './files';
+import { readGameVersion } from './game-version';
 const exec = promisify(execFile);
 export const BALATRO_APP_ID = '2379780';
 
@@ -88,6 +89,7 @@ export class GameDetectionService {
             message:
               'Balatro.exe was found, but its executable format and Steam or LÖVE support files could not be verified.',
           });
+        if (!result.problems.length) result.detectedVersion = await readGameVersion(executable);
       } else if (mac) {
         result.detectedPlatform = 'macos';
         const info = await readSmall(path.join(app, 'Contents', 'Info.plist'));
@@ -106,7 +108,8 @@ export class GameDetectionService {
               'The Balatro application bundle is incomplete. Expected its LÖVE executable, Info.plist and Balatro.love game data.',
           });
         // CFBundleShortVersionString may describe LÖVE rather than Balatro.
-        // Leave game-version constraints unknown until game data proves them.
+        // Read the game data instead; never infer the game's version from LÖVE.
+        if (!result.problems.length) result.detectedVersion = await readGameVersion(game);
         // Lovely lives beside Balatro.app, not inside the bundle.
         if (real.endsWith('.app')) real = await canonicalDirectory(path.dirname(real));
       } else

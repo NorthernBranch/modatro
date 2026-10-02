@@ -50,6 +50,32 @@ test('desktop has an isolated renderer, working preload and validated IPC', asyn
       contextIsolation: true,
       sandbox: true,
     });
+    const productionControls = await application.evaluate(({ BrowserWindow, Menu }) => {
+      const roles = (menu: ReturnType<typeof Menu.getApplicationMenu>): string[] =>
+        menu?.items.flatMap((item) => [item.role ?? '', ...roles(item.submenu ?? null)]) ?? [];
+      const contents = BrowserWindow.getAllWindows()[0]!.webContents;
+      contents.openDevTools();
+      return { roles: roles(Menu.getApplicationMenu()), devToolsOpen: contents.isDevToolsOpened() };
+    });
+    expect(productionControls.roles).not.toContain('toggleDevTools');
+    expect(productionControls.roles).not.toContain('reload');
+    expect(productionControls.roles).not.toContain('forceReload');
+    expect(productionControls.devToolsOpen).toBe(false);
+    if (process.platform !== 'darwin') {
+      const controls = await application.evaluate(({ BrowserWindow, Menu }) => {
+        const window = BrowserWindow.getAllWindows()[0]!;
+        return {
+          menu: Menu.getApplicationMenu() === null,
+          menuVisible: window.isMenuBarVisible(),
+          minimize: window.isMinimizable(),
+          maximize: window.isMaximizable(),
+          close: window.isClosable(),
+        };
+      });
+      expect(controls).toMatchObject({ menu: true, menuVisible: false });
+      if (process.platform === 'win32')
+        expect(controls).toMatchObject({ minimize: true, maximize: true, close: true });
+    }
     const reply = await page.evaluate(() => window.modatro!.snapshot());
     expect(reply.ok).toBe(true);
     if (reply.ok) {

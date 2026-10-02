@@ -17,6 +17,7 @@ import { errorReply } from '../electron/services/errors';
 import { LovelyInstaller } from '../electron/services/strategies';
 import { mod, put, setup, thunderstorePackage, zip } from './helpers';
 import { ModSchema, type ModDefinition } from '../src/shared/model';
+import { resolveDistribution } from '../electron/services/distribution';
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -86,6 +87,23 @@ it('keeps a valid package whose optional project website is blank or malformed',
       websiteUrl: undefined,
     });
   }
+});
+
+it('recognizes GitHub project links to releases and manual instructions', () => {
+  for (const website of [
+    'https://github.com/Author/Demo',
+    'https://github.com/Author/Demo/releases/latest',
+    'https://github.com/Author/Demo/blob/main/README.md',
+    'https://github.com/Author/Demo.git',
+  ])
+    expect(normalizeThunderstore(thunderstorePackage({ website }))?.repositoryUrl).toBe(
+      'https://github.com/Author/Demo',
+    );
+  expect(
+    normalizeThunderstore(
+      thunderstorePackage({ website: 'https://github.com.evil.test/Author/Demo' }),
+    )?.repositoryUrl,
+  ).toBeUndefined();
 });
 it('reads index chunks only once and rejects unrelated CDN paths', async () => {
   const json = vi.fn(async (url: string) =>
@@ -193,6 +211,66 @@ it('detects circular, missing, incompatible and unsupported dependency graphs', 
     resolveDependencyGraph([a], [a, { ...pkg('B'), installation: { type: 'unsupported' } }], []),
   ).toThrow('not supported');
 });
+it('does not apply the latest package dependency tree to a compatible external loader', () => {
+  const steamodded = normalizeThunderstore(
+    thunderstorePackage({
+      namespace: 'Steamodded',
+      name: 'Steamodded',
+      version: '26.900.0',
+      dependencies: ['Thunderstore-lovely-0.10.0'],
+    }),
+  )!;
+  const root = pkg('Root');
+  root.prerequisites = [thunderstoreDependency('Steamodded-Steamodded-26.829.0')];
+  const installed = [
+    {
+      id: 'Steamodded',
+      displayName: 'Steamodded',
+      installed: true,
+      installedVersion: '26.829.0',
+      sourceUrl: 'https://github.com/Steamodded/smods',
+    },
+  ];
+  const status = evaluateDependency(root.prerequisites[0]!, installed);
+  expect(status.state).toBe('satisfied');
+  expect(resolveDependencyGraph([root], [root, steamodded], installed)).toEqual([root]);
+  installed[0]!.installedVersion = 'unversioned';
+  expect(() => resolveDependencyGraph([root], [root, steamodded], installed)).toThrow(
+    'Cannot verify',
+  );
+});
+
+it('uses verified GitHub runtime versions and saved dependency trees for installed packages', () => {
+  const root = pkg('Root', [dep('Library')]);
+  const library = pkg('Library', [dep('UnwantedLatest')], '2.0.0');
+  const dependency = pkg('ActualDependency');
+  const installed = [
+    {
+      id: 'Library',
+      displayName: 'Library',
+      installed: true,
+      installedVersion: '1.5.0',
+      packageId: library.id,
+      sourceUrl: 'https://github.com/fixture/library',
+      provenance: { sourceType: 'tag' as const, provider: 'github' },
+      dependencies: [thunderstoreDependency(dep('ActualDependency'))],
+    },
+  ];
+  expect(resolveDependencyGraph([root], [root, library, dependency], installed)).toEqual([
+    dependency,
+    root,
+  ]);
+  expect(() => resolveDependencyGraph([root], [root, library], installed)).toThrow(
+    'missing or ambiguous',
+  );
+  expect(evaluateDependency(thunderstoreDependency(dep('Library', '2.0.0')), installed).state).toBe(
+    'outdated',
+  );
+  expect(
+    evaluateDependency(thunderstoreDependency(dep('Library', '1.0.0', 'UnrelatedTeam')), installed)
+      .state,
+  ).toBe('missing');
+});
 it('preserves deprecated packages for management while blocking new installs', () => {
   const entry = normalizeThunderstore(thunderstorePackage({ deprecated: true }))!;
   expect(entry.deprecated).toBe(true);
@@ -266,6 +344,54 @@ it('stages a complete dependency plan, then commits one transaction with provena
       .some((file) => /manifest\.json|README\.md/.test(file.path)),
   ).toBe(false);
   await expect(f.installer.uninstall(c.id)).rejects.toThrow('required by');
+});
+
+it('commits a GitHub-backed dependency set and continues to satisfy source-qualified requirements', async () => {
+  const f = await fixture();
+  const b = normalizeThunderstore(
+    thunderstorePackage({
+      namespace: 'ArbitraryTeam',
+      name: 'B',
+      website: 'https://github.com/fixture/B',
+    }),
+  )!;
+  const a = normalizeThunderstore(
+    thunderstorePackage({
+      namespace: 'ArbitraryTeam',
+      name: 'A',
+      website: 'https://github.com/fixture/A',
+      dependencies: [dep('B')],
+    }),
+  )!;
+  const graph = resolveDependencyGraph([a], [a, b], []);
+  const resolved = await Promise.all(
+    graph.map((entry) =>
+      resolveDistribution(entry, async () => ({
+        tag_name: 'v1.0.0',
+        draft: false,
+        prerelease: false,
+        published_at: '2026-10-01T00:00:00Z',
+        assets: [
+          {
+            name: `${entry.metadataId}.zip`,
+            browser_download_url: `${entry.repositoryUrl}/releases/download/v1.0.0/${entry.metadataId}.zip`,
+          },
+        ],
+      })),
+    ),
+  );
+  await mockArchives(f, resolved);
+  const pending = await f.installer.installMany(resolved).catch(errorReply);
+  const token = (pending as ReturnType<typeof errorReply>).confirmation!.token;
+  await f.installer.installMany(resolved, token);
+  expect(f.storage.state.installations).toHaveLength(2);
+  for (const record of f.storage.state.installations) {
+    expect(record.provenance?.provider).toBe('github');
+    expect(record.packageVersion).toBeUndefined();
+  }
+  const scan = await new InstalledModsService(f.storage, f.logger).scan([a, b]);
+  expect(evaluateDependency(a.prerequisites[0]!, scan.prerequisites).state).toBe('satisfied');
+  await expect(f.installer.uninstall(b.id)).rejects.toThrow('required by');
 });
 it('rejects an unknown layout before installing any dependency', async () => {
   const f = await fixture(),

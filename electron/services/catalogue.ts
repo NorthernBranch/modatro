@@ -193,7 +193,9 @@ export class ThunderstoreModSource implements ModRepository, ModSource {
       current.thunderstore?.packageVersion !== mod.thunderstore.packageVersion ||
       JSON.stringify([...current.thunderstore!.dependencies].sort()) !==
         JSON.stringify([...mod.thunderstore.dependencies].sort()) ||
-      current.downloadUrl !== mod.downloadUrl
+      (mod.downloadProvider === 'github'
+        ? current.repositoryUrl !== mod.repositoryUrl
+        : current.downloadUrl !== mod.downloadUrl)
     )
       throw new UserError(
         'This registry release is no longer current or available. Refresh the catalogue before installing or updating.',

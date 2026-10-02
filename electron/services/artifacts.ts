@@ -10,7 +10,7 @@ const History = z.object({
   artifacts: z.array(z.object({ identity: z.string(), sha256: HashSchema })).max(20000),
 });
 export function artifactIdentity(mod: ModDefinition) {
-  if (mod.thunderstore)
+  if (mod.thunderstore && mod.downloadProvider !== 'github')
     return JSON.stringify(['thunderstore', mod.thunderstore.packageId, mod.thunderstore.versionId]);
   const detected = sourceType(mod.downloadUrl);
   const type = detected === 'other' ? (mod.releaseSource?.sourceType ?? detected) : detected;
@@ -92,8 +92,9 @@ export class ArtifactHistory {
       downloadedAt: new Date().toISOString(),
       sha256: received,
       packageId: mod.thunderstore?.packageId,
-      packageVersion: mod.thunderstore?.packageVersion,
-      provider: mod.source?.provider,
+      packageVersion:
+        mod.downloadProvider === 'github' ? undefined : mod.thunderstore?.packageVersion,
+      provider: mod.downloadProvider ?? mod.source?.provider,
       namespace: mod.source?.namespace,
       packageName: mod.source?.packageName,
     };

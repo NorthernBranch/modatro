@@ -30,11 +30,19 @@ export class CatalogueTrust {
       const cached = await this.storage.read('catalogue-cache/trust.json', Cache);
       if (cached) {
         this.data.revocations = this.merge(
-          this.data.revocations,
-          cached.revocations,
+          cached.revocations.revision < this.data.revocations.revision
+            ? cached.revocations
+            : this.data.revocations,
+          cached.revocations.revision < this.data.revocations.revision
+            ? this.data.revocations
+            : cached.revocations,
           'revocations',
         );
-        this.data.blocked = this.merge(this.data.blocked, cached.blocked, 'blockedReleases');
+        this.data.blocked = this.merge(
+          cached.blocked.revision < this.data.blocked.revision ? cached.blocked : this.data.blocked,
+          cached.blocked.revision < this.data.blocked.revision ? this.data.blocked : cached.blocked,
+          'blockedReleases',
+        );
       }
     } catch {
       this.state.error =

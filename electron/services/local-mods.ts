@@ -143,11 +143,39 @@ export class InstalledModsService {
           continue;
         try {
           const location = await safeDestination(roots.mods, entry.name);
+          const owner = state.installations.find(
+            (r) =>
+              !r.disabled &&
+              r.files.some(
+                (f) =>
+                  f.root === 'mods' &&
+                  (f.path === entry.name || f.path.startsWith(`${entry.name}/`)),
+              ),
+          );
           const meta = entry.isDirectory()
             ? await inspectMetadata(location)
             : entry.isFile() && entry.name.endsWith('.lua')
               ? parseLuaHeader(await readSmall(location))
               : undefined;
+          // Older registry installs omitted manifest.json. A fully verified
+          // managed record still establishes the loader identity and runtime version.
+          if (
+            !meta?.id &&
+            owner?.metadataId &&
+            !mods.find((m) => m.id === owner.modId)?.problems.length
+          ) {
+            if (dependencyId(owner.metadataId) === 'Steamodded' && meta) {
+              meta.id = 'Steamodded';
+              const versionFile = owner.files.find(
+                (file) => file.root === 'mods' && file.path === `${entry.name}/version.lua`,
+              );
+              meta.version = versionFile
+                ? /^\s*return\s+["']([^"']+)["']\s*$/.exec(
+                    await readSmall(await safeDestination(roots.mods, versionFile.path)),
+                  )?.[1]
+                : undefined;
+            }
+          }
           if (meta?.id) {
             const id = dependencyId(meta.id);
             const previous = [...detected.keys()].find(
@@ -159,15 +187,6 @@ export class InstalledModsService {
               installed: true,
             });
           }
-          const owner = state.installations.find(
-            (r) =>
-              !r.disabled &&
-              r.files.some(
-                (f) =>
-                  f.root === 'mods' &&
-                  (f.path === entry.name || f.path.startsWith(`${entry.name}/`)),
-              ),
-          );
           if (!owner)
             mods.push({
               id: `external:${entry.name}`,
@@ -253,10 +272,10 @@ export class InstalledModsService {
       instructions:
         upstream.id === 'Lovely'
           ? process.platform === 'darwin'
-            ? `${process.arch === 'arm64' ? 'For this Apple Silicon Mac, download lovely-aarch64-apple-darwin.tar.gz.' : 'For this Intel Mac, download lovely-x86_64-apple-darwin.tar.gz.'} Place liblovely.dylib beside Balatro.app using the official instructions. Modatro launches the validated game executable with Lovely; it never executes the downloaded launcher script or bypasses macOS security.`
+            ? `${process.arch === 'arm64' ? 'For this Apple Silicon Mac, download lovely-aarch64-apple-darwin.tar.gz.' : 'For this Intel Mac, download lovely-x86_64-apple-darwin.tar.gz.'} Modatro can install and manage liblovely.dylib beside Balatro.app. Modatro launches the validated game executable with Lovely; it never executes the downloaded launcher script or bypasses macOS security.`
             : process.platform === 'linux'
-              ? 'Steam Deck / Linux with Proton: install the official Windows Lovely ZIP beside Balatro.exe. Set Steam launch options to WINEDLLOVERRIDES="winmm=n,b" %command%, then launch through Steam. Mods live in Balatro’s Proton prefix. An external library’s version may remain unknown.'
-              : 'Use the official Windows release. Place winmm.dll beside Balatro.exe. Modatro detects Lovely from library evidence; its version may remain unknown.'
+              ? 'Modatro installs the official Windows Lovely library beside Balatro.exe for Steam Deck / Linux with Proton. Set Steam launch options to WINEDLLOVERRIDES="winmm=n,b" %command%, then launch through Steam. Mods live in Balatro’s Proton prefix. An external library’s version may remain unknown.'
+              : 'Modatro installs the official Windows winmm.dll beside Balatro.exe, with a file preview and backups. Managed releases have a verified version. An external library?s version may remain unknown.'
           : undefined,
       provenance: state.installations.find(
         (record) =>
@@ -295,12 +314,14 @@ export class InstalledModsService {
       if (
         (!source?.thunderstore &&
           !(record.provenance?.namespace && record.provenance.packageName)) ||
-        !record.packageVersion ||
+        (!record.packageVersion && record.provenance?.provider !== 'github') ||
         record.disabled ||
         local?.problems.length ||
         mods.filter(
           (entry) =>
-            entry.metadataId && entry.metadataId.toLowerCase() === record.metadataId?.toLowerCase(),
+            entry.metadataId &&
+            dependencyId(entry.metadataId).toLowerCase() ===
+              dependencyId(record.metadataId ?? '').toLowerCase(),
         ).length > 1
       )
         continue;
@@ -309,11 +330,13 @@ export class InstalledModsService {
         source?.thunderstore?.name ?? record.provenance!.packageName!,
       );
       const runtime = prerequisites.find(
-        (entry) => entry.id.toLowerCase() === (record.metadataId ?? '').toLowerCase(),
+        (entry) => entry.id.toLowerCase() === dependencyId(record.metadataId ?? '').toLowerCase(),
       );
       if (runtime && !runtime.packageId) {
         runtime.packageId = packageId;
         runtime.packageVersion = record.packageVersion;
+        runtime.provenance = record.provenance;
+        runtime.dependencies = record.dependencies;
       } else
         prerequisites.push({
           id: record.metadataId ?? packageId,
@@ -322,6 +345,8 @@ export class InstalledModsService {
           installedVersion: runtime?.installedVersion,
           packageId,
           packageVersion: record.packageVersion,
+          provenance: record.provenance,
+          dependencies: record.dependencies,
           sourceUrl:
             source?.source?.url ??
             record.provenance?.downloadUrl ??
@@ -329,6 +354,8 @@ export class InstalledModsService {
         });
     }
     for (const prerequisite of prerequisites) {
+      // Lovely uses official platform-specific GitHub releases rather than registry packages.
+      if (prerequisite.id === 'Lovely') continue;
       const matches = catalogue.filter(
         (mod) =>
           !mod.deprecated &&
@@ -354,6 +381,7 @@ export class InstalledModsService {
     this.latestCheck = Promise.all(
       upstreams.map(async (upstream) => {
         if (
+          upstream.id !== 'Lovely' &&
           catalogue.some(
             (mod) =>
               !mod.deprecated &&

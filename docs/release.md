@@ -34,8 +34,12 @@ Pull requests and manual workflow runs provide build artifacts without publishin
 
 ## Included features
 
-- Independent author-removal and release-block feeds take precedence over saved
-  catalogues. Offline browsing and local management remain available.
+- Bundled and saved author-removal/release restrictions take precedence over saved
+  catalogues. Public policy feeds refresh directly from this repository.
+  Offline browsing and local management remain available.
+- Windows and Linux omit the window menu bar and retain native window controls.
+  macOS retains its standard system menu. Release builds disable DevTools;
+  `pnpm dev` enables them, while packaged apps always use release behavior.
 - New downloads record their exact source, release/commit, timestamp and archive
   SHA-256. Unexpected changes under the same immutable release stop automation.
 - Live Thunderstore discovery with cached offline browsing, automatic author-controlled
@@ -146,10 +150,11 @@ release cannot be checked. Local loader versions remain visible separately from
 Thunderstore package versions. External installations without a recorded package
 version cannot establish whether a newer Thunderstore package is available.
 
-- **Lovely:** automatic installation is available on Windows and Linux with Proton. An older `version.dll`
-  installation requires Lovely's upstream upgrade instructions. On macOS, use
-  **Official instructions**, then launch through **Launch Modded Balatro** once the
-  local Lovely library is detected.
+- **Lovely:** install, manage an existing copy, or update using the official Windows,
+  Proton, Intel Mac or Apple Silicon Mac release. Confirm the game-file preview;
+  existing destination files are backed up and restored on uninstall. An older manual
+  `version.dll` installation requires Lovely's upstream upgrade instructions before
+  installing `winmm.dll`. On macOS, use **Launch Modded Balatro** after installation.
 - **Steamodded:** use the mod's install/update action when a supported release meets
   its requirement. Existing external installations must be adopted before Modatro
   manages their updates.

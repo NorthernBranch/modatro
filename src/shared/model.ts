@@ -136,6 +136,8 @@ export const ModSchema = z
     websiteUrl: HttpsUrl.optional(),
     downloadUrl: HttpsUrl,
     categories: z.array(z.string()).max(30),
+    // Registry metadata remains the discovery identity when downloading upstream.
+    downloadProvider: z.literal('github').optional(),
     sourceCategories: z.array(z.string()).optional(),
     folderName: SafeName.optional(),
     prerequisites: z.array(DependencySchema).max(100),
@@ -213,6 +215,7 @@ export interface Prerequisite {
   packageId?: string;
   packageVersion?: string;
   latestPackageId?: string;
+  dependencies?: DependencyRequirement[];
 }
 export interface ValidationProblem {
   code: string;

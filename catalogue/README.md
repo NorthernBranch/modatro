@@ -108,6 +108,12 @@ an unreviewed example as a real mod listing.
 
 ## Fast removal and release blocking
 
+Bundled restrictions and previously saved entries always apply. The app refreshes
+`revocations.json` and `blocked-releases.json` from this public repository's
+`main/catalogue` directory. No build setting or credentials are needed. Remote
+failures block new installs and updates; append-only revision checks preserve known
+restrictions across restarts.
+
 For a verified author request, append an entry to `revocations.json`:
 
 ```json
