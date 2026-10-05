@@ -233,9 +233,20 @@ export async function detectModRoot(staging: string): Promise<string> {
     const parts = file.split('/');
     for (let count = 1; count < parts.length; count++) dirs.add(parts.slice(0, count).join('/'));
   }
-  const candidates: string[] = [];
+  const identified: string[] = [];
+  const inferred: string[] = [];
+  const contains = (parent: string, child: string) =>
+    parent === '' || child === parent || child.startsWith(`${parent}/`);
   for (const dir of [...dirs].sort((a, b) => a.split('/').length - b.split('/').length)) {
-    if (candidates.some((parent) => parent === '' || dir.startsWith(`${parent}/`))) continue;
+    // A declared mod root owns its resources and helper modules. An inferred
+    // root must still be searched: release wrappers can contain Lovely patches
+    // which only report an incorrect installation, outside the actual mod.
+    if (identified.some((parent) => contains(parent, dir))) continue;
+    const meta = await inspectMetadata(path.join(staging, dir));
+    if (meta.id) {
+      identified.push(dir);
+      continue;
+    }
     const prefix = dir ? `${dir}/` : '';
     const children = files.filter((f) => f.startsWith(prefix));
     if (
@@ -243,12 +254,20 @@ export async function detectModRoot(staging: string): Promise<string> {
       children.some((f) => f.startsWith(`${prefix}lovely/`) && f.endsWith('.toml')) ||
       children.includes(`${prefix}main.lua`)
     ) {
-      candidates.push(dir);
-      continue;
+      inferred.push(dir);
     }
-    const meta = await inspectMetadata(path.join(staging, dir));
-    if (meta.id) candidates.push(dir);
   }
+  // Prefer declared identities over overlapping filename hints, while keeping
+  // independent patch-only folders so a multi-mod archive remains ambiguous.
+  const independent = inferred.filter(
+    (dir) => !identified.some((root) => contains(root, dir) || contains(dir, root)),
+  );
+  const candidates = [
+    ...identified,
+    ...independent.filter(
+      (dir) => !independent.some((parent) => parent !== dir && contains(parent, dir)),
+    ),
+  ];
   if (candidates.length !== 1)
     throw new UserError(
       candidates.length

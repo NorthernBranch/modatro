@@ -28,6 +28,60 @@ describe('archive extraction', () => {
     await put(path.join(f.stage, 'Patch', 'lovely', 'patch.toml'), '[manifest]\nversion = "1.0.0"');
     expect(await detectModRoot(f.stage)).toBe(path.join(f.stage, 'Patch'));
   });
+  it.each(['', 'release/download', 'release/download/package'])(
+    'finds a declared mod inside a wrapper with Lovely patches at %s',
+    async (wrapper) => {
+      const f = await fixture();
+      const outer = path.join(f.stage, wrapper);
+      await put(path.join(outer, 'lovely.toml'), 'installation error patch');
+      await put(path.join(outer, 'installation-instructions.txt'));
+      const root = path.join(outer, 'ActualMod');
+      await put(
+        path.join(root, 'metadata.json'),
+        JSON.stringify({ id: 'ActualMod', main_file: 'steamodded.lua', version: '2.0.0' }),
+      );
+      await put(path.join(root, 'steamodded.lua'));
+      await put(path.join(root, 'lovely', 'preflight.toml'));
+      expect(await detectModRoot(f.stage)).toBe(root);
+    },
+  );
+  it('recognises Lua-header identities inside wrappers with generic entry points', async () => {
+    const f = await fixture();
+    await put(path.join(f.stage, 'main.lua'), 'wrapper');
+    await put(
+      path.join(f.stage, 'ActualMod', 'loader.lua'),
+      '--- STEAMODDED HEADER\n--- MOD_ID: ActualMod\n--- VERSION: 1.0.0\n',
+    );
+    expect(await detectModRoot(f.stage)).toBe(path.join(f.stage, 'ActualMod'));
+  });
+  it('keeps a declared root with its nested resources and helpers', async () => {
+    const f = await fixture();
+    await put(path.join(f.stage, 'Mod', 'mod.json'), JSON.stringify({ id: 'Mod' }));
+    await put(path.join(f.stage, 'Mod', 'lovely.toml'));
+    await put(path.join(f.stage, 'Mod', 'src', 'main.lua'));
+    await put(path.join(f.stage, 'Mod', 'assets', 'mod.json'), 'not mod metadata');
+    expect(await detectModRoot(f.stage)).toBe(path.join(f.stage, 'Mod'));
+  });
+  it('rejects multiple declared mods even when a wrapper contains a Lovely patch', async () => {
+    const f = await fixture();
+    await put(path.join(f.stage, 'lovely.toml'));
+    for (const id of ['One', 'Two'])
+      await put(path.join(f.stage, id, 'mod.json'), JSON.stringify({ id }));
+    await expect(detectModRoot(f.stage)).rejects.toThrow('multiple');
+  });
+  it('rejects a declared mod bundled with an independent patch-only mod', async () => {
+    const f = await fixture();
+    await put(path.join(f.stage, 'lovely.toml'));
+    await put(path.join(f.stage, 'Mod', 'mod.json'), JSON.stringify({ id: 'Mod' }));
+    await put(path.join(f.stage, 'Patch', 'lovely.toml'));
+    await expect(detectModRoot(f.stage)).rejects.toThrow('multiple');
+  });
+  it('does not bypass invalid metadata when a Lovely patch is present', async () => {
+    const f = await fixture();
+    await put(path.join(f.stage, 'lovely.toml'));
+    await put(path.join(f.stage, 'ActualMod', 'mod.json'), 'invalid metadata');
+    await expect(detectModRoot(f.stage)).rejects.toThrow('malformed');
+  });
   it('rejects an ambiguous archive', async () => {
     const f = await fixture();
     await put(path.join(f.stage, 'One', 'main.lua'));
