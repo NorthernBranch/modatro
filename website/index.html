@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#141b1a" />
+    <title>Modatro — A mod manager for Balatro</title>
+    <meta
+      name="description"
+      content="Discover, install and update Balatro mods with Modatro. Download the free community mod manager for Windows, macOS and Linux."
+    />
+    <meta property="og:title" content="Modatro — Make Balatro your own" />
+    <meta
+      property="og:description"
+      content="Discover, install and update Balatro mods from one place. Available for Windows, macOS and Linux."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://modatro.app/" />
+    <link rel="canonical" href="https://modatro.app/" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/download.mjs"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Modatro home">
+        <img src="/favicon.svg" alt="" width="34" height="34" />
+        <span>Modatro</span>
+        <span class="beta">Beta</span>
+      </a>
+      <a class="source-link" href="https://github.com/NorthernBranch/modatro"
+        >GitHub <span aria-hidden="true">↗</span></a
+      >
+    </header>
+    <main>
+      <section class="hero" aria-labelledby="headline">
+        <div class="hero-copy">
+          <p class="eyebrow">An independent Balatro mod manager</p>
+          <h1 id="headline">Make Balatro<br /><em>your own.</em></h1>
+          <p class="description">
+            Discover, install and update mods from one place. Modatro checks dependencies and keeps
+            backups, so your collection is easier to manage.
+          </p>
+          <div class="download-area">
+            <a
+              class="download-button"
+              id="download"
+              href="https://github.com/NorthernBranch/modatro/releases"
+            >
+              <svg
+                aria-hidden="true"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5" />
+              </svg>
+              <span id="download-label">Download Modatro</span>
+            </a>
+            <p class="download-status" id="download-status" role="status">
+              Windows, macOS and Linux. Free and open source.
+            </p>
+            <div class="platform-choice" id="platform-choice" hidden>
+              <label for="platform">Download for</label>
+              <select id="platform">
+                <option value="unknown">Choose your platform</option>
+                <option value="windows">Windows · x64</option>
+                <option value="mac">Mac · choose your processor</option>
+                <option value="mac-arm64">Mac · Apple silicon</option>
+                <option value="mac-x64">Mac · Intel</option>
+                <option value="linux">Linux / Steam Deck · AppImage</option>
+                <option value="linux-deb">Debian / Ubuntu · .deb</option>
+              </select>
+            </div>
+            <a class="all-releases" href="https://github.com/NorthernBranch/modatro/releases"
+              >All downloads and release notes on GitHub <span aria-hidden="true">↗</span></a
+            >
+          </div>
+        </div>
+        <div class="deck" aria-hidden="true">
+          <div class="card card-back"></div>
+          <div class="card card-middle"></div>
+          <div class="card card-front">
+            <span class="card-corner">M<span>♠</span></span>
+            <svg class="spade" viewBox="0 0 64 64">
+              <path
+                d="M32 10C25 20 13 26 13 35c0 7 5 11 11 11 4 0 6-2 8-5 2 3 4 5 8 5 6 0 11-4 11-11 0-9-12-15-19-25zm-3 30c0 8-3 10-8 13h22c-5-3-8-5-8-13z"
+              />
+            </svg>
+            <span class="card-corner card-corner-bottom">M<span>♠</span></span>
+          </div>
+        </div>
+      </section>
+    </main>
+    <footer>
+      <span>A little setup. A lot more game.</span>
+      <p>Independent community project. Not affiliated with Balatro or LocalThunk.</p>
+    </footer>
+  </body>
+</html>

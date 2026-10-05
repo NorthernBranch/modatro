@@ -84,16 +84,6 @@ Pull requests and manual workflow runs provide build artifacts without publishin
 See [release verification](verification.md) for specification coverage and remaining
 platform validation.
 
-## Changes in 0.1.1
-
-- Loading feedback for discovery, folder selection, setup, refreshes, launching,
-  diagnostics, imports and mod operations.
-- Clear discovery results and errors, with manual setup available after a failed search.
-- Retryable service errors and controls that recover after a failed request.
-- Setup stays open when saving fails; Updates shows when a check is still in progress.
-- Fixed startup on filesystems where Electron's `Cache` folder and `cache` refer
-  to the same location. Existing settings, catalogues and backups are preserved.
-
 ## Install Modatro
 
 ### Windows

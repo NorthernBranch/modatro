@@ -30,6 +30,10 @@ popularity. GitHub rate limits never block catalogue browsing or installation.
 
 ## Download
 
+The lightweight download website is in [`website/`](website/). See
+[website hosting and domain setup](docs/website.md) for Cloudflare Pages settings
+and instructions for connecting `modatro.app`.
+
 Visit [Releases](https://github.com/NorthernBranch/modatro/releases) for available downloads
 and version notes. Choose the installer for your computer:
 
