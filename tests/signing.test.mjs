@@ -4,7 +4,54 @@ import {
   packagingEnvironment,
   withPackagingEnvironment,
   verifyMacApp,
+  retryBusyMacDmg,
 } from '../scripts/package-desktop.mjs';
+
+const busyDmg = () =>
+  new Error(
+    'dmgbuild process failed 1\nDMGError: Unable to detach device cleanly: hdiutil: couldn\'t eject "disk2" - Resource busy\n',
+  );
+it('retries a busy macOS DMG and returns only the successful packaging result', async () => {
+  const work = vi.fn().mockRejectedValueOnce(busyDmg()).mockResolvedValue(['verified.dmg']);
+  const wait = vi.fn();
+  const warn = vi.fn();
+  expect(await retryBusyMacDmg('--mac', work, { wait, warn })).toEqual(['verified.dmg']);
+  expect(work).toHaveBeenCalledTimes(2);
+  expect(wait).toHaveBeenCalledWith(5000);
+  expect(warn).toHaveBeenCalledTimes(1);
+});
+it('stops after three busy DMG attempts and preserves the final failure', async () => {
+  const first = busyDmg();
+  const last = busyDmg();
+  const work = vi.fn().mockRejectedValueOnce(first).mockRejectedValue(last);
+  const wait = vi.fn();
+  await expect(retryBusyMacDmg('--mac', work, { wait, warn: vi.fn() })).rejects.toBe(last);
+  expect(work).toHaveBeenCalledTimes(3);
+  expect(wait.mock.calls).toEqual([[5000], [10000]]);
+});
+it.each([
+  ['--win', busyDmg()],
+  ['--linux', busyDmg()],
+  ['--mac', new Error('codesign failed: invalid certificate')],
+  ['--mac', new Error('Notarization failed')],
+  ['--mac', new Error('Unable to detach device cleanly: hdiutil: device not found')],
+  ['--mac', new Error('hdiutil: attach failed - Resource busy')],
+  ['--mac', new Error('Disk full')],
+])('does not retry unrelated packaging failures (%s, %s)', async (target, failure) => {
+  const work = vi.fn().mockRejectedValue(failure);
+  const wait = vi.fn();
+  await expect(retryBusyMacDmg(target, work, { wait, warn: vi.fn() })).rejects.toBe(failure);
+  expect(work).toHaveBeenCalledTimes(1);
+  expect(wait).not.toHaveBeenCalled();
+});
+it('does not retry a signing failure encountered after a busy DMG', async () => {
+  const failure = new Error('Signing failed');
+  const work = vi.fn().mockRejectedValueOnce(busyDmg()).mockRejectedValue(failure);
+  const wait = vi.fn();
+  await expect(retryBusyMacDmg('--mac', work, { wait, warn: vi.fn() })).rejects.toBe(failure);
+  expect(work).toHaveBeenCalledTimes(2);
+  expect(wait).toHaveBeenCalledTimes(1);
+});
 
 const credentials = {
   CSC_LINK: 'test-certificate',

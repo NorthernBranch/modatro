@@ -130,6 +130,37 @@ export function verifyMacApp(
     throw new Error('The beta signing mode does not match its signature.');
 }
 
+export async function retryBusyMacDmg(
+  target,
+  work,
+  {
+    wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+    warn = console.warn,
+  } = {},
+) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await work();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      // dmgbuild can fail after copying and signing the app because a macOS
+      // process still holds its temporary disk open. Retry that failure only;
+      // never turn a signing, notarization or other build failure into success.
+      if (
+        target !== '--mac' ||
+        attempt === 3 ||
+        !/Unable to detach device cleanly:\s*hdiutil:[^\r\n]*\bResource busy\b/i.test(message)
+      )
+        throw error;
+      const delay = attempt * 5000;
+      warn(
+        `macOS DMG volume is busy; retrying packaging in ${delay / 1000}s (attempt ${attempt + 1}/3).`,
+      );
+      await wait(delay);
+    }
+  }
+}
+
 export async function packageDesktop(args = process.argv.slice(2), env = process.env) {
   env = packagingEnvironment(env);
   const targets = args.filter((arg) => ['--mac', '--win', '--linux'].includes(arg));
@@ -156,11 +187,13 @@ export async function packageDesktop(args = process.argv.slice(2), env = process
     const { build, Platform, Arch } = await import('electron-builder');
     const platform =
       target === '--mac' ? Platform.MAC : target === '--win' ? Platform.WINDOWS : Platform.LINUX;
-    await build({
-      config: signing.config,
-      targets: platform.createTarget(undefined, ...archs.map((arch) => Arch[arch])),
-      publish: 'never',
-    });
+    await retryBusyMacDmg(target, () =>
+      build({
+        config: signing.config,
+        targets: platform.createTarget(undefined, ...archs.map((arch) => Arch[arch])),
+        publish: 'never',
+      }),
+    );
   });
   if (target === '--mac')
     for (const arch of archs) {
