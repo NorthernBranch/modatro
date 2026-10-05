@@ -15,6 +15,49 @@ const DOWNLOAD_HOSTS = new Set([
 ]);
 export type RemoteSource = 'github' | 'thunderstore';
 const retryNotBefore = new Map<string, number>();
+interface GitHubRequests {
+  cooldowns: Map<string, number>;
+  remaining?: number;
+  resetAt?: number;
+  json: Map<string, { expiresAt: number; data?: unknown; error?: UserError }>;
+  pending: Map<string, Promise<unknown>>;
+}
+// Scope shared request state to its HTTP transport, including cached responses.
+const githubTransports = new WeakMap<typeof fetch, GitHubRequests>();
+function githubRequests(): GitHubRequests {
+  let state = githubTransports.get(fetch);
+  if (!state) {
+    state = { cooldowns: new Map(), json: new Map(), pending: new Map() };
+    githubTransports.set(fetch, state);
+  }
+  if (state.resetAt && Date.now() >= state.resetAt) {
+    state.remaining = undefined;
+    state.resetAt = undefined;
+  }
+  return state;
+}
+export function githubApiAvailable(reserve = 0): boolean {
+  const state = githubRequests();
+  return (
+    (state.cooldowns.get('api.github.com') ?? 0) <= Date.now() &&
+    (state.remaining === undefined || state.remaining > reserve)
+  );
+}
+function retryTime(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const until = /^\d+$/.test(value) ? Date.now() + Number(value) * 1000 : Date.parse(value);
+  return Number.isFinite(until) && until > Date.now() ? until : undefined;
+}
+function githubLimitError(until: number, status = 429): UserError {
+  const minutes = Math.max(1, Math.ceil((until - Date.now()) / 60000));
+  return new UserError(
+    `GitHub’s request limit was reached. Try again in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}. Your installed mods and cached information are unchanged.`,
+    undefined,
+    undefined,
+    { retryable: true },
+    status,
+  );
+}
 export function validateRemoteUrl(value: string, source: RemoteSource = 'github') {
   HttpsUrl.parse(value);
   const url = new URL(value);
@@ -53,16 +96,23 @@ export async function safeFetch(
   let retries = 0;
   for (let i = 0; i < 6; i++) {
     const target = validateRemoteUrl(current, source);
-    const cooldown = source === 'thunderstore' ? retryNotBefore.get(target.hostname) : undefined;
+    const github = source === 'github' ? githubRequests() : undefined;
+    const cooldowns = github?.cooldowns ?? retryNotBefore;
+    const cooldown = cooldowns.get(target.hostname);
     if (cooldown && cooldown > Date.now())
-      throw new UserError(
-        `Thunderstore requested a cooldown. Try refreshing again in ${Math.ceil((cooldown - Date.now()) / 1000)} seconds; your cached catalogue is available.`,
-        undefined,
-        undefined,
-        { retryable: true },
-        429,
-      );
-    if (cooldown) retryNotBefore.delete(target.hostname);
+      if (source === 'github') throw githubLimitError(cooldown);
+      else
+        throw new UserError(
+          `Thunderstore requested a cooldown. Try refreshing again in ${Math.ceil((cooldown - Date.now()) / 1000)} seconds; your cached catalogue is available.`,
+          undefined,
+          undefined,
+          { retryable: true },
+          429,
+        );
+    if (cooldown) cooldowns.delete(target.hostname);
+    if (target.hostname === 'api.github.com' && github?.remaining === 0)
+      throw githubLimitError(github.resetAt ?? Date.now() + 3600000);
+    if (target.hostname === 'api.github.com' && github?.remaining !== undefined) github.remaining--;
     const response = await fetch(current, {
       redirect: 'manual',
       signal: signal
@@ -76,6 +126,19 @@ export async function safeFetch(
             : 'application/json, application/octet-stream;q=0.9, */*;q=0.8',
       },
     });
+    if (target.hostname === 'api.github.com' && github) {
+      const remaining = response.headers.get('x-ratelimit-remaining');
+      const reset = Number(response.headers.get('x-ratelimit-reset')) * 1000;
+      if (remaining !== null && /^\d+$/.test(remaining)) {
+        const sameWindow = github.resetAt === reset;
+        github.remaining =
+          sameWindow && github.remaining !== undefined
+            ? Math.min(github.remaining, Number(remaining))
+            : Number(remaining);
+        github.resetAt = reset > Date.now() ? reset : Date.now() + 3600000;
+        if (github.remaining === 0) github.cooldowns.set(target.hostname, github.resetAt);
+      }
+    }
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get('location');
       await response.body?.cancel();
@@ -85,6 +148,25 @@ export async function safeFetch(
     }
     if (!response.ok) {
       await response.body?.cancel();
+      const githubLimited =
+        source === 'github' &&
+        (response.status === 429 ||
+          (response.status === 403 &&
+            (response.headers.get('x-ratelimit-remaining') === '0' ||
+              response.headers.has('retry-after'))));
+      if (githubLimited) {
+        const reset = Number(response.headers.get('x-ratelimit-reset')) * 1000;
+        const until = Math.max(
+          retryTime(response.headers.get('retry-after')) ?? Date.now() + 60000,
+          response.headers.get('x-ratelimit-remaining') === '0'
+            ? reset > Date.now()
+              ? reset
+              : Date.now() + 3600000
+            : 0,
+        );
+        github!.cooldowns.set(target.hostname, until);
+        throw githubLimitError(until, response.status);
+      }
       if (
         source === 'thunderstore' &&
         response.status === 429 &&
@@ -128,11 +210,13 @@ export async function safeFetch(
         }
       }
       throw new UserError(
-        response.status === 403 || response.status === 429
-          ? `${source === 'github' ? 'GitHub' : 'Thunderstore'}’s request limit was reached. Your cached catalogue is still available; try refreshing later.`
-          : response.status === 404 || response.status === 410
-            ? 'The original download source is no longer available. Your installed copy has not been changed.'
-            : `The server returned ${response.status}. Try again later.`,
+        source === 'github' && response.status === 403
+          ? 'GitHub denied access to this source. Check that the repository and release are publicly available.'
+          : response.status === 403 || response.status === 429
+            ? `${source === 'github' ? 'GitHub' : 'Thunderstore'}’s request limit was reached. Your cached catalogue is still available; try refreshing later.`
+            : response.status === 404 || response.status === 410
+              ? 'The original download source is no longer available. Your installed copy has not been changed.'
+              : `The server returned ${response.status}. Try again later.`,
         undefined,
         undefined,
         undefined,
@@ -159,7 +243,40 @@ export async function boundedBody(response: Response, limit: number): Promise<Bu
   return Buffer.concat(chunks);
 }
 export async function remoteJson(url: string): Promise<unknown> {
-  return JSON.parse((await boundedBody(await safeFetch(url), 20 * 1024 * 1024)).toString('utf8'));
+  const target = validateRemoteUrl(url);
+  const read = async () =>
+    JSON.parse((await boundedBody(await safeFetch(url), 20 * 1024 * 1024)).toString('utf8'));
+  // Only API metadata is reused. Removal checks and other raw policy documents
+  // always reach their original source; expired releases never bypass a limit.
+  if (target.hostname !== 'api.github.com') return read();
+  const state = githubRequests();
+  const key = target.href;
+  const cached = state.json.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    if (cached.error) throw cached.error;
+    return structuredClone(cached.data);
+  }
+  let pending = state.pending.get(key);
+  if (!pending) {
+    pending = (async () => {
+      try {
+        const data = await read();
+        if (state.json.size >= 128) state.json.delete(state.json.keys().next().value!);
+        state.json.set(key, { data, expiresAt: Date.now() + 5 * 60000 });
+        return data;
+      } catch (error) {
+        if (error instanceof UserError && error.statusCode === 404) {
+          if (state.json.size >= 128) state.json.delete(state.json.keys().next().value!);
+          state.json.set(key, { error, expiresAt: Date.now() + 60000 });
+        }
+        throw error;
+      } finally {
+        state.pending.delete(key);
+      }
+    })();
+    state.pending.set(key, pending);
+  }
+  return structuredClone(await pending);
 }
 export async function remoteThunderstoreJson(url: string): Promise<unknown> {
   let bytes = await boundedBody(await safeFetch(url, undefined, 'thunderstore'), 20 * 1024 * 1024);
