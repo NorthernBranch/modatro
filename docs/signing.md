@@ -41,6 +41,10 @@ Use GitHub's secret settings; keep certificates, private keys and passwords out 
 source control, issue reports and build artifacts. The workflow supplies credentials
 only to macOS packaging on trusted pushes or manual runs. Pull-request builds use
 ad-hoc signatures and do not receive signing credentials.
+The wrapper also strips signing credentials from pull-request environments and
+temporarily enables electron-builder's PR signing override only in certificate-free
+ad-hoc mode. Automatic certificate discovery stays disabled, and the resulting app
+must pass the same signature verification before artifacts are accepted.
 
 The packaging wrapper removes blank signing variables emitted by Actions before invoking
 electron-builder. In particular, an empty `CSC_LINK` must be unset: electron-builder
