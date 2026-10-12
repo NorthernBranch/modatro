@@ -157,6 +157,20 @@ async function mockDesktop(page: Page, state = fixture(), behavior: Record<strin
         checkAppUpdates: () => call('checkAppUpdates', control.state),
         githubStars: async () => ({ ok: true, value: { fixture: 42, popular: 1200, zero: 0 } }),
         snapshot: () => call('snapshot', control.state),
+        profileOperation: () => call('profileOperation', control.state),
+        troubleshoot: () =>
+          call('troubleshoot', {
+            generatedAt: new Date().toISOString(),
+            appVersion: control.state.appVersion,
+            platform: control.state.platform,
+            arch: control.state.arch,
+            prerequisites: [],
+            mods: [],
+            findings: [],
+            history: [],
+            logs: [],
+            report: 'Synthetic support report',
+          }),
         detect: () => call('detect', control.state),
         refresh: () => call('refresh', control.state),
         choosePath: () => call('choosePath', control.state),
@@ -200,6 +214,37 @@ async function closeError(page: Page) {
     .filter({ has: page.getByRole('heading', { name: 'Let’s sort this out.' }) });
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
 }
+
+test('Troubleshooting waits for profile deletion even when the active name remains Default', async ({
+  page,
+}) => {
+  const state = fixture();
+  const id = '11111111-1111-4111-8111-111111111111';
+  state.profiles = {
+    schemaVersion: 1,
+    activeId: id,
+    items: [{ id, name: 'Default', selection: [] }],
+    unsaved: false,
+    differences: [],
+    unmanagedCount: 0,
+  };
+  await mockDesktop(page, state, { profileOperation: 'hold' });
+  await page.getByRole('button', { name: 'Manage profiles', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete Default', exact: true }).click();
+  await page.getByLabel('Preserve the current selection as a new Default profile').check();
+  await page.getByRole('button', { name: 'Confirm delete', exact: true }).click();
+  await expect(page.getByText('Active: Default', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.requestsTest.calls.profileOperation)).toBe(1);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Troubleshooting', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Refresh setup checks', exact: true }),
+  ).toBeDisabled();
+  expect(await page.evaluate(() => window.requestsTest.calls.troubleshoot ?? 0)).toBe(0);
+  await page.evaluate(() => window.requestsTest.finish('profileOperation'));
+  await expect(page.getByRole('heading', { name: 'Setup overview', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.requestsTest.calls.troubleshoot)).toBe(1);
+});
 
 test('unverified loaders allow installation only after explicit risk consent', async ({ page }) => {
   const state = fixture();

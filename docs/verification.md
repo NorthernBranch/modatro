@@ -127,7 +127,11 @@ manual Mods overrides pass the same macOS/Linux folder restrictions as productio
 It does not use Steam, save or installed-app folders; the fixture is removed after
 the app closes. The test checks the profile-preview IPC reply explicitly so a path
 validation failure is reported directly instead of timing out waiting for a dialog.
+Active Default-profile deletion keeps the same displayed name, so the desktop test
+waits for the edit to close and the active identity to change before issuing diagnostics.
+A browser regression holds deletion pending while opening Troubleshooting, then
+checks that its initial request starts only after the configuration operation finishes.
 
-These changes have been exercised locally on Windows; macOS and Linux/Proton paths
-are based on upstream documentation and fixtures. Actual cross-platform loader logs,
+These changes have been exercised locally on Windows and in an Ubuntu 22.04 container.
+macOS and Proton paths use upstream documentation and fixtures. Actual cross-platform loader logs,
 filesystem permissions and native dialogs still need release testing on those platforms.

@@ -231,6 +231,10 @@ test('setup and theme saves preserve selected folders through validated desktop 
     await expect(page.getByRole('button', { name: 'Confirm delete', exact: true })).toBeDisabled();
     await page.getByLabel('Preserve the current selection as a new Default profile').check();
     await page.getByRole('button', { name: 'Confirm delete', exact: true }).click();
+    // The name remains Default throughout deletion. Wait for the completed edit
+    // and the new identity, rather than matching the old, already-visible label.
+    await expect(page.getByRole('button', { name: 'Confirm delete', exact: true })).toHaveCount(0);
+    await expect(page.getByLabel('Profile', { exact: true })).not.toHaveValue(originalId);
     await expect(page.getByText('Active: Default', { exact: true })).toBeVisible();
     await page.keyboard.press('Escape');
     const badRequest = await page.evaluate(() =>
@@ -240,7 +244,7 @@ test('setup and theme saves preserve selected folders through validated desktop 
     const diagnostics = await page.evaluate(() => window.modatro!.troubleshoot!({ logIds: [] }));
     expect(
       diagnostics,
-      'Valid diagnostic IPC must succeed before rendering the overview',
+      `Valid diagnostic IPC must succeed before rendering the overview: ${JSON.stringify(diagnostics)}`,
     ).toMatchObject({ ok: true });
     await page.getByRole('button', { name: 'Troubleshooting', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Setup overview', exact: true })).toBeVisible();

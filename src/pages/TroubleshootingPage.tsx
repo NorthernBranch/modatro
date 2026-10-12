@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { PageHeading } from '../components/PageElements';
 import { AsyncButton } from '../components/AsyncButton';
@@ -44,6 +44,7 @@ export function TroubleshootingPage({
     })),
   });
   const [checkedRevision, setCheckedRevision] = useState<string>();
+  const initialCheckStarted = useRef(false);
   const busy = requests.isBusy('configuration');
   async function load(ids = selectedLogs) {
     if (!api.troubleshoot) return;
@@ -60,8 +61,13 @@ export function TroubleshootingPage({
     }
   }
   useEffect(() => {
+    // Navigation can mount this page while a profile operation is still saving.
+    // Start once the shared configuration group is free; a refused request must
+    // not leave the page permanently displaying "Checking setup".
+    if (busy || initialCheckStarted.current) return;
+    initialCheckStarted.current = true;
     void load([]);
-  }, []);
+  }, [busy]);
   function action(finding: Finding) {
     if (finding.action === 'profiles') profiles();
     else if (finding.action === 'logs')
