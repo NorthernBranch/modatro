@@ -115,8 +115,11 @@ test('desktop has an isolated renderer, working preload and validated IPC', asyn
 });
 
 test('setup and theme saves preserve selected folders through validated desktop IPC', async () => {
+  // A manually selected Mods override must be beneath the real home on macOS
+  // and Linux. Keep all synthetic files in a unique disposable child of home,
+  // separate from real Steam, game, save and Modatro application-data folders.
   const root = await fs.realpath(
-    await fs.mkdtemp(path.join(os.tmpdir(), 'modatro-settings-test-')),
+    await fs.mkdtemp(path.join(os.homedir(), '.modatro-settings-test-')),
   );
   const data = path.join(root, 'profile');
   const gamePath = path.join(root, 'Balatro');
@@ -211,6 +214,10 @@ test('setup and theme saves preserve selected folders through validated desktop 
     ).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toHaveCount(0);
+    const reviewed = await page.evaluate((id) => window.modatro!.previewProfile!(id), originalId);
+    expect(reviewed, 'The synthetic folders must pass the production profile guard').toMatchObject({
+      ok: true,
+    });
     await page.getByLabel('Profile', { exact: true }).selectOption(originalId);
     await expect(
       page.getByRole('heading', { name: 'Review profile: Default', exact: true }),

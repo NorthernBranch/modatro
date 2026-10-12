@@ -141,6 +141,20 @@ describe('Balatro path validation', () => {
       'home or system',
     );
   });
+  it.each(['darwin', 'linux'])(
+    'keeps %s manual Mods overrides inside home, including disposable desktop fixtures',
+    async (platform) => {
+      const r = await root(),
+        home = path.join(r, 'home'),
+        inside = path.join(home, '.modatro-fixture', 'Mods'),
+        outside = path.join(r, 'outside', 'Mods');
+      await fs.mkdir(inside, { recursive: true });
+      await fs.mkdir(outside, { recursive: true });
+      const detection = new GameDetectionService(platform, home);
+      await expect(detection.validateMods(outside)).rejects.toThrow('dedicated Mods folder');
+      expect(await detection.validateMods(inside)).toBe(await fs.realpath(inside));
+    },
+  );
   it('reads custom Steam library paths and legacy VDF paths', () => {
     const posix =
       '"libraryfolders" { "0" { "path" "/Volumes/Games/Steam" } "1" "/another/library" }';

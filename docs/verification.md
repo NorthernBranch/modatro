@@ -122,6 +122,12 @@ switching, actual validated IPC, troubleshooting generation, editable report exp
 through a stubbed native dialog, and Escape/focus behavior. All paths and logs are
 inside temporary fixtures. Real personal logs, games and saves are excluded.
 
+The desktop fixture uses a unique disposable directory beneath the real home so
+manual Mods overrides pass the same macOS/Linux folder restrictions as production.
+It does not use Steam, save or installed-app folders; the fixture is removed after
+the app closes. The test checks the profile-preview IPC reply explicitly so a path
+validation failure is reported directly instead of timing out waiting for a dialog.
+
 These changes have been exercised locally on Windows; macOS and Linux/Proton paths
 are based on upstream documentation and fixtures. Actual cross-platform loader logs,
 filesystem permissions and native dialogs still need release testing on those platforms.
