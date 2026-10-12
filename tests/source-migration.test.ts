@@ -315,6 +315,15 @@ async function mockArchives(
 }
 it('stages a complete dependency plan, then commits one transaction with provenance and ownership', async () => {
   const f = await fixture();
+  const other = '22222222-2222-4222-8222-222222222222';
+  await f.storage.save({
+    ...f.storage.state,
+    profiles: {
+      ...f.storage.state.profiles!,
+      items: [...f.storage.state.profiles!.items, { id: other, name: 'Other', selection: [] }],
+    },
+  });
+  const beforeProfiles = structuredClone(f.storage.state.profiles);
   const c = pkg('C'),
     b = pkg('B', [dep('C')]),
     a = pkg('A', [dep('B')]);
@@ -323,11 +332,15 @@ it('stages a complete dependency plan, then commits one transaction with provena
   const first = await f.installer.installMany(graph).catch(errorReply);
   expect(first).toHaveProperty('confirmation');
   expect(f.storage.state.installations).toEqual([]);
+  expect(f.storage.state.profiles).toEqual(beforeProfiles);
   expect(await fs.readdir(f.mods)).toEqual([]);
   const token = (first as ReturnType<typeof errorReply>).confirmation!.token;
   await f.installer.installMany(graph, token);
   expect(f.storage.state.installations.map((record) => record.title)).toEqual(['C', 'B', 'A']);
   expect(new Set(f.storage.state.installations.map((record) => record.transactionId)).size).toBe(1);
+  for (const profile of f.storage.state.profiles!.items)
+    for (const item of graph)
+      expect(profile.selection).toContainEqual({ id: item.id, enabled: profile.id !== other });
   expect(f.storage.state.installations[0]).toMatchObject({
     automaticallyInstalled: true,
     provenance: {

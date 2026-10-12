@@ -5,6 +5,24 @@ import path from 'node:path';
 import { RelativePath } from '../../src/shared/model';
 import { UserError } from './errors';
 
+// Bound independent I/O and drain the whole batch before reporting a failure,
+// so rollback never races reads or writes still running from this operation.
+export async function fileBatches<T, R>(
+  items: readonly T[],
+  work: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const output: R[] = [];
+  for (let index = 0; index < items.length; index += 8) {
+    const batch = await Promise.allSettled(
+      items.slice(index, index + 8).map((item) => Promise.resolve().then(() => work(item))),
+    );
+    const failure = batch.find((result) => result.status === 'rejected');
+    if (failure?.status === 'rejected') throw failure.reason;
+    output.push(...batch.map((result) => (result as PromiseFulfilledResult<R>).value));
+  }
+  return output;
+}
+
 export async function exists(file: string): Promise<boolean> {
   try {
     await fs.lstat(file);

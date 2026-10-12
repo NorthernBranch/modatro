@@ -1,12 +1,14 @@
 import * as fs from 'node:fs/promises';
+import path from 'node:path';
 import { z } from 'zod';
 import {
   ModSchema,
   type LocalMod,
   type ModDefinition,
   type Prerequisite,
+  type InstallationRecord,
 } from '../../src/shared/model';
-import { exists, hashFile, readSmall, safeDestination } from './files';
+import { exists, fileBatches, hashFile, readSmall, safeDestination } from './files';
 import { catalogueMatches, dependencyId, inspectMetadata, parseLuaHeader } from './metadata';
 import { remoteJson } from './network';
 import { Logger, Storage } from './storage';
@@ -40,6 +42,20 @@ const upstreams = [
   { id: 'Steamodded', repository: 'Steamodded/smods' },
   { id: 'Talisman', repository: 'SpectralPack/Talisman' },
 ];
+async function emptyDirectoryTree(directory: string) {
+  let checked = 0;
+  async function empty(folder: string, depth: number): Promise<boolean> {
+    // Limits or unknown entries are treated conservatively as nonempty. Never
+    // follow links or hide a folder containing real external files.
+    if (depth > 30 || ++checked > 2000) return false;
+    const entries = await fs.opendir(folder);
+    for await (const entry of entries)
+      if (!entry.isDirectory() || !(await empty(path.join(folder, entry.name), depth + 1)))
+        return false;
+    return true;
+  }
+  return empty(directory, 0);
+}
 export class InstalledModsService {
   latest = new Map<string, { version?: string; error?: string }>();
   private latestCheck?: Promise<void>;
@@ -62,18 +78,28 @@ export class InstalledModsService {
       roots = this.roots(),
       mods: LocalMod[] = [],
       detected = new Map<string, { version?: string; installed: boolean }>();
-    for (const record of state.installations) {
-      const problems: string[] = [];
-      for (const file of record.files) {
+    const integrity = new Map<string, string[]>();
+    const verified = await fileBatches(
+      state.installations.flatMap((record) =>
+        record.files.map((file) => ({ id: record.modId, file })),
+      ),
+      async ({ id, file }) => {
+        let problem: string | undefined;
         try {
           const dest = await safeDestination(roots[file.root], file.path);
-          if (!(await exists(dest))) problems.push(`${file.path} is missing.`);
+          if (!(await exists(dest))) problem = `${file.path} is missing.`;
           else if ((await hashFile(dest)) !== file.installedHash)
-            problems.push(`${file.path} has changed outside Modatro.`);
+            problem = `${file.path} has changed outside Modatro.`;
         } catch {
-          problems.push(`${file.path} cannot be verified.`);
+          problem = `${file.path} cannot be verified.`;
         }
-      }
+        return { id, problem };
+      },
+    );
+    for (const { id, problem } of verified)
+      if (problem) integrity.set(id, [...(integrity.get(id) ?? []), problem]);
+    for (const record of state.installations) {
+      const problems = integrity.get(record.modId) ?? [];
       const latest = catalogue.find((m) => m.id === record.modId);
       const historical = this.trust?.apply(
         ModSchema.parse({
@@ -142,20 +168,30 @@ export class InstalledModsService {
       });
     }
     if (roots.mods && (await exists(roots.mods))) {
+      const owners = new Map<string, InstallationRecord>();
+      for (const record of state.installations.filter((record) => !record.disabled))
+        for (const name of new Set(
+          record.files
+            .filter((file) => file.root === 'mods')
+            .map((file) => file.path.split('/')[0]!),
+        )) {
+          try {
+            // Resolve directory spelling on the actual filesystem, rather than
+            // assuming that recorded paths and readdir use identical casing.
+            const location = await safeDestination(roots.mods, name);
+            if (!owners.has(location)) owners.set(location, record);
+          } catch {
+            // The managed row already reports inaccessible or unsafe files.
+          }
+        }
       for (const entry of await fs.readdir(roots.mods, { withFileTypes: true })) {
         if (['lovely', '.DS_Store'].includes(entry.name) || entry.name.startsWith('.modatro-'))
           continue;
+        let owner: InstallationRecord | undefined;
         try {
           const location = await safeDestination(roots.mods, entry.name);
-          const owner = state.installations.find(
-            (r) =>
-              !r.disabled &&
-              r.files.some(
-                (f) =>
-                  f.root === 'mods' &&
-                  (f.path === entry.name || f.path.startsWith(`${entry.name}/`)),
-              ),
-          );
+          owner = owners.get(location);
+          if (!owner && entry.isDirectory() && (await emptyDirectoryTree(location))) continue;
           const meta = entry.isDirectory()
             ? await inspectMetadata(location)
             : entry.isFile() && entry.name.endsWith('.lua')
@@ -166,7 +202,7 @@ export class InstalledModsService {
           if (
             !meta?.id &&
             owner?.metadataId &&
-            !mods.find((m) => m.id === owner.modId)?.problems.length
+            !mods.find((m) => m.id === owner!.modId)?.problems.length
           ) {
             if (dependencyId(owner.metadataId) === 'Steamodded' && meta) {
               meta.id = 'Steamodded';
@@ -218,6 +254,12 @@ export class InstalledModsService {
             folder: entry.name,
             error: String(e),
           });
+          if (owner) {
+            const managed = mods.find((mod) => mod.managed && mod.id === owner!.modId)!;
+            managed.problems.push('This folder’s metadata could not be verified.');
+            managed.state = 'broken';
+            continue;
+          }
           mods.push({
             id: `external:${entry.name}`,
             title: entry.name,

@@ -112,6 +112,12 @@ state backups and migration, persisted unsaved selection changes, shared-version
 required dependency retention, missing and unlisted mods, unmanaged preservation,
 unsupported moves, external edits, stale tokens, rollback and startup commit recovery.
 Game-running and operation-lock checks use deterministic isolated fixtures.
+Coverage includes three profiles created before installation, automatic active-profile
+saves, disabled entries in inactive profiles, older missing selections, repeated
+switches without external duplicates, preserved unsaved toggles and atomic install
+rollback. Scanner tests cover empty remnants, real external files, Windows directory
+casing and invalid managed metadata. File-I/O failures drain outstanding work before
+rollback; browser tests prevent dismissing an in-progress profile switch.
 
 `troubleshooting.test.ts` checks verified versus unknown findings, disabled records,
 opt-in logs, stale times, bounded tail/excerpt reads, malformed and binary input,

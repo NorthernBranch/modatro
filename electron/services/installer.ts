@@ -17,6 +17,7 @@ import type {
   UnverifiedPrerequisite,
 } from '../../src/shared/model';
 import { ModSchema, RecordSchema, SafeName } from '../../src/shared/model';
+import { withInstalledMods } from '../../src/shared/profile-selection';
 import { ArchiveService } from './archive';
 import { GameDetectionService, LaunchService } from './detection';
 import { UserError } from './errors';
@@ -573,13 +574,7 @@ export class ModInstaller {
     this.progress({ modId: prepared.mod.id, phase: 'installing' });
     await this.transactions.execute(this.roots(), prepared.changes, (journal) => {
       const record = this.installationRecord(prepared, journal);
-      return {
-        ...this.storage.state,
-        installations: [
-          ...this.storage.state.installations.filter((r) => r.modId !== record.modId),
-          record,
-        ],
-      };
+      return withInstalledMods(this.storage.state, [record]);
     });
     await this.cleanupEmptyDirectories(prepared.previous?.files ?? []);
   }
@@ -809,17 +804,14 @@ export class ModInstaller {
           this.assertDependencies(evaluateDependencies(item.dependencies, rechecked), accepted);
         abort.signal.throwIfAborted();
         this.abort = undefined;
-        await this.transactions.execute(this.roots(), changes, (journal) => ({
-          ...this.storage.state,
-          installations: [
-            ...this.storage.state.installations.filter(
-              (record) => !prepared.some((item) => item.mod.id === record.modId),
-            ),
-            ...prepared.map((item, index) =>
+        await this.transactions.execute(this.roots(), changes, (journal) =>
+          withInstalledMods(
+            this.storage.state,
+            prepared.map((item, index) =>
               this.installationRecord(item, journal, index < prepared.length - 1),
             ),
-          ],
-        }));
+          ),
+        );
         for (const item of prepared) {
           await this.cleanupEmptyDirectories(item.previous?.files ?? []);
           this.progress({ modId: item.mod.id, phase: 'complete', percent: 100 });
@@ -1211,14 +1203,11 @@ export class ModInstaller {
       for (const file of owned)
         if ((await hashFile(await safeDestination(roots.mods, file.path))) !== file.installedHash)
           throw new UserError('The external mod changed during adoption. Refresh and try again.');
-      await this.storage.save({
-        ...this.storage.state,
-        installations: [...this.storage.state.installations, record],
-      });
+      await this.storage.save(withInstalledMods(this.storage.state, [record]));
       await this.logger.log('adoption.complete', { modId: record.modId, files: owned.length });
     });
   }
-  private async cleanupEmptyDirectories(files: { root: FileRoot; path: string }[]) {
+  async cleanupEmptyDirectories(files: { root: FileRoot; path: string }[]) {
     const problems: string[] = [];
     const roots = this.roots();
     const dirs = new Set(

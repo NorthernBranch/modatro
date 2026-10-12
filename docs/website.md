@@ -77,17 +77,20 @@ alone is not the complete association.
 
 ## Terminal uploads
 
-With Wrangler installed through npm, authenticate and upload the static directory:
+From the repository root, authenticate once and upload the static directory:
 
 The existing `modatro` project uses Direct Upload and serves `modatro.app`; use its
 production `main` branch when uploading. Local Wrangler state is excluded from Git.
 
 ```sh
-npx wrangler login
-npx wrangler pages deploy website --project-name modatro --branch main
+pnpm dlx wrangler@4 login
+pnpm deploy:website
 ```
 
-On Windows PowerShell, use `npx.cmd` if script execution policy blocks `npx.ps1`.
+The deployment script runs Wrangler 4 through `pnpm dlx`, so no global installation
+or desktop build is needed. It uploads the local `website/` files to production,
+including when run from a feature branch. On Windows PowerShell, use `pnpm.cmd` if
+script execution policy blocks `pnpm.ps1`.
 The project must already exist; `wrangler pages project create modatro
 --production-branch main` creates a new Direct Upload project when that workflow is
 chosen. Choose Git integration when dashboard-managed Git deployments are desired.

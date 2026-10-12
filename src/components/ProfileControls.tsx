@@ -36,6 +36,7 @@ export function ProfileControls({
   if (!profiles || !api.profileOperation) return null;
   const active = profiles.items.find((p) => p.id === profiles.activeId)!;
   const busy = requests.isBusy('configuration');
+  const switching = requests.isPending('profile-switch');
   async function operation(request: ProfileOperation) {
     const reply = await requests.run(
       'profile-operation',
@@ -160,29 +161,33 @@ export function ProfileControls({
                       className="text-button"
                       disabled={busy}
                       onClick={() => void preview(p.id)}
+                      aria-label={`Review switch to ${p.name}`}
                     >
-                      Review switch to {p.name}
+                      Review switch
                     </button>
                     <button
                       className="text-button"
                       disabled={busy}
                       onClick={() => edit('rename', p.id)}
+                      aria-label={`Rename ${p.name}`}
                     >
-                      Rename {p.name}
+                      Rename
                     </button>
                     <button
                       className="text-button"
                       disabled={busy}
                       onClick={() => edit('duplicate', p.id)}
+                      aria-label={`Duplicate ${p.name}`}
                     >
-                      Duplicate {p.name}
+                      Duplicate
                     </button>
                     <button
                       className="text-button"
                       disabled={busy}
                       onClick={() => edit('delete', p.id)}
+                      aria-label={`Delete ${p.name}`}
                     >
-                      Delete {p.name}
+                      Delete
                     </button>
                   </div>
                 </div>
@@ -276,8 +281,13 @@ export function ProfileControls({
         </Dialog>
       )}
       {plan && (
-        <Dialog title={`Review profile: ${plan.name}`} onClose={() => setPlan(undefined)} wide>
-          <div className="profile-switch">
+        <Dialog
+          title={`Review profile: ${plan.name}`}
+          onClose={() => setPlan(undefined)}
+          wide
+          dismissible={!switching}
+        >
+          <div className="profile-switch" aria-busy={switching}>
             <div className="profile-switch-intro">
               <p>Review the changes to your managed mod selection.</p>
               <span className="profile-switch-total">
@@ -395,19 +405,25 @@ export function ProfileControls({
               </section>
             )}
             <div className="profile-switch-footer">
-              <p>
-                {plan.blockers.length
-                  ? 'No files will change until the issues are resolved.'
-                  : 'Applied together in one recoverable transaction.'}
+              <p role={switching ? 'status' : undefined}>
+                {switching
+                  ? 'Switching profile. Please keep Modatro open.'
+                  : plan.blockers.length
+                    ? 'No files will change until the issues are resolved.'
+                    : 'Applied together in one recoverable transaction.'}
               </p>
               <div>
-                <button className="button button-secondary" onClick={() => setPlan(undefined)}>
+                <button
+                  className="button button-secondary"
+                  onClick={() => setPlan(undefined)}
+                  disabled={switching}
+                >
                   Cancel
                 </button>
                 <AsyncButton
                   className="button button-primary"
                   pending={requests.isPending('profile-switch')}
-                  pendingLabel="Applying selection?"
+                  pendingLabel="Applying selection…"
                   disabled={busy || !!plan.blockers.length}
                   onClick={async () => {
                     const reply = await requests.run(

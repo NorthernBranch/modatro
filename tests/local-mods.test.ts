@@ -22,6 +22,42 @@ function lovelyBinary(extra = '') {
     Buffer.from(`lovely_injector_fixture${extra}`),
   ]);
 }
+it('ignores empty directory remnants without hiding real external files', async () => {
+  const f = await fixture();
+  await fs.mkdir(path.join(f.mods, 'OldMod', 'empty', 'nested'), { recursive: true });
+  const service = new InstalledModsService(f.storage, f.logger);
+  expect((await service.scan([])).mods).toEqual([]);
+  await put(path.join(f.mods, 'OldMod', 'external.lua'), 'external file');
+  expect((await service.scan([])).mods).toMatchObject([{ managed: false, folderName: 'OldMod' }]);
+  expect(await fs.readFile(path.join(f.mods, 'OldMod', 'external.lua'), 'utf8')).toBe(
+    'external file',
+  );
+});
+it.skipIf(process.platform !== 'win32')(
+  'recognizes ownership when directory casing differs from the saved paths',
+  async () => {
+    const f = await fixture();
+    await put(path.join(f.stage, 'main.lua'), 'return {}');
+    const source = mod({ id: 'demo', metadataId: 'demo' });
+    await f.installer.commitPrepared(await f.installer.plan(source, f.stage));
+    await fs.rename(path.join(f.mods, 'demo'), path.join(f.mods, 'temporary-case'));
+    await fs.rename(path.join(f.mods, 'temporary-case'), path.join(f.mods, 'DEMO'));
+    const scan = await new InstalledModsService(f.storage, f.logger).scan([source]);
+    expect(scan.mods).toHaveLength(1);
+    expect(scan.mods[0]).toMatchObject({ id: 'demo', managed: true, problems: [] });
+  },
+);
+it('reports malformed metadata on its managed row instead of adding an external duplicate', async () => {
+  const f = await fixture();
+  await put(path.join(f.stage, 'main.lua'), 'return {}');
+  const source = mod({ id: 'demo' });
+  await f.installer.commitPrepared(await f.installer.plan(source, f.stage));
+  await put(path.join(f.mods, 'demo', 'mod.json'), '{broken');
+  const scan = await new InstalledModsService(f.storage, f.logger).scan([source]);
+  expect(scan.mods).toHaveLength(1);
+  expect(scan.mods[0]).toMatchObject({ id: 'demo', managed: true, state: 'broken' });
+  expect(scan.mods[0]!.problems.join(' ')).toContain('metadata could not be verified');
+});
 it('detects Steamodded by structured metadata in a differently named unmanaged folder', async () => {
   const f = await fixture();
   await put(

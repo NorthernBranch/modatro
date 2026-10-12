@@ -14,7 +14,7 @@ import { evaluateDependency, externalLoaderRequirement } from '../../src/shared/
 import type { InstallationRecord, Prerequisite, Snapshot } from '../../src/shared/model';
 import { thunderstoreId } from '../../src/shared/thunderstore';
 import { dependencyId } from './metadata';
-import { atomicCopy, hashFile, safeDestination } from './files';
+import { atomicCopy, fileBatches, hashFile, safeDestination } from './files';
 import { ModInstaller } from './installer';
 import { Storage } from './storage';
 import { UserError } from './errors';
@@ -150,6 +150,7 @@ export class ProfileService {
     id: string,
     guard = true,
     supplied?: Snapshot,
+    prepared?: Map<string, Awaited<ReturnType<ModInstaller['planToggle']>>>,
   ): Promise<Omit<ProfilePlan, 'token' | 'expiresAt'>> {
     if (guard) await this.installer.guard();
     const snapshot = supplied ?? (await this.snapshot());
@@ -164,7 +165,7 @@ export class ProfileService {
       enabled: profile.selection.find((p) => p.id === r.modId)?.enabled ?? false,
     }));
     for (const entry of profile.selection)
-      if (!records.some((r) => r.modId === entry.id))
+      if (entry.enabled && !records.some((r) => r.modId === entry.id))
         blockers.push(
           `${entry.id} is no longer installed. Install it through Discover or save an updated selection; switching will not download it.`,
         );
@@ -242,7 +243,8 @@ export class ProfileService {
       if (desired.find((e) => e.id === record.modId)!.enabled === record.disabled) {
         (record.disabled ? enable : disable).push(record.modId);
         try {
-          await this.installer.planToggle(record, !record.disabled);
+          const toggle = await this.installer.planToggle(record, !record.disabled);
+          prepared?.set(record.modId, toggle);
         } catch (e) {
           blockers.push(`${record.title}: ${e instanceof Error ? e.message : String(e)}`);
         }
@@ -281,7 +283,8 @@ export class ProfileService {
     return this.installer.transactions.locked(async () => {
       const confirmation = this.confirmations.get(token);
       this.confirmations.delete(token);
-      const plan = await this.build(id);
+      const prepared = new Map<string, Awaited<ReturnType<ModInstaller['planToggle']>>>();
+      const plan = await this.build(id, true, undefined, prepared);
       if (
         !confirmation ||
         confirmation.expires < Date.now() ||
@@ -298,22 +301,23 @@ export class ProfileService {
       );
       for (const record of moved) {
         const disabled = plan.disable.includes(record.modId),
-          prepared = await this.installer.planToggle(record, disabled);
-        changes.push(...prepared.changes);
+          toggle = prepared.get(record.modId)!;
+        changes.push(...toggle.changes);
         nextRecords[nextRecords.indexOf(record)] = {
           ...record,
           disabled,
-          files: prepared.nextFiles,
+          files: toggle.nextFiles,
         };
       }
       const staging = await fs.mkdtemp(this.storage.file('staging/profile-'));
       try {
-        for (const [i, change] of changes.entries())
+        await fileBatches([...changes.entries()], async ([i, change]) => {
           if (change.source) {
             const file = path.join(staging, `${i}`);
             await atomicCopy(change.source, file);
             change.source = file;
           }
+        });
         // Recheck process, integrity and dependencies after staging and before mutation.
         const rechecked = await this.build(id);
         if (confirmation.fingerprint !== this.fingerprint(rechecked))
@@ -336,8 +340,9 @@ export class ProfileService {
           async () => {
             await this.installer.guard();
             const roots = this.installer.roots();
-            for (const record of nextRecords)
-              for (const file of record.files) {
+            await fileBatches(
+              nextRecords.flatMap((record) => record.files),
+              async (file) => {
                 if (
                   (await hashFile(await safeDestination(roots[file.root], file.path))) !==
                   file.installedHash
@@ -345,9 +350,13 @@ export class ProfileService {
                   throw new UserError(
                     'A managed file changed before the profile could commit. Recovery will preserve unverified external edits.',
                   );
-              }
+              },
+            );
           },
         );
+        // Use the same conservative cleanup as individual toggles. Only empty
+        // source directories are removed, after the durable transaction commit.
+        await this.installer.cleanupEmptyDirectories(moved.flatMap((record) => record.files));
       } finally {
         await fs.rm(staging, { recursive: true, force: true });
       }
