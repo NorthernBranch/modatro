@@ -33,9 +33,6 @@ Choose an installer from [GitHub Releases](https://github.com/NorthernBranch/mod
 The desktop app includes its runtime; you do not need Node.js or pnpm to use it.
 Each successful release includes SHA-256 checksums and macOS signing reports.
 
-The platform-aware download website is in [`website/`](website/). Maintainers can
-use the [Cloudflare hosting and domain guide](docs/website.md) to deploy it.
-
 > **Platform testing:** Windows has received the most complete manual testing.
 > Feedback from macOS, Linux and Steam Deck users is welcome through
 > [GitHub Issues](https://github.com/NorthernBranch/modatro/issues).
