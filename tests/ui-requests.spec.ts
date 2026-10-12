@@ -158,6 +158,20 @@ async function mockDesktop(page: Page, state = fixture(), behavior: Record<strin
         githubStars: async () => ({ ok: true, value: { fixture: 42, popular: 1200, zero: 0 } }),
         snapshot: () => call('snapshot', control.state),
         profileOperation: () => call('profileOperation', control.state),
+        previewProfile: (id) =>
+          call('previewProfile', {
+            profileId: id,
+            name: control.state.profiles!.items.find((profile) => profile.id === id)!.name,
+            token: '33333333-3333-4333-8333-333333333333',
+            expiresAt: new Date(Date.now() + 300000).toISOString(),
+            selection: [],
+            enable: [],
+            disable: [],
+            retained: [],
+            blockers: [],
+            warnings: [],
+          }),
+        switchProfile: () => call('switchProfile', control.state),
         troubleshoot: () =>
           call('troubleshoot', {
             generatedAt: new Date().toISOString(),
@@ -244,6 +258,64 @@ test('Troubleshooting waits for profile deletion even when the active name remai
   await page.evaluate(() => window.requestsTest.finish('profileOperation'));
   await expect(page.getByRole('heading', { name: 'Setup overview', exact: true })).toBeVisible();
   expect(await page.evaluate(() => window.requestsTest.calls.troubleshoot)).toBe(1);
+});
+
+test('profile actions stay concise and switching cannot be dismissed until it finishes', async ({
+  page,
+}) => {
+  const state = fixture();
+  const first = '11111111-1111-4111-8111-111111111111';
+  const second = '22222222-2222-4222-8222-222222222222';
+  state.profiles = {
+    schemaVersion: 1,
+    activeId: first,
+    items: [
+      { id: first, name: 'Default', selection: [] },
+      { id: second, name: 'Other', selection: [] },
+    ],
+    unsaved: false,
+    differences: [],
+    unmanagedCount: 0,
+  };
+  await mockDesktop(page, state, { switchProfile: 'hold' });
+  await page.getByRole('button', { name: 'Manage profiles', exact: true }).click();
+  for (const action of ['Rename', 'Duplicate', 'Delete'])
+    await expect(page.getByRole('button', { name: `${action} Other`, exact: true })).toHaveText(
+      action,
+    );
+  await expect(
+    page.getByRole('button', { name: 'Review switch to Other', exact: true }),
+  ).toHaveText('Review switch');
+  await page.getByRole('button', { name: 'Review switch to Other', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Review profile: Other' });
+  await dialog.getByRole('button', { name: 'Confirm profile switch' }).click();
+  await expect(
+    dialog.getByRole('button', { name: 'Applying selection…', exact: true }),
+  ).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Close dialog' })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
+  await expect(dialog.getByRole('status')).toContainText('Switching profile');
+  await page.keyboard.press('Escape');
+  await page.mouse.click(1, 1);
+  await expect(dialog).toBeVisible();
+  expect(await page.evaluate(() => window.requestsTest.calls.switchProfile)).toBe(1);
+  await page.evaluate(() =>
+    window.requestsTest.finish('switchProfile', {
+      ok: false,
+      error: { message: 'Switch blocked fixture' },
+    }),
+  );
+  await closeError(page);
+  await expect(dialog.getByRole('button', { name: 'Close dialog' })).toBeEnabled();
+  await dialog.getByRole('button', { name: 'Close dialog' }).click();
+  await page.getByLabel('Profile', { exact: true }).selectOption(second);
+  await dialog.getByRole('button', { name: 'Confirm profile switch' }).click();
+  await page.evaluate((id) => {
+    window.requestsTest.state.profiles!.activeId = id;
+    window.requestsTest.finish('switchProfile');
+  }, second);
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByLabel('Profile', { exact: true })).toHaveValue(second);
 });
 
 test('unverified loaders allow installation only after explicit risk consent', async ({ page }) => {

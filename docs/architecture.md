@@ -221,6 +221,10 @@ persistence, CRUD inputs, switch previews and confirmations, diagnostic log sele
 and reviewed report export. State schema 3 contains profile schema 1 with stable
 managed identities and the active profile. `profile-selection.ts` compares selection
 only, so a version update never creates a false unsaved indicator.
+The shared `withInstalledMods` state builder saves installed or adopted identities
+to the active selection and adds new disabled entries to inactive selections.
+Existing inactive choices and unrelated unsaved toggles are preserved. Single and
+dependency-batch installs use this builder inside their file transaction.
 
 `ProfileService` reviews targets under the existing transaction lock and game-closed
 guard. It uses the same dependency evaluator as installation, source-qualified package
@@ -231,6 +235,11 @@ or ambiguous dependencies and unsafe moves block the plan. The installer exposes
 one shared `planToggle` implementation for folder, ownership, hash and destination
 checks. All sources are staged before one transaction commits file moves and profile
 metadata. Single-use five-minute tokens cover the saved state and effective plan.
+Switches reuse their initial move preparation, perform independent integrity reads
+and staging copies in batches of at most eight, and drain outstanding I/O before
+reporting failure. Final game-running and full integrity checks still run before
+commit. Empty-directory cleanup uses non-recursive removal after a durable commit;
+scans ignore empty remnants and resolve actual filesystem casing for ownership.
 
 Storage defers migration while prepared journals exist. Application initialization
 recovers those journals against their original state, then backs up and migrates.

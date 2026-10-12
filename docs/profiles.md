@@ -19,6 +19,13 @@ Unmanaged mods remain untouched and can still affect gameplay. Review them in
 game files remain installed as a shared prerequisite. Other game-file replacements
 cannot safely be disabled through profiles; review their normal uninstall workflow.
 
+Successful installs automatically save the installed mods and any newly installed
+dependencies as enabled in the active profile. Each new managed mod is also recorded
+as disabled in every inactive profile; existing choices in those profiles are preserved.
+Adopting an external mod follows the same rule. File changes and the saved install
+selections commit together, so a failed installation cannot leave a partially updated
+profile. Unrelated unsaved manual changes stay unsaved.
+
 ## Review and apply a selection
 
 1. Close Balatro and choose a profile, or choose **Review switch** in profile management.
@@ -45,10 +52,14 @@ switch, startup checks the durable state commit marker and either completes the
 committed journal or rolls back verified changes. External edits or missing backups
 can stop recovery and lock file operations; keep the application data and backups
 and open **Troubleshooting**. Recovery does not discard unverified edits.
+During a switch, the dialog shows progress and cannot be dismissed with Close,
+Cancel, Escape or a click outside. It closes after success; a failed switch leaves
+the controls available again. Empty folders left by earlier switches are ignored
+by discovery, and new switches remove empty source directories after committing.
 
 ## Unsaved selections
 
-Manual installs, uninstalls, enables and disables show **Unsaved changes** when the
+Manual uninstalls, enables and disables show **Unsaved changes** when the
 actual managed selection differs from the active profile. This persists across restarts.
 Version-only updates do not count as selection changes.
 
@@ -56,8 +67,9 @@ Version-only updates do not count as selection changes.
 - **Save as new profile** captures the current selection under a new active name.
 - **Revert to saved selection** opens the same reviewed, transactional switch.
 
-An uninstalled mod referenced by a profile is explained as missing; it is not
+An uninstalled mod saved as enabled in a profile is explained as missing; it is not
 automatically reinstalled. Saving the current selection removes that stale reference.
+An uninstalled mod saved as disabled does not block switching into that profile.
 Deleting a profile never uninstalls anything. Deleting the active profile requires
 explicit confirmation to preserve the current selection as a newly named Default
 profile; it does not silently apply another profile's files.
