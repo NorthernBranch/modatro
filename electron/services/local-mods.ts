@@ -102,6 +102,7 @@ export class InstalledModsService {
           : undefined;
       mods.push({
         id: record.modId,
+        disabled: record.disabled,
         title: record.title,
         version: record.packageVersion ?? record.modVersion,
         managed: true,

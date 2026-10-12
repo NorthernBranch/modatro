@@ -1040,67 +1040,8 @@ export class ModInstaller {
           ),
         });
       }
-      const roots = this.roots(),
-        changes: Change[] = [];
-      if (disabled) {
-        const folders = new Set(
-          record.files
-            .filter((file) => file.path.includes('/'))
-            .map((file) => file.path.split('/')[0]!),
-        );
-        const owned = new Set(record.files.map((file) => file.path));
-        for (const folder of folders) {
-          const source = await safeDestination(roots.mods, folder);
-          const unknown = (await walkFiles(source)).find((file) => !owned.has(`${folder}/${file}`));
-          if (unknown)
-            throw new UserError(
-              `“${folder}/${unknown}” is not recorded by Modatro. Move or adopt the added files before disabling this mod; leaving them active could leave part of the mod enabled.`,
-            );
-        }
-      } else {
-        const activeFolders = new Set(
-          record.files
-            .map((file) => file.path.slice(record.modId.length + 1))
-            .filter((file) => file.includes('/'))
-            .map((file) => file.split('/')[0]!),
-        );
-        for (const folder of activeFolders) {
-          const destination = await safeDestination(roots.mods, folder);
-          if ((await exists(destination)) && (await walkFiles(destination)).length)
-            throw new UserError(
-              'An external destination already exists. Resolve the folder conflict before enabling this mod.',
-            );
-        }
-      }
-      const nextFiles: InstalledFileRecord[] = [];
-      for (const f of record.files) {
-        const current = await safeDestination(roots[f.root], f.path);
-        if (!(await exists(current)) || (await hashFile(current)) !== f.installedHash)
-          throw new UserError(`“${f.path}” has changed or is missing. It will not be moved.`);
-        const targetRoot = disabled ? ('disabled' as const) : ('mods' as const);
-        const targetPath = disabled
-          ? `${record.modId}/${f.path}`
-          : f.path.slice(record.modId.length + 1);
-        const target = await safeDestination(roots[targetRoot], targetPath);
-        if (await exists(target))
-          throw new UserError(
-            'The destination already exists. Resolve the conflict before enabling or disabling this mod.',
-          );
-        const owner = this.storage.state.installations.find(
-          (r) =>
-            r.modId !== id &&
-            r.files.some(
-              (owned) =>
-                owned.root === targetRoot && owned.path.toLowerCase() === targetPath.toLowerCase(),
-            ),
-        );
-        if (owner) throw new UserError(`${owner.title} owns the destination.`);
-        changes.push(
-          { root: targetRoot, path: targetPath, source: current, afterHash: f.installedHash },
-          { root: f.root, path: f.path, expectedBefore: f.installedHash },
-        );
-        nextFiles.push({ ...f, root: targetRoot, path: targetPath });
-      }
+      const { changes, nextFiles } = await this.planToggle(record, disabled);
+      const roots = this.roots();
       // Capture all sources into staging first. A transaction never relies on
       // sources which one of its own earlier operations removes.
       const staging = await fs.mkdtemp(this.storage.file('staging/toggle-'));
@@ -1129,6 +1070,83 @@ export class ModInstaller {
         await fs.rm(staging, { recursive: true, force: true });
       }
     });
+  }
+  async planToggle(record: InstallationRecord, disabled: boolean) {
+    if (
+      record.files.some(
+        (f) =>
+          f.operation !== 'created' ||
+          f.root === 'game' ||
+          (record.disabled
+            ? f.root !== 'disabled' || !f.path.startsWith(`${record.modId}/`)
+            : f.root !== 'mods'),
+      )
+    )
+      throw new UserError(
+        'This mod cannot safely be enabled or disabled. Review its installation first.',
+      );
+    const roots = this.roots(),
+      changes: Change[] = [];
+    if (disabled) {
+      const folders = new Set(
+        record.files
+          .filter((file) => file.path.includes('/'))
+          .map((file) => file.path.split('/')[0]!),
+      );
+      const owned = new Set(record.files.map((file) => file.path));
+      for (const folder of folders) {
+        const source = await safeDestination(roots.mods, folder);
+        const unknown = (await walkFiles(source)).find((file) => !owned.has(`${folder}/${file}`));
+        if (unknown)
+          throw new UserError(
+            `“${folder}/${unknown}” is not recorded by Modatro. Move or adopt the added files before disabling this mod; leaving them active could leave part of the mod enabled.`,
+          );
+      }
+    } else {
+      const activeFolders = new Set(
+        record.files
+          .map((file) => file.path.slice(record.modId.length + 1))
+          .filter((file) => file.includes('/'))
+          .map((file) => file.split('/')[0]!),
+      );
+      for (const folder of activeFolders) {
+        const destination = await safeDestination(roots.mods, folder);
+        if ((await exists(destination)) && (await walkFiles(destination)).length)
+          throw new UserError(
+            'An external destination already exists. Resolve the folder conflict before enabling this mod.',
+          );
+      }
+    }
+    const nextFiles: InstalledFileRecord[] = [];
+    for (const f of record.files) {
+      const current = await safeDestination(roots[f.root], f.path);
+      if (!(await exists(current)) || (await hashFile(current)) !== f.installedHash)
+        throw new UserError(`“${f.path}” has changed or is missing. It will not be moved.`);
+      const targetRoot = disabled ? ('disabled' as const) : ('mods' as const);
+      const targetPath = disabled
+        ? `${record.modId}/${f.path}`
+        : f.path.slice(record.modId.length + 1);
+      const target = await safeDestination(roots[targetRoot], targetPath);
+      if (await exists(target))
+        throw new UserError(
+          'The destination already exists. Resolve the conflict before enabling or disabling this mod.',
+        );
+      const owner = this.storage.state.installations.find(
+        (r) =>
+          r.modId !== record.modId &&
+          r.files.some(
+            (owned) =>
+              owned.root === targetRoot && owned.path.toLowerCase() === targetPath.toLowerCase(),
+          ),
+      );
+      if (owner) throw new UserError(`${owner.title} owns the destination.`);
+      changes.push(
+        { root: targetRoot, path: targetPath, source: current, afterHash: f.installedHash },
+        { root: f.root, path: f.path, expectedBefore: f.installedHash },
+      );
+      nextFiles.push({ ...f, root: targetRoot, path: targetPath });
+    }
+    return { changes, nextFiles };
   }
   async adopt(externalFolder: string, mod?: ModDefinition) {
     return this.transactions.locked(async () => {

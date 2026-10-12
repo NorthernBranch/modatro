@@ -107,13 +107,15 @@ capture changes still run shared checks, but skip installer packaging and publis
 `scripts/release-scope.mjs` checks the complete Git diff, including removals and
 renames. App sources, bundled policy feeds, dependencies, assets and packaging
 configuration qualify; version tags and manual runs explicitly enable packaging.
-CI assigns an increasing version from the workflow run number before building, so
-contributors do not make routine version-bump commits. The baseline in
-`build/version.json` starts `0.3.0` at run 11: run 42 produces `0.3.31`, and run 43
-produces `0.3.32`. The app, installers and release notes share that version.
-Retrying a run retains its version. Beta tags also include the run number and commit,
-for example `v0.3.31-beta.build.42.aaaaaaa`. A future minor bump changes the baseline
-version and first run number together.
+CI assigns the app, installer and release-note version before building. The baseline
+in `build/version.json` starts the 0.4 series at `0.4.0`. With `firstRunNumber: null`,
+PRs, failed attempts and check-only runs before publication do not increase that
+version. The first published beta tag records the workflow run that anchors the
+series; subsequent runs increase the patch relative to that run. For example, a first
+release at run 42 uses `0.4.0`, and run 43 uses `0.4.1`. Retrying a release run
+retains its version. Beta tags identify the run and commit, for example
+`v0.4.0-beta.build.42.aaaaaaa`. Future minor bumps change the baseline version and
+reset `firstRunNumber` to `null`; explicit numeric anchors remain supported.
 
 For an optional named release, push a `v<version>` tag. CI assigns that version
 without requiring a package-file edit. Versions with a prerelease suffix remain
@@ -128,7 +130,11 @@ separate platform credentials.
 
 ## Documentation screenshots
 
-The README uses screenshots of the real renderer with representative data. Regenerate
+Capture Discover, Installed, Updates, Prerequisites, Settings, Profiles, Profile switch and Troubleshooting from the
+real renderer with synthetic setup evidence and history. The script also copies
+the website screenshots and checks all six pages at desktop, tablet and narrow widths; it never reads personal logs or game saves.
+
+The README uses screenshots of the real renderer with representative data for Discover, Installed, Prerequisites, Profiles and Troubleshooting. Setup evidence, history and any log examples are synthetic. Regenerate
 them from the repository root:
 
 ```sh

@@ -15,6 +15,7 @@ import {
   Play,
   RefreshCw,
   Settings2,
+  Stethoscope,
   ShieldCheck,
   Spade,
   TriangleAlert,
@@ -33,6 +34,8 @@ import { PrerequisiteAction } from './components/PrerequisiteAction';
 import { DiscoverPage } from './pages/DiscoverPage';
 import { InstalledPage } from './pages/InstalledPage';
 import { PrerequisitesPage } from './pages/PrerequisitesPage';
+import { ProfileControls } from './components/ProfileControls';
+import { TroubleshootingPage } from './pages/TroubleshootingPage';
 import { SettingsPage } from './pages/SettingsPage';
 import type {
   AppError,
@@ -55,18 +58,20 @@ import {
   sourceLabel,
 } from './shared/trust';
 
-type Page = 'discover' | 'installed' | 'updates' | 'prerequisites' | 'settings';
+type Page = 'discover' | 'installed' | 'updates' | 'prerequisites' | 'settings' | 'troubleshooting';
 const navigation: { id: Page; label: string; icon: typeof Compass }[] = [
   { id: 'discover', label: 'Discover', icon: Compass },
   { id: 'installed', label: 'Installed', icon: Layers3 },
   { id: 'updates', label: 'Updates', icon: Download },
   { id: 'prerequisites', label: 'Prerequisites', icon: PackageCheck },
+  { id: 'troubleshooting', label: 'Troubleshooting', icon: Stethoscope },
   { id: 'settings', label: 'Settings', icon: Settings2 },
 ];
 
 export function App() {
   const [snapshot, setSnapshot] = useState<Snapshot>();
   const [page, setPage] = useState<Page>('discover');
+  const [profileManage, setProfileManage] = useState(false);
 
   const [selected, setSelected] = useState<ModDefinition>();
   const [requirementTrail, setRequirementTrail] = useState<ModDefinition[]>([]);
@@ -425,6 +430,8 @@ export function App() {
           {navigation.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
+              aria-label={label}
+              title={label}
               className={`nav-item ${page === id ? 'active' : ''}`}
               aria-current={page === id ? 'page' : undefined}
               onClick={() => {
@@ -515,6 +522,17 @@ export function App() {
                         ? 'Cached catalogue'
                         : 'Connected'}
               </span>
+            )}
+            {snapshot && (
+              <ProfileControls
+                snapshot={snapshot}
+                requests={requests}
+                changed={setSnapshot}
+                open={profileManage}
+                setOpen={setProfileManage}
+                prerequisites={() => setPage('prerequisites')}
+                installed={() => setPage('installed')}
+              />
             )}
             <AsyncButton
               className="button launch-button"
@@ -620,6 +638,14 @@ export function App() {
               requestAction={requestAction}
               requests={requests}
               openLink={openLink}
+            />
+          )}
+          {page === 'troubleshooting' && (
+            <TroubleshootingPage
+              snapshot={snapshot}
+              requests={requests}
+              navigate={setPage}
+              profiles={() => setProfileManage(true)}
             />
           )}
           {snapshot && page === 'settings' && (

@@ -1,5 +1,13 @@
 import { z } from 'zod';
 import { ModIndexUrl } from './mod-index';
+import {
+  ProfilesSchema,
+  type ProfileSummary,
+  type ProfileOperation,
+  type ProfilePlan,
+  type DiagnosticRequest,
+  type Troubleshooting,
+} from './features';
 
 export const SafeName = z
   .string()
@@ -319,12 +327,15 @@ export const RecordSchema = z
 export type InstallationRecord = z.infer<typeof RecordSchema>;
 export const StateSchema = z
   .object({
-    schemaVersion: z.union([z.literal(1), z.literal(2)]),
+    schemaVersion: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+    profiles: ProfilesSchema.optional(),
     settings: SettingsSchema,
     installations: z.array(RecordSchema),
     lastTransaction: z.string().optional(),
   })
   .superRefine((s, ctx) => {
+    if (s.schemaVersion === 3 && !s.profiles)
+      ctx.addIssue({ code: 'custom', message: 'Profile state is missing' });
     const owners = s.installations.flatMap((r) =>
       r.files.map((f) => `${f.root}:${f.path.toLowerCase()}`),
     );
@@ -345,6 +356,7 @@ export type ModState =
   | 'broken'
   | 'unmanaged';
 export interface LocalMod {
+  disabled?: boolean;
   id: string;
   title: string;
   version?: string;
@@ -379,6 +391,7 @@ export interface Catalogue {
   rejected: number;
 }
 export interface Snapshot {
+  profiles?: ProfileSummary;
   appUpdate?: {
     checking: boolean;
     checkedAt?: string;
@@ -467,6 +480,12 @@ export interface InstallPlan {
   packages?: { id: string; title: string; version: string; update: boolean; source?: string }[];
 }
 export interface ModatroApi {
+  profileOperation?(operation: ProfileOperation): Promise<Reply<Snapshot>>;
+  previewProfile?(id: string): Promise<Reply<ProfilePlan>>;
+  switchProfile?(confirmation: { profileId: string; token: string }): Promise<Reply<Snapshot>>;
+  troubleshoot?(request: DiagnosticRequest): Promise<Reply<Troubleshooting>>;
+  chooseDiagnosticLog?(): Promise<Reply<string | undefined>>;
+  exportReport?(request: { text: string }): Promise<Reply<boolean>>;
   checkAppUpdates?(): Promise<Reply<Snapshot>>;
   githubStars?(): Promise<Reply<Record<string, number>>>;
   snapshot(): Promise<Reply<Snapshot>>;

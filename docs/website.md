@@ -93,3 +93,14 @@ The project must already exist; `wrangler pages project create modatro
 chosen. Choose Git integration when dashboard-managed Git deployments are desired.
 Existing Git-integrated projects can also receive Wrangler uploads. Domain setup
 can remain in the dashboard.
+
+## Feature screenshots
+
+The local landing page includes Discover, Profiles and Troubleshooting screenshots,
+with representative selections and synthetic diagnostics. Capture all eight app views
+with `node scripts/screenshots.mjs`; the script copies the three website images into
+`website/images/`. Screenshot cards remain contained at desktop and mobile widths.
+
+Publish the feature copy alongside the application release that contains profiles
+and troubleshooting. This feature task updates the static source without deploying
+the site or publishing an application release, so the live download stays unchanged.

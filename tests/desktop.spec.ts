@@ -115,14 +115,23 @@ test('desktop has an isolated renderer, working preload and validated IPC', asyn
 });
 
 test('setup and theme saves preserve selected folders through validated desktop IPC', async () => {
+  // A manually selected Mods override must be beneath the real home on macOS
+  // and Linux. Keep all synthetic files in a unique disposable child of home,
+  // separate from real Steam, game, save and Modatro application-data folders.
   const root = await fs.realpath(
-    await fs.mkdtemp(path.join(os.tmpdir(), 'modatro-settings-test-')),
+    await fs.mkdtemp(path.join(os.homedir(), '.modatro-settings-test-')),
   );
   const data = path.join(root, 'profile');
   const gamePath = path.join(root, 'Balatro');
   const modsPath = path.join(root, 'Mods');
   await fs.mkdir(path.join(data, 'data'), { recursive: true });
   await fs.mkdir(modsPath);
+  const loaderLogs = path.join(modsPath, 'lovely', 'log');
+  await fs.mkdir(loaderLogs, { recursive: true });
+  await fs.writeFile(
+    path.join(loaderLogs, 'fixture-run.log'),
+    'ERROR: Synthetic loader failure references FixtureMod\ntoken=ghp_syntheticPrivateToken',
+  );
   if (process.platform === 'darwin') {
     const contents = path.join(gamePath, 'Balatro.app', 'Contents');
     await fs.mkdir(path.join(contents, 'MacOS'), { recursive: true });
@@ -187,6 +196,121 @@ test('setup and theme saves preserve selected folders through validated desktop 
     if (!invalidSettings.ok) expect(invalidSettings.error.details).toContain('gamePath');
     const saved = JSON.parse(await fs.readFile(path.join(data, 'data', 'state.json'), 'utf8'));
     expect(saved.settings).toEqual({ theme: 'light', setupComplete: true, gamePath, modsPath });
+    expect(saved.schemaVersion).toBe(3);
+    const originalId = saved.profiles.activeId;
+    await page.getByRole('button', { name: 'Manage profiles', exact: true }).click();
+    await page.getByRole('button', { name: 'Create profile from current selection' }).click();
+    await page.getByLabel('Profile name', { exact: true }).fill('Fixture selection');
+    await page.getByLabel('Profile name', { exact: true }).press('Enter');
+    await expect(page.getByText('Active: Fixture selection', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Duplicate Fixture selection', exact: true }).click();
+    await page.getByLabel('Profile name', { exact: true }).fill('Fixture duplicate');
+    await page.getByRole('button', { name: 'Save profile', exact: true }).click();
+    await page.getByRole('button', { name: 'Rename Fixture duplicate', exact: true }).click();
+    await page.getByLabel('Profile name', { exact: true }).fill('Renamed fixture');
+    await page.getByRole('button', { name: 'Save profile', exact: true }).click();
+    await expect(
+      page.getByRole('button', { name: 'Review switch to Renamed fixture' }),
+    ).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    const reviewed = await page.evaluate((id) => window.modatro!.previewProfile!(id), originalId);
+    expect(reviewed, 'The synthetic folders must pass the production profile guard').toMatchObject({
+      ok: true,
+    });
+    await page.getByLabel('Profile', { exact: true }).selectOption(originalId);
+    await expect(
+      page.getByRole('heading', { name: 'Review profile: Default', exact: true }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Confirm profile switch', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    const applied = await page.evaluate(() => window.modatro!.snapshot());
+    expect(applied.ok && applied.value.profiles?.activeId).toBe(originalId);
+    await page.getByRole('button', { name: 'Manage profiles', exact: true }).click();
+    await page.getByRole('button', { name: 'Delete Default', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Confirm delete', exact: true })).toBeDisabled();
+    await page.getByLabel('Preserve the current selection as a new Default profile').check();
+    await page.getByRole('button', { name: 'Confirm delete', exact: true }).click();
+    // The name remains Default throughout deletion. Wait for the completed edit
+    // and the new identity, rather than matching the old, already-visible label.
+    await expect(page.getByRole('button', { name: 'Confirm delete', exact: true })).toHaveCount(0);
+    await expect(page.getByLabel('Profile', { exact: true })).not.toHaveValue(originalId);
+    await expect(page.getByText('Active: Default', { exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+    const badRequest = await page.evaluate(() =>
+      window.modatro!.troubleshoot!({ logIds: [], path: '/private.log' } as never),
+    );
+    expect(badRequest.ok).toBe(false);
+    const diagnostics = await page.evaluate(() => window.modatro!.troubleshoot!({ logIds: [] }));
+    expect(
+      diagnostics,
+      `Valid diagnostic IPC must succeed before rendering the overview: ${JSON.stringify(diagnostics)}`,
+    ).toMatchObject({ ok: true });
+    await page.getByRole('button', { name: 'Troubleshooting', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Setup overview', exact: true })).toBeVisible();
+    await expect(page.getByText('profile-switch · success', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Generate support report', exact: true }).click();
+    await expect(page.getByLabel('Editable support report')).toContainText(
+      'Modatro support report',
+    );
+    expect(await page.getByLabel('Editable support report').inputValue()).not.toContain(
+      'Synthetic loader failure',
+    );
+    await page.keyboard.press('Escape');
+    await page.getByLabel('Lovely / Steamodded: fixture-run.log', { exact: true }).check();
+    await page.getByRole('button', { name: 'Read selected excerpts', exact: true }).click();
+    await expect(
+      page.getByText(
+        'This is log evidence, not proof that a referenced mod caused the failure. File time does not prove which game session produced it.',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await page.getByLabel('Installed mod identities and versions', { exact: true }).uncheck();
+    await page.getByRole('button', { name: 'Generate support report', exact: true }).click();
+    const included = await page.getByLabel('Editable support report').inputValue();
+    expect(included).toContain('Synthetic loader failure');
+    expect(included).not.toContain('ghp_syntheticPrivateToken');
+    expect(included).not.toContain('## Mods');
+    await page.getByLabel('Editable support report').fill('Reviewed synthetic support report');
+    await page.evaluate(() =>
+      Object.defineProperty(navigator, 'clipboard', {
+        value: {
+          writeText: async (text: string) => {
+            (globalThis as Record<string, unknown>).copiedFixtureReport = text;
+          },
+        },
+      }),
+    );
+    await page.getByRole('button', { name: 'Copy report', exact: true }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Report copied.' })).toBeVisible();
+    expect(
+      await page.evaluate(() => (globalThis as Record<string, unknown>).copiedFixtureReport),
+    ).toBe('Reviewed synthetic support report');
+    const exported = path.join(root, 'reviewed-report.md');
+    await application.evaluate(({ dialog }, destination) => {
+      dialog.showSaveDialog = (async () => ({
+        canceled: false,
+        filePath: destination,
+      })) as typeof dialog.showSaveDialog;
+    }, exported);
+    await page.getByRole('button', { name: 'Export report', exact: true }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Report exported.' })).toBeVisible();
+    expect(await fs.readFile(exported, 'utf8')).toBe('Reviewed synthetic support report');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Manage profiles', exact: true }).click();
+    await page.getByRole('button', { name: 'Create profile from current selection' }).click();
+    await page.getByLabel('Profile name', { exact: true }).fill('Fresh checks fixture');
+    await page.getByLabel('Profile name', { exact: true }).press('Enter');
+    await expect(page.getByText('Active: Fresh checks fixture', { exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Setup changed since these checks.' }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Refresh setup checks', exact: true }).click();
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Setup changed since these checks.' }),
+    ).toHaveCount(0);
   } finally {
     await application.close();
     await fs.rm(root, { recursive: true, force: true });

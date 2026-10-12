@@ -19,6 +19,13 @@ import { ModatroApplication } from './application';
 import { errorReply, UserError } from './services/errors';
 import { contained, exists, safeDestination } from './services/files';
 import { launchModdedMac } from './services/launch';
+import {
+  ProfileOperationSchema,
+  ProfileConfirmationSchema,
+  ProfilePlanSchema,
+  DiagnosticRequestSchema,
+  ReportExportSchema,
+} from '../src/shared/features';
 
 // Isolate Chromium's profile and the single-instance lock as well as service
 // storage, so smoke tests can run alongside an installed copy of Modatro.
@@ -156,6 +163,39 @@ void app
     );
     await application.initialize();
     handle('snapshot', z.undefined(), () => application.snapshot());
+    handle('profileOperation', ProfileOperationSchema, (request) =>
+      application.profileOperation(request),
+    );
+    handle('previewProfile', z.uuid(), async (id) =>
+      ProfilePlanSchema.parse(await application.profiles.preview(id)),
+    );
+    handle('switchProfile', ProfileConfirmationSchema, (request) =>
+      application.switchProfile(request),
+    );
+    handle('troubleshoot', DiagnosticRequestSchema, (request) =>
+      application.troubleshooting.inspect(request),
+    );
+    handle('chooseDiagnosticLog', z.undefined(), async () => {
+      const result = await dialog.showOpenDialog(window!, {
+        title: 'Select a saved game or loader log',
+        properties: ['openFile'],
+        filters: [{ name: 'Text logs', extensions: ['log', 'txt'] }],
+      });
+      return result.canceled ? undefined : application.troubleshooting.choose(result.filePaths[0]!);
+    });
+    handle('exportReport', ReportExportSchema, async (request) => {
+      const result = await dialog.showSaveDialog(window!, {
+        title: 'Export reviewed support report',
+        defaultPath: 'modatro-support-report.md',
+        filters: [
+          { name: 'Markdown', extensions: ['md'] },
+          { name: 'Text', extensions: ['txt'] },
+        ],
+      });
+      if (result.canceled || !result.filePath) return false;
+      await application.troubleshooting.export(result.filePath, request.text);
+      return true;
+    });
     handle('refresh', z.undefined(), () => application.refresh());
     handle('detect', z.undefined(), () => application.detect());
     handle('choosePath', z.enum(['game', 'mods']), async (kind) => {

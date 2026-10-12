@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { afterEach, expect, it, vi } from 'vitest';
 import { publishRelease, releaseDetails } from '../scripts/release.mjs';
 
-const version = '0.3.31';
+const version = '0.4.0';
 const env = {
   GITHUB_EVENT_NAME: 'push',
   GITHUB_REF: 'refs/heads/main',
@@ -13,6 +13,7 @@ const env = {
   GITHUB_REPOSITORY: 'tests/modatro',
   GITHUB_RUN_NUMBER: '42',
 };
+const tags = ['v0.4.0-beta.build.42.aaaaaaa'];
 const roots = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await fs.rm(root, { recursive: true, force: true });
@@ -20,7 +21,7 @@ afterEach(async () => {
 async function fixture() {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'modatro-release-test-'));
   roots.push(directory);
-  const details = releaseDetails(version, env);
+  const details = releaseDetails(version, env, tags);
   for (const asset of details.assets)
     await fs.writeFile(path.join(directory, asset), `fixture ${asset}`);
   for (const arch of ['arm64', 'x64']) {
@@ -41,24 +42,24 @@ async function fixture() {
   const run = vi.fn((args) =>
     args[1] === 'view' ? { status: 1, stderr: 'release not found' } : { status: 0, stdout: '' },
   );
-  return { directory, details, run };
+  return { directory, details, run, tags };
 }
 
 it('gives each main push a unique beta tag tied to its commit', () => {
-  expect(releaseDetails(version, env)).toMatchObject({
-    tag: 'v0.3.31-beta.build.42.aaaaaaa',
+  expect(releaseDetails(version, env, tags)).toMatchObject({
+    tag: 'v0.4.0-beta.build.42.aaaaaaa',
     prerelease: true,
   });
-  expect(releaseDetails('0.3.32', { ...env, GITHUB_RUN_NUMBER: '43' }).tag).not.toBe(
-    releaseDetails(version, env).tag,
+  expect(releaseDetails('0.4.1', { ...env, GITHUB_RUN_NUMBER: '43' }, tags).tag).not.toBe(
+    releaseDetails(version, env, tags).tag,
   );
-  expect(releaseDetails(version, { ...env, GITHUB_SHA: 'b'.repeat(40) }).tag).not.toBe(
-    releaseDetails(version, env).tag,
+  expect(releaseDetails(version, { ...env, GITHUB_SHA: 'b'.repeat(40) }, tags).tag).not.toBe(
+    releaseDetails(version, env, tags).tag,
   );
 });
 it('publishes a matching version tag as a named release', () => {
-  expect(releaseDetails(version, { ...env, GITHUB_REF: 'refs/tags/v0.3.31' })).toMatchObject({
-    tag: 'v0.3.31',
+  expect(releaseDetails(version, { ...env, GITHUB_REF: 'refs/tags/v0.4.0' })).toMatchObject({
+    tag: 'v0.4.0',
     prerelease: false,
   });
   expect(
@@ -68,12 +69,12 @@ it('publishes a matching version tag as a named release', () => {
 it.each([
   { GITHUB_EVENT_NAME: 'pull_request' },
   { GITHUB_REF: 'refs/heads/feature' },
-  { GITHUB_REF: 'refs/tags/v0.3.32' },
+  { GITHUB_REF: 'refs/tags/v0.4.1' },
   { GITHUB_SHA: 'main' },
   { GITHUB_REPOSITORY: '--unsafe' },
   { GITHUB_RUN_NUMBER: '../42' },
 ])('rejects an invalid publication context: %j', (change) => {
-  expect(() => releaseDetails(version, { ...env, ...change })).toThrow();
+  expect(() => releaseDetails(version, { ...env, ...change }, tags)).toThrow();
 });
 it('creates a draft containing all installers and checksums before publishing', async () => {
   const f = await fixture();
@@ -111,9 +112,9 @@ it('does not mutate GitHub when an installer is empty', async () => {
 });
 it('marks a matching stable version release as latest', async () => {
   const f = await fixture();
-  await publishRelease({ version, ...f, env: { ...env, GITHUB_REF: 'refs/tags/v0.3.31' } });
+  await publishRelease({ version, ...f, env: { ...env, GITHUB_REF: 'refs/tags/v0.4.0' } });
   const edit = f.run.mock.calls[2][0];
-  expect(edit).toContain('v0.3.31');
+  expect(edit).toContain('v0.4.0');
   expect(edit).toContain('--prerelease=false');
   expect(edit).toContain('--latest=true');
 });

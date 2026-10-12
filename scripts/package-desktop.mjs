@@ -11,37 +11,42 @@ const macCredentials = [
   'APPLE_APP_SPECIFIC_PASSWORD',
   'APPLE_TEAM_ID',
 ];
+const signingCredentials = [
+  ...macCredentials,
+  'CSC_INSTALLER_LINK',
+  'CSC_INSTALLER_KEY_PASSWORD',
+  'WIN_CSC_LINK',
+  'WIN_CSC_KEY_PASSWORD',
+];
+const isPullRequest = (env) =>
+  ['pull_request', 'pull_request_target'].includes(env.GITHUB_EVENT_NAME);
 
 // Actions expands missing secrets to empty strings. electron-builder treats an
 // empty CSC_LINK as a relative certificate filename (the working directory).
 export function packagingEnvironment(env = process.env) {
   const result = { ...env };
-  for (const key of [
-    ...macCredentials,
-    'CSC_INSTALLER_LINK',
-    'CSC_INSTALLER_KEY_PASSWORD',
-    'WIN_CSC_LINK',
-    'WIN_CSC_KEY_PASSWORD',
-  ])
-    if (typeof result[key] === 'string' && !result[key].trim()) delete result[key];
+  for (const key of signingCredentials)
+    if (isPullRequest(env) || (typeof result[key] === 'string' && !result[key].trim()))
+      delete result[key];
   return result;
 }
 export async function withPackagingEnvironment(env, mode, work) {
   const clean = packagingEnvironment(env);
-  const keys = [
-    ...macCredentials,
-    'CSC_INSTALLER_LINK',
-    'CSC_INSTALLER_KEY_PASSWORD',
-    'WIN_CSC_LINK',
-    'WIN_CSC_KEY_PASSWORD',
-    'CSC_IDENTITY_AUTO_DISCOVERY',
-  ];
+  if (mode === 'notarized' && isPullRequest(env))
+    throw new Error('Pull-request builds must use certificate-free ad-hoc signing.');
+  const keys = [...signingCredentials, 'CSC_IDENTITY_AUTO_DISCOVERY', 'CSC_FOR_PULL_REQUEST'];
   const original = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
   for (const key of keys) {
     if (clean[key] === undefined) delete process.env[key];
     else process.env[key] = clean[key];
   }
   if (mode) process.env.CSC_IDENTITY_AUTO_DISCOVERY = mode === 'notarized' ? 'true' : 'false';
+  if (mode === 'ad-hoc') {
+    // electron-builder otherwise skips even certificate-free signing on PRs,
+    // leaving Electron's invalid inherited signature on the renamed bundle.
+    for (const key of signingCredentials) delete process.env[key];
+    process.env.CSC_FOR_PULL_REQUEST = 'true';
+  } else if (mode) process.env.CSC_FOR_PULL_REQUEST = 'false';
   try {
     return await work();
   } finally {

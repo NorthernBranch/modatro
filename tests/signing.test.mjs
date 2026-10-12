@@ -73,20 +73,46 @@ it('removes empty Actions secrets before electron-builder imports certificates',
 });
 it('unsets blank credentials in the builder process and restores its environment after failure', async () => {
   vi.stubEnv('CSC_LINK', 'before-test');
+  vi.stubEnv('CSC_FOR_PULL_REQUEST', 'before-test');
   try {
     await expect(
       withPackagingEnvironment({ CSC_LINK: '', CSC_KEY_PASSWORD: ' ' }, 'ad-hoc', async () => {
         expect(process.env.CSC_LINK).toBeUndefined();
         expect(process.env.CSC_KEY_PASSWORD).toBeUndefined();
         expect(process.env.CSC_IDENTITY_AUTO_DISCOVERY).toBe('false');
+        expect(process.env.CSC_FOR_PULL_REQUEST).toBe('true');
         throw new Error('Build failed');
       }),
     ).rejects.toThrow('Build failed');
     expect(process.env.CSC_LINK).toBe('before-test');
+    expect(process.env.CSC_FOR_PULL_REQUEST).toBe('before-test');
   } finally {
     vi.unstubAllEnvs();
   }
 });
+it.each(['pull_request', 'pull_request_target'])(
+  'removes signing credentials from %s builds',
+  async (event) => {
+    const env = {
+      ...credentials,
+      GITHUB_EVENT_NAME: event,
+      CSC_INSTALLER_LINK: 'installer-certificate',
+      WIN_CSC_LINK: 'windows-certificate',
+    };
+    expect(packagingEnvironment(env)).toEqual({ GITHUB_EVENT_NAME: event });
+    const signing = macSigningConfiguration({ mac: {} }, env);
+    expect(signing.mode).toBe('ad-hoc');
+    await withPackagingEnvironment(env, signing.mode, async () => {
+      expect(process.env.CSC_FOR_PULL_REQUEST).toBe('true');
+      expect(process.env.CSC_IDENTITY_AUTO_DISCOVERY).toBe('false');
+      for (const key of [...Object.keys(credentials), 'CSC_INSTALLER_LINK', 'WIN_CSC_LINK'])
+        expect(process.env[key]).toBeUndefined();
+    });
+    await expect(withPackagingEnvironment(env, 'notarized', async () => {})).rejects.toThrow(
+      'certificate-free',
+    );
+  },
+);
 const signature =
   'Identifier=community.modatro.desktop\nflags=0x10002(adhoc,runtime)\nSignature=adhoc\nTeamIdentifier=not set\n';
 const notarizedSignature =

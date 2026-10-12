@@ -102,7 +102,7 @@ it('backs up and migrates legacy state without losing uninstall ownership', asyn
   await fs.writeFile(f.storage.file('data/state.json'), original);
   const migrated = new Storage(f.storage.root);
   await migrated.initialize();
-  expect(migrated.state.schemaVersion).toBe(2);
+  expect(migrated.state.schemaVersion).toBe(3);
   expect(migrated.state.installations[0]?.files).toEqual(old.installations[0]?.files);
   expect(migrated.state.installations[0]?.provenance).toEqual({ sourceType: 'legacy' });
   expect(await fs.readFile(f.storage.file('data/state-v1.backup.json'), 'utf8')).toBe(original);

@@ -13,6 +13,7 @@ import {
 import { UserError } from './errors';
 import { atomicCopy, exists, hashFile, safeDestination, syncDirectory } from './files';
 import { Logger, Storage } from './storage';
+import { OperationHistoryStore } from './history';
 
 export interface Change {
   root: FileRoot;
@@ -99,10 +100,24 @@ export class TransactionEngine {
       this.busy = false;
     }
   }
+  async inspectLocked<T>(work: () => Promise<T>): Promise<T> {
+    if (this.busy)
+      throw new UserError(
+        'Another operation is in progress. Refresh Troubleshooting when it finishes.',
+      );
+    this.busy = true;
+    try {
+      return await work();
+    } finally {
+      this.busy = false;
+    }
+  }
   async execute(
     roots: Record<FileRoot, string>,
     changes: Change[],
     buildState: (journal: TransactionJournal) => AppState,
+    operationType?: string,
+    beforeCommit?: () => Promise<void>,
   ): Promise<void> {
     this.storage.assertSafe();
     await this.recover();
@@ -164,7 +179,14 @@ export class TransactionEngine {
     }
     const next = StateSchema.parse(buildState(journal));
     next.lastTransaction = id;
-    await this.storage.write(journalPath, JournalSchema.parse(journal));
+    const history = new OperationHistoryStore(this.storage);
+    await history.record(id, journal.previousState, next, 'uncertain', operationType);
+    try {
+      await this.storage.write(journalPath, JournalSchema.parse(journal));
+    } catch (error) {
+      await history.record(id, journal.previousState, next, 'failed', operationType);
+      throw error;
+    }
     try {
       await this.checkpoint('prepared');
       for (let i = 0; i < changes.length; i++) {
@@ -194,7 +216,9 @@ export class TransactionEngine {
         await this.checkpoint('changed', i);
       }
       await this.checkpoint('before-state');
+      await beforeCommit?.();
       await this.storage.save(next);
+      await history.record(id, journal.previousState, next, 'success', operationType);
       // The state's transaction ID is the durable commit marker. A crash between
       // these two writes must never roll back a successfully saved installation.
       journal.phase = 'committed';
@@ -205,12 +229,16 @@ export class TransactionEngine {
       }
       await this.logger.log('transaction.commit', { id });
     } catch (e) {
-      if (this.storage.state.lastTransaction === id) return;
+      if (this.storage.state.lastTransaction === id) {
+        await history.record(id, journal.previousState, next, 'success', operationType);
+        return;
+      }
       await this.logger.log('transaction.rollback.start', { id, error: String(e) });
       try {
         await this.rollback(journal);
         journal.phase = 'rolled-back';
         await this.storage.write(journalPath, journal);
+        await history.record(id, journal.previousState, next, 'failed', operationType);
       } catch (recovery) {
         this.storage.safetyError =
           'Recovery could not finish because a file or backup changed. File changes are locked. Keep your backups and open diagnostics.';
@@ -310,6 +338,7 @@ export class TransactionEngine {
         if (journal.id === this.storage.state.lastTransaction) {
           journal.phase = 'committed';
           await this.storage.write(`transactions/${file}`, journal);
+          await new OperationHistoryStore(this.storage).recovered(journal.id, 'success');
           continue;
         }
         // Reject a corrupt journal referring to arbitrary roots. Never use paths
@@ -327,6 +356,7 @@ export class TransactionEngine {
         await this.rollback(journal);
         journal.phase = 'rolled-back';
         await this.storage.write(`transactions/${file}`, journal);
+        await new OperationHistoryStore(this.storage).recovered(journal.id, 'failed');
       } catch (e) {
         this.storage.safetyError =
           'An interrupted installation could not be safely recovered. File changes are locked. Keep the backups and open diagnostics.';

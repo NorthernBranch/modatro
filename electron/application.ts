@@ -37,6 +37,10 @@ import { LocalModSource } from './services/sources/mod-source';
 import { lovelyDistribution } from './services/lovely';
 import { GitHubStars } from './services/github-stars';
 import { AppUpdates } from './services/app-updates';
+import { ProfileService } from './services/profiles';
+import { TroubleshootingService } from './services/troubleshooting';
+import { profileSummary } from '../src/shared/profile-selection';
+import type { ProfileOperation } from '../src/shared/features';
 
 export class ModatroApplication {
   readonly storage: Storage;
@@ -50,6 +54,8 @@ export class ModatroApplication {
   readonly trust: CatalogueTrust;
   readonly transactions: TransactionEngine;
   readonly installer: ModInstaller;
+  readonly profiles: ProfileService;
+  readonly troubleshooting: TroubleshootingService;
   readonly localSource = new LocalModSource(() => this.custom);
   private candidates: GameCandidate[] = [];
   private custom: ModDefinition[] = [];
@@ -104,12 +110,28 @@ export class ModatroApplication {
         await this.trust.assertAllowed(mod, update);
       },
     );
+    this.profiles = new ProfileService(this.storage, this.installer, () => this.snapshot());
+    this.troubleshooting = new TroubleshootingService(
+      this.storage,
+      this.transactions,
+      () => this.snapshot(),
+      this.profiles,
+    );
+  }
+  async profileOperation(request: ProfileOperation) {
+    await this.profiles.operation(request);
+    return this.snapshot();
+  }
+  async switchProfile(request: { profileId: string; token: string }) {
+    await this.profiles.switch(request.profileId, request.token);
+    return this.snapshot();
   }
   async initialize() {
     await this.storage.initialize();
     await this.appUpdates.loadCache();
     await this.trust.initialize();
     if (!this.storage.safetyError) await this.transactions.recover();
+    await this.storage.migrateProfiles();
     await this.repository.loadCache();
     try {
       this.unavailableSources =
@@ -200,6 +222,7 @@ export class ModatroApplication {
       });
     return {
       settings: this.storage.state.settings,
+      profiles: profileSummary(this.storage.state, local.mods.filter((m) => !m.managed).length),
       validation,
       catalogue: { ...this.repository.catalogue, mods: this.allMods() },
       localMods: local.mods,
