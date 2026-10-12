@@ -32,8 +32,9 @@
     <meta name="twitter:image:alt" content="Modatro's Discover screen for browsing Balatro mods" />
     <link rel="canonical" href="https://modatro.app/" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/style.css?v=20261012-profiles-1" />
+    <link rel="stylesheet" href="/style.css?v=20261012-viewer-1" />
     <script type="module" src="/download.mjs"></script>
+    <script type="module" src="/screenshots.mjs"></script>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -145,7 +146,11 @@
           Steamodded requirements, install supported dependencies, and keep a record of your files.
         </p>
         <figure>
-          <a href="/images/discover.png" aria-label="View the Discover screenshot at full size">
+          <a
+            href="/images/discover.png"
+            data-screenshot="Discover"
+            aria-label="View the Discover screenshot at full size"
+          >
             <img
               src="/images/discover.png"
               alt="Modatro's Discover screen with mod search, category filters, installed status and links to mod details"
@@ -166,7 +171,10 @@
             Create named selections, review dependencies, and switch safely. Mod versions and
             configurations stay shared, while unmanaged mods remain untouched.
           </p>
-          <a href="/images/profiles.png" aria-label="View the Profiles screenshot at full size"
+          <a
+            href="/images/profiles.png"
+            data-screenshot="Profiles"
+            aria-label="View the Profiles screenshot at full size"
             ><img
               src="/images/profiles.png"
               alt="Named Modatro profiles with enabled and disabled mod selections"
@@ -185,6 +193,7 @@
           </p>
           <a
             href="/images/troubleshooting.png"
+            data-screenshot="Troubleshooting"
             aria-label="View the Troubleshooting screenshot at full size"
             ><img
               src="/images/troubleshooting.png"
@@ -204,5 +213,32 @@
       <span>A little setup. A lot more game.</span>
       <p>Independent community project. Not affiliated with Balatro or LocalThunk.</p>
     </footer>
+    <dialog
+      class="screenshot-dialog"
+      aria-labelledby="screenshot-title"
+      aria-describedby="screenshot-caption"
+    >
+      <div class="screenshot-dialog-header">
+        <h2 id="screenshot-title">Inside Modatro</h2>
+        <form method="dialog">
+          <button type="submit" class="screenshot-close" aria-label="Close screenshot" autofocus>
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              aria-hidden="true"
+            >
+              <path d="m6 6 12 12M18 6 6 18" />
+            </svg>
+            Close
+          </button>
+        </form>
+      </div>
+      <img class="screenshot-expanded" alt="" />
+      <p id="screenshot-caption"></p>
+    </dialog>
   </body>
 </html>

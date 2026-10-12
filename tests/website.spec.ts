@@ -162,8 +162,60 @@ test('failed release lookups and disabled JavaScript keep the releases link work
     await expect(
       plain.getByRole('link', { name: /All downloads and release notes/ }),
     ).toBeVisible();
+    const screenshot = plain.getByRole('link', {
+      name: 'View the Discover screenshot at full size',
+    });
+    await expect(screenshot).toHaveAttribute('href', '/images/discover.png');
+    await screenshot.click();
+    await expect(plain).toHaveURL(/\/images\/discover\.png$/);
   } finally {
     await context.close();
+  }
+});
+
+test('screenshots expand in a contained modal and restore focus when closed', async ({
+  page,
+  context,
+}) => {
+  await page.route('https://api.github.com/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/');
+  const originalUrl = page.url();
+  for (const width of [1440, 375]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const name of ['Discover', 'Profiles', 'Troubleshooting']) {
+      const opener = page.getByRole('link', { name: `View the ${name} screenshot at full size` });
+      await opener.click();
+      const dialog = page.getByRole('dialog', { name: `${name} in Modatro` });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole('img')).toHaveAttribute(
+        'src',
+        new RegExp(`/images/${name.toLowerCase()}\\.png$`),
+      );
+      await expect
+        .poll(() =>
+          dialog.getByRole('img').evaluate((image: HTMLImageElement) => image.naturalWidth),
+        )
+        .toBe(1440);
+      await expect(dialog.getByRole('button', { name: 'Close screenshot' })).toBeFocused();
+      expect(await page.locator('body').evaluate((body) => getComputedStyle(body).overflow)).toBe(
+        'hidden',
+      );
+      const bounds = await dialog.boundingBox();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.y).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+      expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(900);
+      expect(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+      expect(page.url()).toBe(originalUrl);
+      expect(context.pages()).toHaveLength(1);
+      if (name === 'Discover') await page.keyboard.press('Escape');
+      else if (name === 'Profiles')
+        await dialog.getByRole('button', { name: 'Close screenshot' }).click();
+      else await page.mouse.click(2, 2);
+      await expect(dialog).not.toBeVisible();
+      await expect(opener).toBeFocused();
+      await expect(page.locator('body')).not.toHaveClass(/screenshot-open/);
+    }
   }
 });
 

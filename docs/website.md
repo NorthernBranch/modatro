@@ -101,6 +101,12 @@ with representative selections and synthetic diagnostics. Capture all eight app 
 with `node scripts/screenshots.mjs`; the script copies the three website images into
 `website/images/`. Screenshot cards remain contained at desktop and mobile widths.
 
-Publish the feature copy alongside the application release that contains profiles
-and troubleshooting. This feature task updates the static source without deploying
-the site or publishing an application release, so the live download stays unchanged.
+Clicking any screenshot opens an enlarged, labelled dialog inside the page. Close
+it with the Close button, Escape or a click outside; keyboard focus returns to the
+original screenshot link. Background scrolling is paused while the viewer is open.
+Without JavaScript, each link still opens the original image.
+
+Website-only changes run shared checks, including website browser tests, but skip
+desktop packaging and release publication. This includes HTML, CSS, scripts and
+screenshot assets under `website/`. Deploy the website separately through Pages;
+its download button always reads the latest published application release.

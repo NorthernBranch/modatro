@@ -14,6 +14,9 @@ it.each([
   'CONTRIBUTING.md',
   'docs/images/discover.png',
   'website/index.html',
+  'website/style.css',
+  'website/screenshots.mjs',
+  'website/_headers',
   'website/images/discover.png',
   'tests/installer.test.ts',
   'fixtures/mod.json',
@@ -93,6 +96,32 @@ it('uses the PR merge base and skips packaging for documentation changes', async
   expect(f.git.mock.calls[0][1].at(-1)).toBe(`${'c'.repeat(40)}...${'d'.repeat(40)}`);
   expect(await fs.readFile(f.output, 'utf8')).toBe('package_desktop=false\n');
 });
+it.each(['push', 'pull_request'])(
+  'keeps a complete website-only %s change in checks-only mode',
+  async (eventName) => {
+    const f = await fixture(
+      {
+        before: 'a'.repeat(40),
+        pull_request:
+          eventName === 'pull_request'
+            ? { base: { sha: 'a'.repeat(40) }, head: { sha: 'b'.repeat(40) } }
+            : undefined,
+      },
+      [
+        'website/index.html',
+        'website/style.css',
+        'website/screenshots.mjs',
+        'website/images/profiles.png',
+        'docs/website.md',
+        'tests/website.spec.ts',
+        'tests/release-scope.test.mjs',
+      ].join('\0'),
+    );
+    f.env.GITHUB_EVENT_NAME = eventName;
+    expect(await determinePackaging(f.env, f.git)).toBe(false);
+    expect(await fs.readFile(f.output, 'utf8')).toBe('package_desktop=false\n');
+  },
+);
 it('packages an initial push from its complete tree', async () => {
   const f = await fixture({ before: '0'.repeat(40) }, 'README.md\0electron/main.ts\0');
   expect(await determinePackaging(f.env, f.git)).toBe(true);

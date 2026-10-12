@@ -1,5 +1,6 @@
 :root {
   color-scheme: dark;
+  scrollbar-gutter: stable;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: #ecf0eb;
   background: #141b1a;
@@ -22,6 +23,7 @@ a {
   text-decoration: none;
 }
 a:focus-visible,
+button:focus-visible,
 select:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 6px;
@@ -383,9 +385,94 @@ footer p {
   margin: 0;
   font-size: 0.8125rem;
 }
+.screenshot-open {
+  overflow: hidden;
+}
+[data-screenshot] {
+  cursor: zoom-in;
+}
+.screenshot-dialog {
+  width: min(1280px, calc(100% - 48px));
+  max-height: calc(100dvh - 48px);
+  padding: 20px;
+  border: 1px solid #405247;
+  border-radius: 16px;
+  color: #ecf0eb;
+  background: #141b1a;
+  box-shadow: 0 30px 100px #0008;
+}
+.screenshot-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.screenshot-dialog::backdrop {
+  background: #080e0bc9;
+  backdrop-filter: blur(8px);
+}
+.screenshot-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.screenshot-dialog-header h2 {
+  margin: 0;
+  font-size: 1.125rem;
+  letter-spacing: -0.025em;
+}
+.screenshot-dialog-header form {
+  margin: 0;
+}
+.screenshot-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid #405247;
+  border-radius: 8px;
+  background: #1a2320;
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.screenshot-close:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.screenshot-expanded {
+  display: block;
+  min-height: 0;
+  max-width: 100%;
+  max-height: calc(100dvh - 200px);
+  width: auto;
+  height: auto;
+  margin-inline: auto;
+  border-radius: 8px;
+  object-fit: contain;
+}
+#screenshot-caption {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
 @media (max-width: 850px) {
   .feature-preview {
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
+  }
+}
+@media (max-width: 600px) {
+  .screenshot-dialog {
+    width: calc(100% - 24px);
+    max-height: calc(100dvh - 24px);
+    padding: 12px;
+    border-radius: 12px;
+  }
+  .screenshot-dialog[open] {
+    gap: 12px;
   }
 }
