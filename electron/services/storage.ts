@@ -1,8 +1,9 @@
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { StateSchema, type AppState } from '../../src/shared/model';
+import { selection } from '../../src/shared/profile-selection';
 import { UserError } from './errors';
 import { atomicWrite, canonicalDirectory, exists, readSmall, safeDestination } from './files';
 
@@ -35,35 +36,73 @@ export class Storage {
       try {
         const original = await readSmall(file, 20 * 1024 * 1024);
         this.state = StateSchema.parse(JSON.parse(original));
-        if (this.state.schemaVersion === 1) {
-          let backup = await safeDestination(this.root, 'data/state-v1.backup.json');
-          if (await exists(backup)) {
-            const previous = await readSmall(backup, 20 * 1024 * 1024);
-            StateSchema.parse(JSON.parse(previous));
-            if (previous !== original)
-              backup = await safeDestination(
-                this.root,
-                `data/state-v1-${createHash('sha256').update(original).digest('hex').slice(0, 16)}.backup.json`,
-              );
-          }
-          if (!(await exists(backup))) await atomicWrite(backup, original);
-          const migrated = StateSchema.parse({
-            ...this.state,
-            schemaVersion: 2,
-            installations: this.state.installations.map((record) => ({
-              ...record,
-              provenance: record.provenance ?? {
-                sourceType: record.adopted ? 'external' : 'legacy',
-              },
-            })),
-          });
-          await atomicWrite(file, JSON.stringify(migrated, null, 2));
-          this.state = migrated;
-        }
       } catch {
         this.safetyError =
           'Modatro’s saved installation records could not be verified. File changes are locked to protect your mods. Keep the data folder and backups, and use diagnostics to investigate.';
       }
+    }
+    // Recover old journals against their unchanged before-state before migrating.
+    let pending = false;
+    for (const name of await fs.readdir(this.file('transactions'))) {
+      if (!name.endsWith('.json')) continue;
+      try {
+        const journal = JSON.parse(
+          await readSmall(
+            await safeDestination(this.root, `transactions/${name}`),
+            20 * 1024 * 1024,
+          ),
+        );
+        if (journal.phase === 'prepared') pending = true;
+      } catch {
+        pending = true;
+      }
+    }
+    if (!pending) await this.migrateProfiles();
+  }
+  async migrateProfiles() {
+    if (this.safetyError || this.state.schemaVersion === 3) return;
+    try {
+      const original = JSON.stringify(this.state, null, 2);
+      const file = this.file('data/state.json');
+      const raw = (await exists(file)) ? await readSmall(file, 20 * 1024 * 1024) : original;
+      const digest = createHash('sha256').update(raw).digest('hex').slice(0, 16);
+      if (await exists(file)) {
+        let backup = await safeDestination(
+          this.root,
+          this.state.schemaVersion === 1
+            ? 'data/state-v1.backup.json'
+            : `data/state-v${this.state.schemaVersion}-${digest}.backup.json`,
+        );
+        if (
+          this.state.schemaVersion === 1 &&
+          (await exists(backup)) &&
+          (await readSmall(backup, 20 * 1024 * 1024)) !== raw
+        )
+          backup = await safeDestination(this.root, `data/state-v1-${digest}.backup.json`);
+        if (await exists(backup)) {
+          if ((await readSmall(backup, 20 * 1024 * 1024)) !== raw)
+            throw new Error('Migration backup differs');
+        } else await atomicWrite(backup, raw);
+      }
+      const id = randomUUID();
+      const migrated = StateSchema.parse({
+        ...this.state,
+        schemaVersion: 3,
+        installations: this.state.installations.map((record) => ({
+          ...record,
+          provenance: record.provenance ?? { sourceType: record.adopted ? 'external' : 'legacy' },
+        })),
+        profiles: {
+          schemaVersion: 1,
+          activeId: id,
+          items: [{ id, name: 'Default', selection: selection(this.state.installations) }],
+        },
+      });
+      await atomicWrite(file, JSON.stringify(migrated, null, 2));
+      this.state = migrated;
+    } catch {
+      this.safetyError =
+        'The profile migration could not be completed. Installation records and backups were preserved; file changes are locked.';
     }
   }
   file(relative: string): string {
@@ -74,7 +113,7 @@ export class Storage {
   }
   async save(next: AppState) {
     this.assertSafe();
-    const checked = StateSchema.parse({ ...next, schemaVersion: 2 });
+    const checked = StateSchema.parse(next);
     try {
       await atomicWrite(
         await safeDestination(this.root, 'data/state.json'),

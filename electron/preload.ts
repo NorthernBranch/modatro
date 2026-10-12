@@ -1,6 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { ModatroApi, Progress, Snapshot } from '../src/shared/model';
 const api: ModatroApi = {
+  profileOperation: (request) => ipcRenderer.invoke('modatro:profileOperation', request),
+  previewProfile: (id) => ipcRenderer.invoke('modatro:previewProfile', id),
+  switchProfile: (request) => ipcRenderer.invoke('modatro:switchProfile', request),
+  troubleshoot: (request) => ipcRenderer.invoke('modatro:troubleshoot', request),
+  chooseDiagnosticLog: () => ipcRenderer.invoke('modatro:chooseDiagnosticLog'),
+  exportReport: (request) => ipcRenderer.invoke('modatro:exportReport', request),
   snapshot: () => ipcRenderer.invoke('modatro:snapshot'),
   refresh: () => ipcRenderer.invoke('modatro:refresh'),
   detect: () => ipcRenderer.invoke('modatro:detect'),

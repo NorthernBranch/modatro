@@ -4,6 +4,74 @@ Start with the exact message shown by Modatro. The sections below explain common
 setup and file-operation problems. For installation instructions, see
 [release information](release.md).
 
+## Inspect your setup and prepare a report
+
+Open **Troubleshooting** in the sidebar. **Refresh setup checks** reads a consistent
+snapshot while file changes are excluded by the operation lock. It shows game and
+prerequisite version evidence, managed/unmanaged and enabled/disabled mods, active
+profile differences, file integrity, declared dependencies and recent operations.
+Unknown evidence remains unknown.
+
+If setup or profile selection changes while this page is open, it marks the displayed
+checks as needing refresh. Generating a report always takes fresh checks under the lock.
+
+Enabled state is unknown for unmanaged or unverified files; their presence does not
+prove that the loader has enabled them. An unreadable file is an integrity warning,
+while verified missing or changed managed files are reported as problems.
+
+![Troubleshooting with synthetic setup data](images/troubleshooting.png)
+
+**Verified problems**, **Warnings and unknowns**, and **Possible causes from log
+evidence** are separate. Each finding explains its observation, relevance and next
+action. A mod referenced in a traceback is not proof that it caused the crash.
+Actions link to normal management pages; checks do not install, disable or delete mods.
+
+Log content is excluded initially. Select up to five logs and choose **Read selected
+excerpts**, or use **Choose saved text log** through the native picker. Discovery
+uses the approved Mods folder, not an arbitrary renderer path. Supported locations
+are documented by [Lovely](https://github.com/ethangreen-dev/lovely-injector) and
+[Steamodded logging](https://github.com/Steamodded/smods/wiki/Logging):
+
+| Setup                 | Loader log location relative to its configured Mods folder                         |
+| --------------------- | ---------------------------------------------------------------------------------- |
+| Windows               | `%APPDATA%/Balatro/Mods/lovely/log`                                                |
+| macOS                 | `~/Library/Application Support/Balatro/Mods/lovely/log`                            |
+| Steam / Proton / Wine | The chosen prefix's `AppData/Roaming/Balatro/Mods/lovely/log`                      |
+| Native Linux loader   | The chosen Mods folder's `lovely/log`; Lovely documents `~/.local/share/love/Mods` |
+
+Modatro's own logs are in its application-data `logs` folder. There is no assumed
+universal Balatro crash-log filename: a crash may only appear on screen, while
+macOS/Linux console output may need to be saved manually. Patch dumps are not logs.
+Linux game installation and launching continue to use the supported Proton workflow.
+
+Discovery examines at most 200 entries per log directory and lists the three newest
+text logs per source. Reads are limited to the last 64 KiB of each selected regular
+file, returning at most 8,000 text characters plus a truncation notice. Log processing
+has a two-second response budget; missing, rotated, binary, inaccessible or timed-out
+files produce an explanation. Logs remain untrusted plain text and are never executed.
+File modification times are shown, with logs older than 24 hours marked explicitly;
+timestamps alone do not identify the latest game session.
+
+Choose **Generate support report** to build a Markdown report with the current
+selection of excerpts and the sections chosen under **Report contents**. Application,
+profile, mod, finding and operation sections can each be excluded. Inspect and edit
+it, then **Copy report** or **Export report**.
+Export opens a native save dialog and writes only your reviewed text to `.md` or
+`.txt` outside game, Mods and application-data folders, protecting managed files and
+recovery records. Removing a log selection excludes it from a newly generated report. Modatro redacts known home,
+game, Mods and application-data roots, common usernames and token patterns, while
+retaining relative mod identifiers. Automated redaction may be incomplete; inspect
+the report before sharing it. Reports are not uploaded or sent to an AI service.
+
+History stores the last 100 file operations, including updates and profile switches,
+with timestamps, identities, outcomes and recorded version changes. An operation
+without a verified completion is **uncertain**. History retention never removes
+transaction recovery journals or backups. Older operations before this feature may
+not appear; corrupted or unavailable history cannot certify an operation's outcome.
+
+For profile blockers, shared versions, unsaved changes and interrupted switches, see
+[named mod profiles](profiles.md).
+
 ## Modatro will not start
 
 If an earlier build reports **“A file resolves outside its approved location.”** on

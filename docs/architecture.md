@@ -142,7 +142,7 @@ Lua files are hashed without being downloaded or rewritten. Unique catalogue mat
 can provide future updates; otherwise local-only IDs preserve management without
 invented provenance. Updates to adopted mods retain their existing directory.
 
-State schema 1 migrates to schema 2 only after a verified backup of the original
+State schemas 1 and 2 migrate to schema 3 only after a verified backup of the original
 JSON is saved. Missing provenance becomes `legacy` or `external`. Ownership, backup
 paths and transaction markers remain intact; failed migration leaves the original
 state recoverable and locks further file changes.
@@ -213,3 +213,45 @@ Update metadata is cached separately from mod sources. Checks never download an 
 or modify the mod transaction engine. A quiet notice opens Settings, where an explicit
 Download update action opens the installer in the browser. Installing it is manual and
 preserves the existing application data directory. Catalogue data cannot control application updates.
+
+## Profiles and troubleshooting
+
+The typed bridge and runtime schemas in `src/shared/features.ts` cover profile
+persistence, CRUD inputs, switch previews and confirmations, diagnostic log selections
+and reviewed report export. State schema 3 contains profile schema 1 with stable
+managed identities and the active profile. `profile-selection.ts` compares selection
+only, so a version update never creates a false unsaved indicator.
+
+`ProfileService` reviews targets under the existing transaction lock and game-closed
+guard. It uses the same dependency evaluator as installation, source-qualified package
+identities and recorded versions, refreshing file integrity before confirmation.
+Unlisted managed mods are disabled where safe, required installed dependencies are
+retained, and native Lovely game files remain shared. Missing, incompatible, unknown
+or ambiguous dependencies and unsafe moves block the plan. The installer exposes
+one shared `planToggle` implementation for folder, ownership, hash and destination
+checks. All sources are staged before one transaction commits file moves and profile
+metadata. Single-use five-minute tokens cover the saved state and effective plan.
+
+Storage defers migration while prepared journals exist. Application initialization
+recovers those journals against their original state, then backs up and migrates.
+The upgrade preserves ownership, provenance, file backups and durable commit markers.
+Failed upgrades lock file changes. Default profiles capture existing enabled states
+without touching game files, configurations or saves.
+
+`TroubleshootingService` uses `TransactionEngine.inspectLocked` for a read-only
+consistent setup snapshot. This lock does not trigger recovery or require safe state,
+so locked recovery can still be diagnosed. Findings reuse the shared version and
+dependency checks; active-profile blockers reuse the profile planner without mutation.
+Filesystem and log access remain in the main process. Discovered files and native-picker
+selections receive opaque IDs, with bounded directory scans, tail reads, excerpts and
+response times. Binary files and symlinks are rejected. Log evidence is labelled as
+possible evidence, never proof of a named mod's responsibility.
+
+`OperationHistoryStore` keeps at most 100 records in `data/operation-history.json`.
+Transactions record uncertain preparation, verified success or rollback failure status;
+startup recovery reconciles known journal outcomes. History failures do not interrupt
+rollback and history pruning never touches transactions or backups. It contains
+identities, timestamps and version transitions rather than raw journals or file paths.
+Reports redact common secrets and approved root paths, exclude unselected logs, and
+remain editable before explicit clipboard copying or native-save export. Nothing is
+uploaded automatically.

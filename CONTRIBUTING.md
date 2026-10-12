@@ -128,7 +128,11 @@ separate platform credentials.
 
 ## Documentation screenshots
 
-The README uses screenshots of the real renderer with representative data. Regenerate
+Capture Discover, Installed, Updates, Prerequisites, Settings, Profiles, Profile switch and Troubleshooting from the
+real renderer with synthetic setup evidence and history. The script also copies
+the website screenshots and checks all six pages at desktop, tablet and narrow widths; it never reads personal logs or game saves.
+
+The README uses screenshots of the real renderer with representative data for Discover, Installed, Prerequisites, Profiles and Troubleshooting. Setup evidence, history and any log examples are synthetic. Regenerate
 them from the repository root:
 
 ```sh

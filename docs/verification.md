@@ -104,3 +104,24 @@ architecture, game/loader versions and actual result.
 See [catalogue hardening coverage](catalogue-verification.md),
 [the Thunderstore migration](thunderstore-migration.md), and
 [release signing](signing.md) for the relevant boundaries.
+
+## Profile and report checks
+
+`profiles.test.ts` exercises validated names and CRUD, explicit active deletion,
+state backups and migration, persisted unsaved selection changes, shared-version updates,
+required dependency retention, missing and unlisted mods, unmanaged preservation,
+unsupported moves, external edits, stale tokens, rollback and startup commit recovery.
+Game-running and operation-lock checks use deterministic isolated fixtures.
+
+`troubleshooting.test.ts` checks verified versus unknown findings, disabled records,
+opt-in logs, stale times, bounded tail/excerpt reads, malformed and binary input,
+opaque picker IDs, rejected renderer paths, redaction, explicit reviewed export,
+read-only locked diagnostics and bounded history separate from recovery material.
+The desktop suite exercises keyboard profile creation, duplicate/rename, reviewed
+switching, actual validated IPC, troubleshooting generation, editable report export
+through a stubbed native dialog, and Escape/focus behavior. All paths and logs are
+inside temporary fixtures. Real personal logs, games and saves are excluded.
+
+These changes have been exercised locally on Windows; macOS and Linux/Proton paths
+are based on upstream documentation and fixtures. Actual cross-platform loader logs,
+filesystem permissions and native dialogs still need release testing on those platforms.

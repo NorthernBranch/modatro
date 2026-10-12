@@ -166,3 +166,25 @@ test('failed release lookups and disabled JavaScript keep the releases link work
     await context.close();
   }
 });
+
+test('profile and troubleshooting previews remain contained at desktop and mobile widths', async ({
+  page,
+}) => {
+  await page.route('https://api.github.com/**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/');
+  for (const width of [1828, 1320, 900, 768, 375]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const name of ['Named Modatro profiles', 'Modatro troubleshooting']) {
+      const image = page.getByRole('img', { name: new RegExp(name) });
+      await image.scrollIntoViewIfNeeded();
+      await expect
+        .poll(() => image.evaluate((node: HTMLImageElement) => node.naturalWidth))
+        .toBe(1440);
+      const box = await image.boundingBox();
+      expect(box!.width).toBeLessThan(width);
+    }
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+  }
+});

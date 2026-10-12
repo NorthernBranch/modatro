@@ -9,6 +9,11 @@ requirements, and manage your collection with backups and a record of every file
 [Report an issue](https://github.com/NorthernBranch/modatro/issues) ·
 [Contribute](CONTRIBUTING.md)
 
+Named **mod profiles** keep managed selections ready to switch with a reviewed,
+recoverable file plan. **Troubleshooting** checks your setup and creates an editable
+support report, with log excerpts included only when you select them. Versions and
+configurations are shared across profiles; unmanaged mods can still affect gameplay.
+
 ![Modatro Discover showing mod browsing, search, categories and installation status](docs/images/discover.png)
 
 | Your collection                                                                                                      | Prerequisite checks                                                                                                                |
@@ -93,17 +98,29 @@ then close Modatro and run the new installer. Keep application data and backups.
 
 ## Documentation and contributions
 
-| Guide                                      | Covers                                                       |
-| ------------------------------------------ | ------------------------------------------------------------ |
-| [Troubleshooting](docs/troubleshooting.md) | Setup, dependencies, rate limits, changed files and recovery |
-| [Releases](docs/release.md)                | Downloads, supported formats and release workflow            |
-| [Linux and Steam Deck](docs/linux.md)      | AppImage / DEB installation and Proton integration           |
-| [Signing](docs/signing.md)                 | Actual release signing status and maintainer setup           |
-| [Contributing](CONTRIBUTING.md)            | Development, checks, packaging and screenshot capture        |
-| [Architecture](docs/architecture.md)       | Services, provider boundaries and transactions               |
-| [Verification](docs/verification.md)       | Automated coverage and manual testing limits                 |
-| [Catalogue](catalogue/README.md)           | Metadata, permissions, exceptions and removal feeds          |
-| [Website](docs/website.md)                 | Platform downloads, Cloudflare Pages and domain setup        |
+| Mod profiles                                                              | Troubleshooting                                                                                           |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| [![Named profile management](docs/images/profiles.png)](docs/profiles.md) | [![Read-only setup checks and support reports](docs/images/troubleshooting.png)](docs/troubleshooting.md) |
+
+These screenshots use representative selections and synthetic diagnostics.
+Additional screenshots: [switch preview](docs/images/profile-switch.png),
+[Settings](docs/images/settings.png) and [Updates](docs/images/updates.png).
+Open profiles beside **Launch**, and **Troubleshooting** in the sidebar. The first
+upgrade backs up existing state before creating a Default profile; see the
+[profile migration notes](docs/profiles.md#state-upgrade).
+
+| Guide                                      | Covers                                                             |
+| ------------------------------------------ | ------------------------------------------------------------------ |
+| [Troubleshooting](docs/troubleshooting.md) | Setup, dependencies, rate limits, changed files and recovery       |
+| [Profiles](docs/profiles.md)               | Named selections, shared files, unsaved changes and safe switching |
+| [Releases](docs/release.md)                | Downloads, supported formats and release workflow                  |
+| [Linux and Steam Deck](docs/linux.md)      | AppImage / DEB installation and Proton integration                 |
+| [Signing](docs/signing.md)                 | Actual release signing status and maintainer setup                 |
+| [Contributing](CONTRIBUTING.md)            | Development, checks, packaging and screenshot capture              |
+| [Architecture](docs/architecture.md)       | Services, provider boundaries and transactions                     |
+| [Verification](docs/verification.md)       | Automated coverage and manual testing limits                       |
+| [Catalogue](catalogue/README.md)           | Metadata, permissions, exceptions and removal feeds                |
+| [Website](docs/website.md)                 | Platform downloads, Cloudflare Pages and domain setup              |
 
 Mods are third-party code. Modatro checks metadata, paths and file integrity; it
 does not certify mod safety or guarantee that mods work together. Authors retain
