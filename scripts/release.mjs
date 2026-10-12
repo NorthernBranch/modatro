@@ -5,7 +5,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { buildVersion } from './build-version.mjs';
 
-export function releaseDetails(version, env) {
+export function releaseDetails(version, env, tags) {
   if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/.test(version))
     throw new Error('The package version is not a supported release version.');
   if (env.GITHUB_EVENT_NAME !== 'push') throw new Error('Only push events can publish releases.');
@@ -17,7 +17,7 @@ export function releaseDetails(version, env) {
   if (env.GITHUB_REF === 'refs/heads/main') {
     if (!/^[1-9]\d*$/.test(env.GITHUB_RUN_NUMBER ?? ''))
       throw new Error('A workflow run number is required.');
-    if (version !== buildVersion(env))
+    if (version !== buildVersion(env, undefined, tags))
       throw new Error('The app version does not match this workflow run.');
     tag = `v${version}-beta.build.${env.GITHUB_RUN_NUMBER}.${env.GITHUB_SHA.slice(0, 7)}`;
     title = `Modatro Beta ${version} · build ${env.GITHUB_RUN_NUMBER}`;
@@ -48,9 +48,10 @@ export async function publishRelease({
   version,
   env = process.env,
   directory = 'release-artifacts',
+  tags,
   run = (args) => spawnSync('gh', args, { encoding: 'utf8' }),
 }) {
-  const details = releaseDetails(version, env);
+  const details = releaseDetails(version, env, tags);
   const assets = details.assets.map((name) => path.resolve(directory, name));
   // Validate every platform build before making any GitHub mutation.
   const checksums = [];

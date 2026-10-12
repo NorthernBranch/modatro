@@ -141,7 +141,7 @@ describe('Balatro path validation', () => {
       'home or system',
     );
   });
-  it.each(['darwin', 'linux'])(
+  it.each(['darwin', 'linux'] as const)(
     'keeps %s manual Mods overrides inside home, including disposable desktop fixtures',
     async (platform) => {
       const r = await root(),

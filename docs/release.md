@@ -29,17 +29,21 @@ in `scripts/release-scope.mjs`. Git deletions and renames are included. Version 
 and manual runs explicitly request packaging; manual runs do not publish releases.
 
 Each packaging-enabled workflow run assigns an increasing app version automatically, for example
-`0.3.0`, followed by `0.3.1`. Merging into `main` triggers the same process as a
+`0.4.0`, followed by `0.4.1`. Merging into `main` triggers the same process as a
 push. The renderer, Electron app, platform installers and release notes all use
 that version. Retrying a workflow retains its assigned version. There are no
 version-bump commits and no need to edit `package.json` for normal releases.
 
-The baseline in `build/version.json` starts the 0.3 series at workflow run 11.
-Later workflow runs increase the patch number. Check-only and pull-request runs
-also consume GitHub run numbers, so published patch numbers can have gaps.
-For a future minor bump, update the baseline version and its first workflow run together.
+The baseline in `build/version.json` starts the 0.4 series. Its null first-run anchor
+keeps the first release at `0.4.0` even if PR checks or failed runs consume workflow
+numbers. Once that beta is published, its tag provides the anchor for later patch
+builds. Both validation and publishing checkouts fetch the full tags so they compute
+the same version. Later PR and check-only runs can produce gaps in published patches.
+For a future minor bump, change the baseline and reset `firstRunNumber` to `null`.
 
-Beta tags also identify the run and commit, such as `v0.3.0-beta.build.11.aaaaaaa`.
+Beta tags also identify the run and commit, such as `v0.4.0-beta.build.42.aaaaaaa`.
+GitHub marks these as **Pre-release**, with **Modatro Beta 0.4.0** in the release
+title. Beta is the development stage; pre-release is GitHub's corresponding status.
 The app checks GitHub Releases at startup and shows a small update notice when a newer
 beta or stable release has an installer for your platform. In Settings, use **Check for
 updates** to check again or **Download update** to open the installer in your browser.
