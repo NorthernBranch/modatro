@@ -11,4 +11,13 @@ corrupt checksums. Replacement tests write only to temporary game folders.
 The mod fixtures cover standard and nested layouts, Lovely patches, explicit file
 replacements and malformed metadata. They are test inputs, not installable mods.
 
+Generated tests also cover release wrappers with outer Lovely error patches,
+dependency batches, native Lovely library evidence, and Balatro's `version.jkr`
+inside ZIP game data. Keep all filesystem operations inside temporary fixtures.
+
+README screenshots are captured separately by `scripts/screenshots.mjs` using the
+real renderer and representative data from `src/preview-catalogue.json`. They do
+not use real game folders or application records. See the contributor guide for
+regeneration instructions.
+
 See [Contributing](../CONTRIBUTING.md) for commands to run the test suites.

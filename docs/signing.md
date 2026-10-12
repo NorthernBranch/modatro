@@ -71,6 +71,12 @@ The default direct electron-builder command remains an ad-hoc beta; use
 
 ## Release evidence
 
+Both macOS architectures retry packaging only when DMG creation reports an ejection
+failure with `Resource busy`. There are at most three attempts, with five- and
+ten-second delays before the retries. Signing, notarization and other failures stop
+immediately. Signing reports are produced only after packaging and verification
+succeed; an exhausted retry cannot publish a partial installer.
+
 Each macOS build writes `signing-macos-arm64.json` or `signing-macos-x64.json` only
 after verification passes. The report records the signing mode, notarization status,
 installer filename and SHA-256 without including credentials. The release job checks
@@ -95,10 +101,9 @@ Microsoft [Artifact Signing](https://learn.microsoft.com/en-us/azure/artifact-si
 provides cloud-managed Authenticode certificates, so a private signing key does not
 need to be stored in GitHub. It requires an Azure subscription, successful identity
 validation and a **Public Trust** certificate profile. A Private Trust or Public Trust
-Test profile does not provide normal public distribution trust. Check eligibility
-before creating paid resources: Microsoft currently supports UK organizations, while
-individual developer Public Trust validation is limited to the United States and Canada.
-An individual developer elsewhere needs another eligible code-signing provider.
+Test profile does not provide normal public distribution trust. Check Microsoft's
+current regional and identity-validation eligibility before creating paid resources;
+organization and individual-developer eligibility differ.
 
 Once an account is approved, the Windows packaging job can use electron-builder's
 `win.azureSignOptions` with the account's endpoint, signing account name, certificate
@@ -113,6 +118,12 @@ The Windows runner should verify their Authenticode signatures before uploading,
 the release must report its actual signing status. No signing account or certificate
 is configured yet, so current builds remain unsigned. A successful build or checksum
 does not establish a trusted publisher.
+
+Open-source projects can also [apply to SignPath Foundation](https://signpath.org/apply.html)
+for free signing. Acceptance is discretionary and its
+[project and release requirements](https://signpath.org/terms.html) apply. Modatro has
+no SignPath integration configured, so this is an option to evaluate rather than a
+claim that current Windows downloads are signed.
 
 Microsoft [explains SmartScreen reputation](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation):
 trusted signing identifies the publisher and protects against tampering, but does not

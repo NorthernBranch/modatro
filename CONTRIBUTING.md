@@ -40,9 +40,9 @@ pnpm check
 Git's `.gitattributes` and Prettier enforce LF line endings on every platform,
 including Windows. Binary assets retain their original bytes.
 
-`pnpm check` verifies formatting, runs strict TypeScript checks and the backend test
-suite, then builds the renderer, main process and preload. `pnpm test` runs the backend
-suite on its own.
+`pnpm check` verifies formatting and generated catalogue files, runs strict TypeScript
+checks and the unit/service suite, then builds the renderer, main process and preload.
+`pnpm test` runs the unit/service suite on its own.
 
 For browser and Electron smoke tests, build first and install Playwright's browser:
 
@@ -92,7 +92,7 @@ instead of falling back. See [signing setup](docs/signing.md). Windows builds re
 unsigned until a separate publisher-signing integration is configured.
 CI checks and packages Windows x64, Apple Silicon
 and Intel macOS installers, plus Linux AppImage and DEB packages. Pull requests and manual workflow runs upload build
-artifacts. Successful pushes to `main` also publish an automated preview release
+artifacts. Successful pushes to `main` also publish an automated beta release
 with every platform's installers, SHA-256 checksums and macOS signing reports.
 
 To smoke-test an unpacked application, point `MODATRO_PACKAGED_EXECUTABLE` at its
@@ -101,16 +101,23 @@ uses isolated application data.
 
 ## Publishing releases
 
-Every push or merge to `main` publishes a preview after all platform checks pass.
+Pushes or merges to `main` publish a beta when desktop release inputs change and
+all platform checks pass. Documentation, website, tests, fixtures and screenshot
+capture changes still run shared checks, but skip installer packaging and publishing.
+`scripts/release-scope.mjs` checks the complete Git diff, including removals and
+renames. App sources, bundled policy feeds, dependencies, assets and packaging
+configuration qualify; version tags and manual runs explicitly enable packaging.
 CI assigns an increasing version from the workflow run number before building, so
-contributors do not maintain a version or make version-bump commits. Run 42 produces
-`0.2.42`; run 43 produces `0.2.43`. The app, installers and release notes share that
-version. Retrying a run retains its version. The unique preview tag also includes the
-run number and commit, for example `v0.2.42-build.42.aaaaaaa`.
+contributors do not make routine version-bump commits. The baseline in
+`build/version.json` starts `0.3.0` at run 11: run 42 produces `0.3.31`, and run 43
+produces `0.3.32`. The app, installers and release notes share that version.
+Retrying a run retains its version. Beta tags also include the run number and commit,
+for example `v0.3.31-beta.build.42.aaaaaaa`. A future minor bump changes the baseline
+version and first run number together.
 
 For an optional named release, push a `v<version>` tag. CI assigns that version
 without requiring a package-file edit. Versions with a prerelease suffix remain
-previews; other version tags publish a release marked as latest. Preview builds from
+prereleases; other version tags publish a release marked as latest. Beta builds from
 `main` do not replace it.
 
 The release job uses GitHub's built-in token with `contents: write`; no personal
@@ -118,6 +125,24 @@ access token is required. It uploads all installers and checksums to a draft bef
 publishing. Retry a failed workflow to finish its draft; a completed release keeps
 its published downloads when retried. Signing and macOS notarization still require
 separate platform credentials.
+
+## Documentation screenshots
+
+The README uses screenshots of the real renderer with representative data. Regenerate
+them from the repository root:
+
+```sh
+pnpm exec playwright install chromium
+node scripts/screenshots.mjs
+```
+
+The script starts its own Vite server on port 5183, captures Discover, Installed and
+Prerequisites into `docs/images/`, then closes the browser and server. The Discover
+image is also copied to `website/images/` for the landing page. The script uses a
+read-only desktop bridge and blocks external requests; it cannot discover or change
+your game files. Review the images and commit them with any relevant documentation
+changes. The screenshot data comes from the checked-in catalogue sample and does
+not claim to be a live catalogue or your own installed collection.
 
 ## Catalogue contributions
 
@@ -141,3 +166,7 @@ exact error text. **Settings → Copy diagnostics** provides a useful starting p
 Review diagnostics and logs for personal information before attaching them to a public
 issue. Report problems in a particular mod to its author when they also occur outside
 Modatro.
+
+Submit changes through a pull request. [CODEOWNERS](.github/CODEOWNERS) requests
+review from `@NorthernBranch`; protected-branch rules must enforce approvals in
+GitHub's repository settings. The file alone does not prevent direct pushes.

@@ -32,6 +32,15 @@ credentials fail explicitly and ad-hoc/Developer ID signatures are verified corr
 Both macOS architectures share this packaging wrapper. Native macOS packaging still
 requires a macOS runner; Windows tests cannot execute `codesign` or notarization.
 
+`tests/wrapped-mods.test.ts` and `tests/archive.test.ts` cover declared roots inside
+release wrappers, exclusion of outer error patches, ambiguous packages, repair of
+managed nested layouts and preservation of user edits. `tests/mod-index.test.ts`
+covers optional index URLs, caches, categories and Thunderstore deduplication.
+`tests/github-requests.test.ts` and `tests/github-stars.test.ts` cover shared API
+cooldowns, recent release caching, raw-policy isolation, persisted optional request
+budgets and cached counts. The macOS packaging tests cover bounded busy-volume
+retries while preserving other build failures.
+
 An unrecognized Balatro package layout remains manual-only. Registry installer
 declarations can use a validated manual GitHub archive when the listing links to its
 repository; external installers are not executed. Lovely uses official platform-specific GitHub assets and installs the library in the validated game folder, with confirmation, backups and ownership records.

@@ -27,6 +27,10 @@ archives, filesystem access and repository retrieval run in the main process.
 | `ModInstaller`                                         | Staging, dependency checks, file plans and installation records                  |
 | `TransactionEngine` and `BackupService`                | Backups, commits, rollback and startup recovery                                  |
 
+`ConfiguredModIndex` supplies the optional user-configured source, `GitHubStars`
+handles cached popularity, and `AppUpdates` checks desktop releases independently
+of mod installation.
+
 The renderer uses a sandbox with context isolation and no Node integration. IPC
 handlers validate the sender and input at runtime. External navigation and permissions
 are restricted in the main process.
@@ -49,6 +53,14 @@ ownership, backups and legacy source records remain intact. Explicit JSON import
 still use author manifests and GitHub releases. Independent revocation and blocked-release
 feeds remain authoritative safety restrictions, not a discovery catalogue.
 
+Users can separately configure a Balatro mod index during setup or in Settings. Its
+GitHub URL identifies a repository and optional branch; commit-pinned metadata at
+`mods/<id>/meta.json` is fetched at runtime. Each URL has its own cache. Matching
+repositories and known identities are deduplicated with Thunderstore preferred.
+Removing this source leaves installed files and ownership records intact. Mod-manager
+packages are filtered from Thunderstore; hidden AI Generated tags fall back to Other
+when no useful category remains.
+
 `ModSource` exposes catalogue, individual definitions and version history without raw API
 schemas. Source-qualified identities preserve namespace and package name. React uses
 normalized source links and dependency requirements. Adding a provider requires an adapter,
@@ -60,6 +72,14 @@ refreshes. Index, chunk, validation or schema failures preserve the last good ca
 cooldowns return a failure instead of retrying early. Diagnostics include provider, online
 status, timestamp and cached package count. Descriptions and icons use publisher metadata;
 icons load lazily from allowed Thunderstore CDN hosts with an application fallback.
+
+GitHub API JSON requests share concurrent lookups and reuse successful responses for
+five minutes; missing API resources are cached for one minute. Raw restriction feeds
+are not cached by this layer. Response headers establish shared API cooldowns and a
+retry time. Optional stars use a persisted limit of 15 repository requests per hour
+and stop when reported API capacity reaches the 40-request installation reserve.
+Successful counts are cached for 24 hours, including across restarts. Cached browsing
+remains available during a limit; expired release checks can still prevent installs.
 
 Dependency planning visits package identities and versions recursively, detects cycles,
 deduplicates shared dependencies and checks semantic minimum versions. Already installed
@@ -85,6 +105,13 @@ are retained across restarts and uninstall. Runtime versions come from loader me
 while package versions remain separate for update and registry dependency checks.
 
 ## File operations
+
+Archive-root detection prefers a declared mod identity over overlapping `main.lua`
+or Lovely filename hints. This avoids installing wrapper folders and their error
+patches around the real mod. Identified roots retain their resources; independent
+mods or patch-only roots remain ambiguous. Explicit source roots still undergo
+metadata validation. Runtime versions come from staged loader metadata, not arbitrary
+index timestamps or release labels.
 
 Game launch, settings changes and the installer share an operation lock. The installer
 holds it while it prepares and commits a change:
@@ -135,7 +162,7 @@ case-sensitive filesystems.
 Relative paths reject traversal, absolute and drive paths, reserved Windows names
 and alternate data streams. ZIP extraction also checks duplicate paths, case collisions,
 CRC integrity, file counts, sizes and expansion ratios. Download redirects are checked
-against the HTTPS GitHub host allowlist.
+against the appropriate HTTPS GitHub or Thunderstore transport allowlist.
 
 Standard archives containing installer executables or shell scripts are classified
 as unsupported for automation. Modatro never executes downloaded installation code.
@@ -181,7 +208,7 @@ application ID and bundled app version identify desktop releases; installation
 records stay in versioned application state outside the installed executable.
 At startup, the main process checks this project's GitHub Releases for a newer beta or
 stable version and a matching platform installer. Release tags, repository links and
-asset names are validated; draft releases and earlier preview builds are excluded.
+asset names are validated; drafts and versions older than the installed app are excluded.
 Update metadata is cached separately from mod sources. Checks never download an installer
 or modify the mod transaction engine. A quiet notice opens Settings, where an explicit
 Download update action opens the installer in the browser. Installing it is manual and

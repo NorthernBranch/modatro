@@ -14,14 +14,22 @@ jobs:
   validate:
     name: Test and compile
     runs-on: ubuntu-22.04
+    outputs:
+      package_desktop: ${{ steps.scope.outputs.package_desktop }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check desktop release inputs
+        id: scope
+        run: node scripts/release-scope.mjs
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
           package-manager-cache: false
       - uses: pnpm/action-setup@v6
       - name: Assign automatic app version
+        if: steps.scope.outputs.package_desktop == 'true'
         run: node scripts/build-version.mjs
       - run: pnpm install --frozen-lockfile
       - name: Check formatting, catalogue, types, unit tests and build
@@ -30,7 +38,10 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - name: Run browser and source desktop tests
         run: xvfb-run -a pnpm test:ui
+      - name: Check download website
+        run: pnpm exec playwright test --config playwright.website.config.mjs
       - name: Share tested application build
+        if: steps.scope.outputs.package_desktop == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: tested-desktop-build
@@ -44,6 +55,7 @@ jobs:
   build:
     name: Package (${{ matrix.artifact }})
     needs: validate
+    if: needs.validate.outputs.package_desktop == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -111,8 +123,8 @@ jobs:
 
   release:
     name: Publish release
-    needs: build
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    needs: [validate, build]
+    if: needs.validate.outputs.package_desktop == 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -23,11 +23,18 @@ Old saved index entries remain available for offline browsing while a user trans
 to Thunderstore. They are not refreshed from the discontinued index or offered as new
 downloads. Existing installation records and file ownership remain intact.
 
+A user-configured Balatro mod index is a separate optional discovery source.
+Adding its public GitHub URL is not evidence of author approval or a copyright
+transfer. Listings are deduplicated at runtime, source labels remain visible, and
+independent removals and blocked-release checks still apply.
+
 Descriptions must be author-supplied, appropriately licensed, or short factual text
 written for the index. Modatro does not scrape or reproduce full READMEs. Artwork
 requires explicit catalogue display permission or an appropriate licence and recorded
-evidence. Current cards use Modatro's own neutral icons, including when no approved
-artwork exists. Official Balatro artwork or logos are not used as Modatro's brand.
+evidence. Cards can display publisher-provided Thunderstore thumbnails or approved
+catalogue images; Modatro's neutral icons provide a fallback. Documentation
+screenshots use that neutral fallback with representative data. Official Balatro
+artwork or logos are not used as Modatro's brand.
 
 ## Removal requests and copyright complaints
 

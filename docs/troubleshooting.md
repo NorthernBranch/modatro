@@ -87,6 +87,20 @@ needs a successful refresh. Check your connection and try **Refresh** again late
 An unavailable entry means its metadata or installation method could not be verified.
 Open the mod's project page for its installation instructions.
 
+## GitHub's request limit was reached
+
+GitHub's unauthenticated API has a shared limit of 60 requests per hour per IP;
+other applications or users on the same connection can consume that allowance.
+Modatro respects response reset times and shows how long to wait. Repeated refreshes
+or restarting cannot reset GitHub's limit. See
+[GitHub's rate-limit documentation](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
+
+Star counts use a smaller persisted request budget and cached results. Recent
+release metadata is reused, but expired or unavailable release checks can still
+pause an installation. Your installed files and cached catalogue remain available.
+Wait for the indicated time, then refresh or retry the action. Raw removal checks
+remain separate and are not bypassed by the release cache.
+
 ## A mod appears as unmanaged
 
 Modatro found local files without its own installation record. It leaves those files
@@ -165,6 +179,19 @@ Balatro version requirements use `version.jkr` read from its game-data archive,
 including the Windows fused executable and macOS `.love` file. The executable is
 never run to obtain its version. Invalid, oversized or ambiguous version data stays
 unknown; letter releases such as `1.0.1o` are compared explicitly.
+
+## A mod reports that it was installed incorrectly or is nested
+
+Some release ZIPs contain an outer wrapper with instructions or an error patch,
+and the actual mod in a child folder. Current root detection prefers structured mod
+metadata over those outer filename hints, preserving patch-only mods and rejecting
+ambiguous archives. The mod's entry point and Lovely patches are installed together
+at the correct depth.
+
+If an earlier Modatro build installed the wrapper, update Modatro, then uninstall
+and reinstall the affected mod. Review changed-file conflicts before proceeding.
+Moving recorded files by hand can leave the ownership record inconsistent; keep
+backups and use Modatro's management actions where possible.
 
 ## A release's archive hash changed
 

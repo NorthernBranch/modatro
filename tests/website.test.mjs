@@ -1,5 +1,18 @@
 import { expect, it } from 'vitest';
+import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { detectPlatform, downloadFor, newestRelease, RELEASES_URL } from '../website/releases.mjs';
+
+it('keeps structured data allowed by the production CSP without permitting arbitrary inline scripts', async () => {
+  const html = await readFile(new URL('../website/index.html', import.meta.url), 'utf8');
+  const headers = await readFile(new URL('../website/_headers', import.meta.url), 'utf8');
+  const structured = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1];
+  expect(structured).toBeTruthy();
+  expect(JSON.parse(structured)['@graph']).toHaveLength(2);
+  const hash = createHash('sha256').update(structured).digest('base64');
+  expect(headers).toContain(`'sha256-${hash}'`);
+  expect(headers).not.toContain("'unsafe-inline'");
+});
 
 function release(tag = 'v0.3.2-beta.build.13.bb583ba', published = '2026-10-02T15:08:56Z') {
   const names = [

@@ -4,10 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#141b1a" />
-    <title>Modatro — A mod manager for Balatro</title>
+    <title>Modatro — Free Balatro Mod Manager</title>
     <meta
       name="description"
-      content="Discover, install and update Balatro mods with Modatro. Download the free community mod manager for Windows, macOS and Linux."
+      content="Discover, install and update Balatro mods with Modatro. Free and open source for Windows, macOS and Steam Deck, with dependency checks and backups."
     />
     <meta property="og:title" content="Modatro — Make Balatro your own" />
     <meta
@@ -16,10 +16,51 @@
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://modatro.app/" />
+    <meta property="og:site_name" content="Modatro" />
+    <meta property="og:locale" content="en_GB" />
+    <meta property="og:image" content="https://modatro.app/images/discover.png" />
+    <meta property="og:image:width" content="1440" />
+    <meta property="og:image:height" content="1000" />
+    <meta property="og:image:alt" content="Modatro's Discover screen for browsing Balatro mods" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Modatro — A free mod manager for Balatro" />
+    <meta
+      name="twitter:description"
+      content="Discover mods, check dependencies and manage your Balatro collection on Windows, macOS and Linux / Steam Deck."
+    />
+    <meta name="twitter:image" content="https://modatro.app/images/discover.png" />
+    <meta name="twitter:image:alt" content="Modatro's Discover screen for browsing Balatro mods" />
     <link rel="canonical" href="https://modatro.app/" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/style.css?v=20261012-preview-2" />
     <script type="module" src="/download.mjs"></script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://modatro.app/#website",
+            "name": "Modatro",
+            "url": "https://modatro.app/"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://modatro.app/#application",
+            "name": "Modatro",
+            "url": "https://modatro.app/",
+            "description": "An independent, free and open-source Balatro mod manager with dependency checks, file records and backups.",
+            "applicationCategory": "UtilitiesApplication",
+            "operatingSystem": "Windows, macOS, Linux",
+            "isAccessibleForFree": true,
+            "license": "https://github.com/NorthernBranch/modatro/blob/main/LICENSE",
+            "downloadUrl": "https://github.com/NorthernBranch/modatro/releases",
+            "screenshot": "https://modatro.app/images/discover.png",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <header class="site-header">
@@ -95,6 +136,27 @@
             <span class="card-corner card-corner-bottom">M<span>♠</span></span>
           </div>
         </div>
+      </section>
+      <section class="app-preview" aria-labelledby="preview-heading">
+        <p class="eyebrow">Inside Modatro</p>
+        <h2 id="preview-heading">Your mod collection, in one place.</h2>
+        <p class="preview-description">
+          Browse Balatro mods from Thunderstore or an optional mod index. Check Lovely and
+          Steamodded requirements, install supported dependencies, and keep a record of your files.
+        </p>
+        <figure>
+          <a href="/images/discover.png" aria-label="View the Discover screenshot at full size">
+            <img
+              src="/images/discover.png"
+              alt="Modatro's Discover screen with mod search, category filters, installed status and links to mod details"
+              width="1440"
+              height="1000"
+              loading="lazy"
+              decoding="async"
+            />
+          </a>
+          <figcaption>Discover in Modatro, shown with representative catalogue data.</figcaption>
+        </figure>
       </section>
     </main>
     <footer>

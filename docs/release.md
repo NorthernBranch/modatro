@@ -9,7 +9,7 @@ Downloads and release notes are listed on
 
 ## Automated beta downloads
 
-Each push to `main` publishes a new beta once the Windows x64, Apple Silicon,
+Pushes to `main` that change desktop release inputs publish a new beta once the Windows x64, Apple Silicon,
 Intel macOS and Linux builds pass their checks. A release includes every platform's installers,
 `SHA256SUMS.txt` for download verification, and a link to its exact source commit.
 If any platform build or upload fails, the release remains unpublished.
@@ -21,14 +21,22 @@ installs its own build dependencies, creates its installers and verifies package
 desktop startup before uploading. Publishing waits for every platform to pass and
 uses the same tested version.
 
-Each workflow run assigns an increasing app version automatically, for example
+Documentation, website, test-only and fixture-only changes still run shared checks,
+including the website browser checks. They skip build-artifact upload, all four
+packaging jobs and release publication. App sources, bundled policy JSON, dependency
+files, shipped assets and packaging configuration are release inputs, as defined
+in `scripts/release-scope.mjs`. Git deletions and renames are included. Version tags
+and manual runs explicitly request packaging; manual runs do not publish releases.
+
+Each packaging-enabled workflow run assigns an increasing app version automatically, for example
 `0.3.0`, followed by `0.3.1`. Merging into `main` triggers the same process as a
 push. The renderer, Electron app, platform installers and release notes all use
 that version. Retrying a workflow retains its assigned version. There are no
 version-bump commits and no need to edit `package.json` for normal releases.
 
 The baseline in `build/version.json` starts the 0.3 series at workflow run 11.
-Later workflow runs increase the patch number; pull-request builds also consume run numbers.
+Later workflow runs increase the patch number. Check-only and pull-request runs
+also consume GitHub run numbers, so published patch numbers can have gaps.
 For a future minor bump, update the baseline version and its first workflow run together.
 
 Beta tags also identify the run and commit, such as `v0.3.0-beta.build.11.aaaaaaa`.
@@ -81,8 +89,14 @@ Pull requests and manual workflow runs provide build artifacts without publishin
   replaces incomplete inherited Electron signatures that can cause “damaged” alerts.
   Release notes distinguish ad-hoc beta builds from Developer ID signed, notarized builds.
 
-See [release verification](verification.md) for specification coverage and remaining
+See [release verification](verification.md) for automated coverage and remaining
 platform validation.
+
+An optional Balatro mod index can be configured by GitHub URL at setup or in
+Settings. It is fetched at runtime and deduplicated with Thunderstore preferred.
+GitHub manual archives take priority when a registry listing links to a supported
+author repository. GitHub star counts use cached, budgeted lookups; rate limits can
+delay new release checks and show a retry time.
 
 ## Install Modatro
 
@@ -128,7 +142,9 @@ does not establish that verification.
 ## Supported mods
 
 Modatro supports ZIP distributions with one identifiable mod root, including nested
-repository folders, supported standalone Lua files, and Lovely patches. It checks
+repository folders, supported standalone Lua files, and Lovely patches. Declared
+mod metadata takes precedence over wrapper filename hints, keeping the real mod
+at the correct depth and excluding outer installation-error patches. It checks
 the downloaded files before copying them into the approved destination.
 
 Game-file replacements require an explicit Modatro definition listing each archive
@@ -170,12 +186,15 @@ operation. An unknown version is never reported as verified.
 ## Beta limitations
 
 - Linux packages target x64. Native Linux LÖVE launch and ARM Linux are not supported.
-- Mods update individually; bulk updates and automatic application updates are unavailable.
+- Mods update individually; there is no bulk-update control. Application updates
+  show a notice, but downloading and running the installer is manual.
 - Mods that replace game files cannot be disabled. Uninstall restores their recorded originals.
 - Unmanaged mods can be adopted when structured metadata identifies a unique local
   mod; catalogue updates additionally require a unique catalogue match.
-- Non-semantic version strings may not produce an update notice. Balatro game-version
-  requirements cannot currently be verified automatically.
+- Arbitrary non-semantic version strings may not produce an update notice. Supported
+  Steamodded beta/date formats and Balatro letter versions are compared explicitly.
+  Balatro's version is read from `version.jkr` in its game archive; invalid or ambiguous
+  data remains unknown.
 - Backups are retained after uninstall and are not automatically deleted.
 
 See [troubleshooting](troubleshooting.md) for folder selection, offline browsing,

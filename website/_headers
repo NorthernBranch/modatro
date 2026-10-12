@@ -1,4 +1,5 @@
 /*
+  Cache-Control: public, max-age=0, must-revalidate
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src https://api.github.com; base-uri 'none'; frame-ancestors 'none'; object-src 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-IhO9d2HEm9SQFqUKnOeaDGm4YnfMdWkPRwd4VQjCJBk='; style-src 'self'; img-src 'self'; connect-src https://api.github.com; base-uri 'none'; frame-ancestors 'none'; object-src 'none'

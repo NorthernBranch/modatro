@@ -18,6 +18,10 @@ For Debian/Ubuntu, install `Modatro-<version>-amd64.deb` with the distribution's
 package installer. The launcher appears in the desktop application menu. The DEB
 requires a system package installation and is not the Steam Deck installation method.
 
+Application update notices appear in **Settings → Application updates**. The
+**Download update** action opens the matching installer in your browser; Modatro
+does not download or replace itself automatically.
+
 ## Connect Balatro
 
 Install and launch Balatro through Steam/Proton once so Steam creates its compatibility
@@ -59,6 +63,9 @@ installation requires Lovely's upstream upgrade procedure. Existing DLLs need
 positive library evidence; the filename alone does not establish identity or version.
 
 ## Compatibility
+
+Windows has received the most complete manual testing. Linux CI uses fixtures and
+packaged startup checks; it does not replace Steam Deck hardware or real-game testing.
 
 Linux packages are x64; ARM Linux is not covered. A separately configured native
 LÖVE installation and `liblovely.so` follow different upstream instructions and are

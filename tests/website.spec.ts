@@ -52,6 +52,11 @@ test('the landing page offers exact platform downloads and stays usable on mobil
   await page.getByLabel('Download for', { exact: true }).selectOption('mac');
   await expect(page.getByRole('status')).toContainText('Choose Apple silicon or Intel');
   await expect(page.locator('#download')).toHaveAttribute('href', release.html_url);
+  const screenshot = page.getByRole('img', { name: /Modatro's Discover screen/ });
+  await screenshot.scrollIntoViewIfNeeded();
+  await expect
+    .poll(() => screenshot.evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBe(1440);
   await page.screenshot({ path: 'test-results/website-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 375, height: 812 });
   await expect(page.locator('#download')).toBeVisible();
@@ -60,6 +65,80 @@ test('the landing page offers exact platform downloads and stays usable on mobil
   );
   await page.screenshot({ path: 'test-results/website-mobile.png', fullPage: true });
   expect(errors).toEqual([]);
+});
+
+test('desktop sections remain stacked and the screenshot stays within a compact frame', async ({
+  page,
+}) => {
+  // Reproduce a browser still holding the stylesheet from before the preview
+  // existed. The versioned URL must avoid this old asset entirely.
+  const oldStyles = [] as string[];
+  await page.route('**/style.css', (route) => {
+    oldStyles.push(route.request().url());
+    return route.fulfill({ contentType: 'text/css', body: 'main { display:flex; }' });
+  });
+  await page.route(
+    'https://api.github.com/repos/NorthernBranch/modatro/releases?per_page=100',
+    (route) => route.fulfill({ json: [release] }),
+  );
+  await page.goto('/');
+  await expect(page.locator('link[rel="stylesheet"]')).toHaveAttribute('href', /style\.css\?v=.+/);
+  for (const width of [1828, 1320, 900, 768, 375]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const hero = await page.locator('.hero').boundingBox();
+    const preview = await page.locator('.app-preview').boundingBox();
+    const image = await page.locator('.app-preview img').boundingBox();
+    expect(hero).not.toBeNull();
+    expect(preview!.y).toBeGreaterThanOrEqual(hero!.y + hero!.height);
+    expect(image!.width).toBeLessThanOrEqual(720);
+    expect(image!.x).toBeGreaterThanOrEqual(0);
+    expect(image!.x + image!.width).toBeLessThanOrEqual(width);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+  }
+  expect(oldStyles).toEqual([]);
+});
+
+test('search and social metadata identify the app and use a working screenshot', async ({
+  page,
+  request,
+}) => {
+  await page.route(
+    'https://api.github.com/repos/NorthernBranch/modatro/releases?per_page=100',
+    (route) => route.fulfill({ json: [release] }),
+  );
+  await page.goto('/');
+  await expect(page).toHaveTitle(/Free Balatro Mod Manager/);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    'href',
+    'https://modatro.app/',
+  );
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
+    'content',
+    'https://modatro.app/images/discover.png',
+  );
+  await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute(
+    'content',
+    'summary_large_image',
+  );
+  const data = JSON.parse(
+    (await page.locator('script[type="application/ld+json"]').textContent()) ?? '{}',
+  );
+  expect(
+    data['@graph'].find((entry: { '@type': string }) => entry['@type'] === 'SoftwareApplication'),
+  ).toMatchObject({
+    name: 'Modatro',
+    operatingSystem: 'Windows, macOS, Linux',
+    offers: { price: '0' },
+  });
+  expect((await request.get('/images/discover.png')).ok()).toBe(true);
+  expect(await (await request.get('/robots.txt')).text()).toContain(
+    'Sitemap: https://modatro.app/sitemap.xml',
+  );
+  expect(await (await request.get('/sitemap.xml')).text()).toContain(
+    '<loc>https://modatro.app/</loc>',
+  );
 });
 
 test('failed release lookups and disabled JavaScript keep the releases link working', async ({

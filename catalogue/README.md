@@ -5,6 +5,12 @@ the small GitHub supplement, reviewed installation/permission exceptions, and
 independent removal and blocked-release feeds. No custom server or routine mod
 version updates are required.
 
+The reviewed native supplement described below is disabled in normal production
+discovery; `ENABLE_LEGACY_BMI_SOURCE=true` enables it for development. This differs
+from the optional **Settings → Mod sources** index, which users configure by GitHub
+URL and Modatro reads at runtime. The configurable format is `mods/<id>/meta.json`;
+the native author/slug format in this directory is compiled by the catalogue tools.
+
 ```text
 mods/<author>/<slug>/meta.json
 index.json
@@ -38,6 +44,12 @@ See [the latest-release manifest](../examples/modatro-latest.json). Drafts and p
 are excluded from automatic latest-release discovery. Archive metadata, identity and
 permissions are checked again before installation.
 
+When a Thunderstore entry links to a supported GitHub repository, installation
+prefers its author-controlled manual release archive. A unique `-raw.zip` or
+`-manual.zip` asset takes priority over launcher ZIPs; projects without releases
+use a commit-pinned default-branch archive. The registry identity remains available
+for discovery and restrictions, while provenance records the actual download.
+
 ## Thunderstore exceptions
 
 `overrides.json` contains only exceptions, identified by `package` as
@@ -54,6 +66,12 @@ downloaded mod's metadata. Externally installed copies do not gain a verified pa
 version through adoption; users may explicitly install the catalogue release to establish
 that record. Known historical aliases and package UUIDs preserve existing installation
 IDs and file records. Unmapped old installations remain manageable locally.
+
+Runtime versions from downloaded mod metadata can differ from index timestamps,
+release labels or registry package versions. Index downloads use staged loader
+metadata for the runtime version; fixed native catalogue releases still require
+agreement with their published version. A GitHub copy does not automatically gain
+a verified Thunderstore package version.
 
 ## Submitting a mod
 
