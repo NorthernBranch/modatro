@@ -237,6 +237,11 @@ test('setup and theme saves preserve selected folders through validated desktop 
       window.modatro!.troubleshoot!({ logIds: [], path: '/private.log' } as never),
     );
     expect(badRequest.ok).toBe(false);
+    const diagnostics = await page.evaluate(() => window.modatro!.troubleshoot!({ logIds: [] }));
+    expect(
+      diagnostics,
+      'Valid diagnostic IPC must succeed before rendering the overview',
+    ).toMatchObject({ ok: true });
     await page.getByRole('button', { name: 'Troubleshooting', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Setup overview', exact: true })).toBeVisible();
     await expect(page.getByText('profile-switch · success', { exact: true })).toBeVisible();
