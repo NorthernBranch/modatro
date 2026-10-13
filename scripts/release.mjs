@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { buildVersion } from './build-version.mjs';
+import { buildVersion, publishedReleaseTags } from './build-version.mjs';
 
 export function releaseDetails(version, env, tags) {
   if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/.test(version))
@@ -51,7 +51,7 @@ export async function publishRelease({
   tags,
   run = (args) => spawnSync('gh', args, { encoding: 'utf8' }),
 }) {
-  const details = releaseDetails(version, env, tags);
+  const details = releaseDetails(version, env, tags ?? (await publishedReleaseTags(env)));
   const assets = details.assets.map((name) => path.resolve(directory, name));
   // Validate every platform build before making any GitHub mutation.
   const checksums = [];

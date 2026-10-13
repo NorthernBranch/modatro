@@ -159,7 +159,10 @@ export function TroubleshootingPage({
               </dl>
               <div className="diagnostic-prerequisites">
                 {data.prerequisites
-                  .filter((p) => p.id !== 'Talisman' || p.installed)
+                  .filter(
+                    (p) =>
+                      p.installed && ['Balatro', 'Lovely', 'Steamodded', 'Talisman'].includes(p.id),
+                  )
                   .map((p) => (
                     <span key={p.id}>
                       {p.id}: {p.installed ? 'Installed' : 'Missing'} ·{' '}

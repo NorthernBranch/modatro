@@ -137,9 +137,16 @@ Active Default-profile deletion keeps the same displayed name, so the desktop te
 waits for the edit to close and the active identity to change before issuing diagnostics.
 A browser regression holds deletion pending while opening Troubleshooting, then
 checks that its initial request starts only after the configuration operation finishes.
-Browser regressions also check optional Talisman visibility, enabled/disabled/unknown
+Browser regressions also check that only installed prerequisites have overview badges,
+that regular mods are not duplicated as badges, enabled/disabled/unknown
 mod groups at desktop and mobile widths, and collapsed installation file lists that
 can be expanded without hiding package information or confirmation controls.
+
+Version tests cover consecutive published patches despite workflow gaps, semantic
+ordering, major/minor/patch PR title prefixes, default patch behavior, validated
+merged PR lookup, deliberate minor bumps, completed reruns, paginated release history,
+draft exclusion and unavailable history. Publication still verifies the assigned
+version and all platform installers before writing a GitHub release.
 
 These changes have been exercised locally on Windows and in an Ubuntu 22.04 container.
 macOS and Proton paths use upstream documentation and fixtures. Actual cross-platform loader logs,

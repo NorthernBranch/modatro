@@ -14,8 +14,9 @@ Unknown evidence remains unknown.
 
 The **Setup overview** groups installed mods into **Enabled mods**, **Disabled mods**,
 and, when needed, **Enabled state unknown**. Each group retains the mod identity,
-version and managed/unmanaged status. Optional Talisman appears in the prerequisite
-overview only when installed; missing required dependencies still produce findings.
+version and managed/unmanaged status. Prerequisite badges show only installed
+Balatro, Lovely, Steamodded and Talisman; ordinary mods appear in the grouped lists.
+Missing required dependencies still produce findings.
 Installation previews and confirmations keep their file-change lists collapsed
 until you choose to expand them.
 

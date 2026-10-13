@@ -53,8 +53,8 @@ it('gives each main push a unique beta tag tied to its commit', () => {
   expect(releaseDetails('0.4.1', { ...env, GITHUB_RUN_NUMBER: '43' }, tags).tag).not.toBe(
     releaseDetails(version, env, tags).tag,
   );
-  expect(releaseDetails(version, { ...env, GITHUB_SHA: 'b'.repeat(40) }, tags).tag).not.toBe(
-    releaseDetails(version, env, tags).tag,
+  expect(() => releaseDetails(version, { ...env, GITHUB_SHA: 'b'.repeat(40) }, tags)).toThrow(
+    'commit',
   );
 });
 it('publishes a matching version tag as a named release', () => {

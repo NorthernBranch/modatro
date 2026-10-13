@@ -289,6 +289,7 @@ for (const installed of [false, true]) {
             { id: 'Lovely', installed: false },
             { id: 'Steamodded', installed: true, version: '1.0.0' },
             { id: 'Talisman', installed, version: installed ? '2.7.0' : undefined },
+            { id: 'ActiveMod', installed: true, version: '1.0.0' },
           ],
           mods: [
             { id: 'active', title: 'Active mod', version: '1.0.0', enabled: true, managed: true },
@@ -307,7 +308,9 @@ for (const installed of [false, true]) {
     });
     await expect(overview).toBeVisible();
     const prerequisites = overview.locator('.diagnostic-prerequisites');
-    await expect(prerequisites).toContainText('Lovely: Missing');
+    await expect(prerequisites).not.toContainText('Lovely');
+    await expect(prerequisites).not.toContainText('ActiveMod');
+    await expect(prerequisites).not.toContainText('Missing');
     await expect(prerequisites).toContainText('Steamodded: Installed');
     if (installed) await expect(prerequisites).toContainText('Talisman: Installed · 2.7.0');
     else await expect(prerequisites).not.toContainText('Talisman');
