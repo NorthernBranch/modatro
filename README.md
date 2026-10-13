@@ -21,7 +21,9 @@ configurations are shared across profiles; unmanaged mods can still affect gamep
 | [![Installed mods with management actions and source records](docs/images/installed.png)](docs/images/installed.png) | [![Lovely, Steamodded and Talisman installation and version checks](docs/images/prerequisites.png)](docs/images/prerequisites.png) |
 
 Screenshots show the current interface with representative catalogue and installation
-data. Click either smaller image to view it at full size.
+data. The prerequisite preview includes an expanded source record with a synthetic
+checksum; URLs and hashes wrap within the card. Click either smaller image to view
+it at full size.
 
 ## Download
 

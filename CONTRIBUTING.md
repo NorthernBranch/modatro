@@ -142,9 +142,11 @@ pnpm exec playwright install chromium
 node scripts/screenshots.mjs
 ```
 
-The script starts its own Vite server on port 5183, captures Discover, Installed and
-Prerequisites into `docs/images/`, then closes the browser and server. The Discover
-image is also copied to `website/images/` for the landing page. The script uses a
+The script starts its own Vite server on port 5183, captures all eight app views
+into `docs/images/`, then closes the browser and server. Discover, Profiles and
+Troubleshooting images are also copied to `website/images/` for the landing page.
+The prerequisite preview expands a representative source record with a synthetic
+checksum so long-value wrapping is visible. The script uses a
 read-only desktop bridge and blocks external requests; it cannot discover or change
 your game files. Review the images and commit them with any relevant documentation
 changes. The screenshot data comes from the checked-in catalogue sample and does

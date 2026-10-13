@@ -1246,6 +1246,153 @@ test('prerequisites keep external loader versions visible when package versions 
   await expect(lovely.locator('dd').first()).toHaveText('Version unknown');
 });
 
+test('source records, filenames and error paths wrap across pages and viewport widths', async ({
+  page,
+}) => {
+  const state = fixture();
+  const segment = 'LongUnbrokenName'.repeat(10);
+  const url = `https://github.com/tests/${segment}/archive/refs/tags/26.1002.0.zip`;
+  const path = `fixture/${segment}.lua`;
+  const provenance = {
+    sourceType: 'tag' as const,
+    repositoryUrl: `https://github.com/tests/${segment}`,
+    downloadUrl: url,
+    releaseTag: '26.1002.0',
+    sha256: 'a'.repeat(64),
+  };
+  for (const id of ['Lovely', 'Steamodded', 'Talisman']) {
+    const value = {
+      id,
+      displayName: id,
+      installed: true,
+      installedVersion: '26.1002.0',
+      latestVersion: '26.1002.0',
+      sourceUrl: provenance.repositoryUrl,
+      provenance,
+    };
+    const existing = state.prerequisites.find((p) => p.id === id);
+    if (existing) Object.assign(existing, value);
+    else state.prerequisites.push(value);
+  }
+  state.catalogue.mods[0]!.repositoryUrl = provenance.repositoryUrl;
+  state.catalogue.mods[0]!.title = segment;
+  state.localMods.push({
+    id: 'fixture',
+    title: 'Fixture mod',
+    version: '1.0.0',
+    state: 'broken',
+    managed: true,
+    folderName: 'fixture',
+    canAdopt: false,
+    provenance,
+    files: [{ root: 'mods', path, operation: 'created' }],
+    problems: [`Could not verify ${path}`],
+  });
+  state.settings.gamePath = `/game/${segment}`;
+  state.settings.modsPath = `/mods/${segment}`;
+  await mockDesktop(page, state, { previewPlan: 'hold', launch: 'hold' });
+  const assertContained = async () => {
+    const clipped = await page.evaluate(() => {
+      const scope =
+        document.querySelector('dialog[open]') ?? document.querySelector('.main-content')!;
+      const failures: string[] = [];
+      for (const element of scope.querySelectorAll<HTMLElement>('p, code, dd, li, h2, h3')) {
+        if (
+          !element.getClientRects().length ||
+          element.closest('details:not([open]) > :not(summary)')
+        )
+          continue;
+        const style = getComputedStyle(element);
+        if (style.textOverflow === 'ellipsis' || Number.parseInt(style.webkitLineClamp) > 0)
+          continue;
+        if (element.scrollWidth > element.clientWidth + 1)
+          failures.push(element.textContent!.slice(0, 100));
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const boundary = (
+          element.closest('.prerequisite-card, .local-row, dialog') ?? scope
+        ).getBoundingClientRect();
+        if (
+          [...range.getClientRects()].some(
+            (rect) =>
+              rect.width && (rect.left < boundary.left - 1 || rect.right > boundary.right + 1),
+          )
+        )
+          failures.push(`Outside container: ${element.textContent!.slice(0, 100)}`);
+      }
+      return failures;
+    });
+    expect(clipped).toEqual([]);
+  };
+  for (const width of [1440, 1024, 768, 375]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.getByRole('button', { name: 'Discover', exact: true }).click();
+    await assertContained();
+    await page.getByRole('button', { name: 'Updates', exact: true }).click();
+    await assertContained();
+    await page.getByRole('button', { name: 'Troubleshooting', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Setup overview', exact: true })).toBeVisible();
+    await assertContained();
+    await page.getByRole('button', { name: 'Prerequisites', exact: true }).click();
+    for (const source of await page.locator('.prerequisite-card details').all()) {
+      if ((await source.getAttribute('open')) === null) await source.locator('summary').click();
+    }
+    await expect(
+      page.locator('.prerequisite-card').first().getByText(url, { exact: true }),
+    ).toBeVisible();
+    await assertContained();
+    if (width === 1440 || width === 375)
+      await page.screenshot({
+        path: `test-results/prerequisite-source-${width}.png`,
+        fullPage: true,
+      });
+    await page
+      .getByRole('navigation')
+      .getByRole('button', { name: /^Installed/ })
+      .click();
+    for (const source of await page.locator('.local-row details').all()) {
+      if ((await source.getAttribute('open')) === null) await source.locator('summary').click();
+    }
+    await assertContained();
+    await page.getByRole('button', { name: 'Fixture mod', exact: true }).click();
+    await assertContained();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Preview file changes', exact: true }).click();
+    await page.evaluate(
+      (path) =>
+        window.requestsTest.finish('previewPlan', {
+          ok: true,
+          value: {
+            modId: 'fixture',
+            version: '1.0.0',
+            create: [{ root: 'mods', path }],
+            replace: [],
+            remove: [],
+            prerequisites: [],
+            conflicts: [],
+          },
+        }),
+      path,
+    );
+    await dialog.locator('details summary').click();
+    await assertContained();
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await assertContained();
+    await page.getByRole('button', { name: /^Launch (Modded )?Balatro$/ }).click();
+    await page.evaluate(
+      (path) =>
+        window.requestsTest.finish('launch', {
+          ok: false,
+          error: { message: `Cannot access ${path}` },
+        }),
+      path,
+    );
+    await assertContained();
+    await closeError(page);
+  }
+});
+
 test('prerequisites compare only recorded versions from the same package source', async ({
   page,
 }) => {

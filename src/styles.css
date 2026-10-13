@@ -47,6 +47,7 @@
 body {
   margin: 0;
   color: var(--text);
+  overflow-wrap: anywhere;
 }
 button,
 input,
@@ -1173,6 +1174,7 @@ select {
   padding: 23px;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 .prerequisite-icon {
   width: 48px;
@@ -1244,6 +1246,7 @@ select {
 }
 .version-facts dd {
   margin: 0;
+  min-width: 0;
   text-align: right;
   overflow-wrap: anywhere;
 }
@@ -1251,6 +1254,7 @@ details {
   color: var(--muted);
   font-size: 11px;
   line-height: 1.8;
+  min-width: 0;
 }
 summary {
   cursor: pointer;
