@@ -834,7 +834,7 @@ export function App() {
                   Preview file changes
                 </AsyncButton>
                 {inspectedPlan?.modId === selected.id && (
-                  <details open>
+                  <details key={inspectedPlan.modId}>
                     <summary>
                       File changes · Create {inspectedPlan.create.length} · Replace{' '}
                       {inspectedPlan.replace.length} · Remove {inspectedPlan.remove.length}
@@ -1095,7 +1095,7 @@ export function App() {
             </ul>
           )}
           {confirmation.plan && (
-            <details open>
+            <details key={confirmation.token ?? `${confirmation.id}:${confirmation.action}`}>
               <summary>
                 View file changes · Create {confirmation.plan.create.length} · Replace{' '}
                 {confirmation.plan.replace.length} · Remove {confirmation.plan.remove.length}

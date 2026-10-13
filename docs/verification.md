@@ -137,6 +137,9 @@ Active Default-profile deletion keeps the same displayed name, so the desktop te
 waits for the edit to close and the active identity to change before issuing diagnostics.
 A browser regression holds deletion pending while opening Troubleshooting, then
 checks that its initial request starts only after the configuration operation finishes.
+Browser regressions also check optional Talisman visibility, enabled/disabled/unknown
+mod groups at desktop and mobile widths, and collapsed installation file lists that
+can be expanded without hiding package information or confirmation controls.
 
 These changes have been exercised locally on Windows and in an Ubuntu 22.04 container.
 macOS and Proton paths use upstream documentation and fixtures. Actual cross-platform loader logs,

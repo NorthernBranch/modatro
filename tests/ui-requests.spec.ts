@@ -172,6 +172,16 @@ async function mockDesktop(page: Page, state = fixture(), behavior: Record<strin
             warnings: [],
           }),
         switchProfile: () => call('switchProfile', control.state),
+        previewPlan: (id) =>
+          call('previewPlan', {
+            modId: id,
+            version: '1.0.0',
+            create: [],
+            replace: [],
+            remove: [],
+            prerequisites: [],
+            conflicts: [],
+          }),
         troubleshoot: () =>
           call('troubleshoot', {
             generatedAt: new Date().toISOString(),
@@ -258,6 +268,99 @@ test('Troubleshooting waits for profile deletion even when the active name remai
   await page.evaluate(() => window.requestsTest.finish('profileOperation'));
   await expect(page.getByRole('heading', { name: 'Setup overview', exact: true })).toBeVisible();
   expect(await page.evaluate(() => window.requestsTest.calls.troubleshoot)).toBe(1);
+});
+
+for (const installed of [false, true]) {
+  test(`Troubleshooting groups mods and ${installed ? 'shows installed' : 'hides absent'} Talisman`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: installed ? 375 : 1440, height: 1000 });
+    await mockDesktop(page, fixture(), { troubleshoot: 'hold' });
+    await page.getByRole('button', { name: 'Troubleshooting', exact: true }).click();
+    await page.evaluate((installed) => {
+      window.requestsTest.finish('troubleshoot', {
+        ok: true,
+        value: {
+          generatedAt: new Date().toISOString(),
+          appVersion: '0.4.0',
+          platform: 'win32',
+          arch: 'x64',
+          prerequisites: [
+            { id: 'Lovely', installed: false },
+            { id: 'Steamodded', installed: true, version: '1.0.0' },
+            { id: 'Talisman', installed, version: installed ? '2.7.0' : undefined },
+          ],
+          mods: [
+            { id: 'active', title: 'Active mod', version: '1.0.0', enabled: true, managed: true },
+            { id: 'inactive', title: 'Inactive mod', enabled: false, managed: true },
+            { id: 'external', title: 'External mod', managed: false },
+          ],
+          findings: [],
+          history: [],
+          logs: [],
+          report: 'Synthetic report',
+        },
+      });
+    }, installed);
+    const overview = page.locator('.troubleshooting-section').filter({
+      has: page.getByRole('heading', { name: 'Setup overview', exact: true }),
+    });
+    await expect(overview).toBeVisible();
+    const prerequisites = overview.locator('.diagnostic-prerequisites');
+    await expect(prerequisites).toContainText('Lovely: Missing');
+    await expect(prerequisites).toContainText('Steamodded: Installed');
+    if (installed) await expect(prerequisites).toContainText('Talisman: Installed · 2.7.0');
+    else await expect(prerequisites).not.toContainText('Talisman');
+    for (const [group, title, detail] of [
+      ['Enabled mods', 'Active mod', 'active · 1.0.0 · Managed'],
+      ['Disabled mods', 'Inactive mod', 'inactive · Version unknown · Managed'],
+      ['Enabled state unknown', 'External mod', 'external · Version unknown · Unmanaged'],
+    ]) {
+      const region = overview.getByRole('region', { name: group, exact: true });
+      await expect(region.getByRole('listitem')).toHaveCount(1);
+      await expect(region.getByRole('listitem')).toContainText(title!);
+      await expect(region.getByRole('listitem')).toContainText(detail!);
+    }
+    expect(await overview.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
+  });
+}
+
+test('large preview file lists start collapsed and expand on demand', async ({ page }) => {
+  await mockDesktop(page, fixture(), { previewPlan: 'hold' });
+  await page
+    .locator('.mod-card')
+    .getByRole('button', { name: /View details/ })
+    .click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Preview file changes', exact: true }).click();
+  await page.evaluate(() => {
+    window.requestsTest.finish('previewPlan', {
+      ok: true,
+      value: {
+        modId: 'fixture',
+        version: '1.0.0',
+        create: Array.from({ length: 200 }, (_, index) => ({
+          root: 'mods',
+          path: `Fixture/file-${index}.lua`,
+        })),
+        replace: [],
+        remove: [],
+        prerequisites: [],
+        conflicts: [],
+      },
+    });
+  });
+  const files = dialog.locator('details');
+  await expect(files.locator('summary')).toContainText('Create 200');
+  await expect(files).not.toHaveAttribute('open');
+  await expect(files.getByText('create: mods/Fixture/file-199.lua', { exact: true })).toBeHidden();
+  await files.locator('summary').click();
+  await expect(files).toHaveAttribute('open', '');
+  await expect(files.getByText('create: mods/Fixture/file-199.lua', { exact: true })).toBeVisible();
+  await files.locator('summary').click();
+  await expect(files).not.toHaveAttribute('open');
 });
 
 test('profile actions stay concise and switching cannot be dismissed until it finishes', async ({
@@ -1415,7 +1518,12 @@ test('shows the server-generated file plan and returns its confirmation token', 
     });
     window.requestsTest.behavior.action = 'success';
   });
-  await expect(page.getByRole('dialog')).toContainText('replace: game/game.lua');
+  const files = page.getByRole('dialog').locator('details');
+  await expect(files).not.toHaveAttribute('open');
+  await expect(files.getByText('replace: game/game.lua', { exact: true })).toBeHidden();
+  await files.locator('summary').click();
+  await expect(files.getByText('replace: game/game.lua', { exact: true })).toBeVisible();
+  await files.locator('summary').click();
   await expect(page.getByRole('dialog')).toContainText('Required package 1.2.0');
   await expect(page.getByRole('dialog')).toContainText('Fixture mod requires Required package');
   await expect(page.getByRole('dialog')).toContainText(

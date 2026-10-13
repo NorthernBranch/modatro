@@ -158,17 +158,58 @@ export function TroubleshootingPage({
                 </div>
               </dl>
               <div className="diagnostic-prerequisites">
-                {data.prerequisites.map((p) => (
-                  <span key={p.id}>
-                    {p.id}: {p.installed ? 'Installed' : 'Missing'} ·{' '}
-                    {p.version ?? 'Version unknown'}
-                  </span>
-                ))}
+                {data.prerequisites
+                  .filter((p) => p.id !== 'Talisman' || p.installed)
+                  .map((p) => (
+                    <span key={p.id}>
+                      {p.id}: {p.installed ? 'Installed' : 'Missing'} ·{' '}
+                      {p.version ?? 'Version unknown'}
+                    </span>
+                  ))}
               </div>
               <p>
                 Versions and configurations are shared across profiles. Unmanaged mods may still
                 affect gameplay.
               </p>
+              <div className="diagnostic-mod-groups">
+                {(
+                  [
+                    { id: 'enabled', title: 'Enabled mods', enabled: true },
+                    { id: 'disabled', title: 'Disabled mods', enabled: false },
+                    { id: 'unknown', title: 'Enabled state unknown', enabled: undefined },
+                  ] as const
+                ).map((group) => {
+                  const mods = data.mods.filter((mod) => mod.enabled === group.enabled);
+                  if (group.id === 'unknown' && !mods.length) return null;
+                  return (
+                    <section
+                      className="diagnostic-mod-group"
+                      aria-labelledby={`setup-mods-${group.id}`}
+                      key={group.id}
+                    >
+                      <div className="diagnostic-mod-heading">
+                        <h3 id={`setup-mods-${group.id}`}>{group.title}</h3>
+                        <span className="count-pill">{mods.length}</span>
+                      </div>
+                      {mods.length ? (
+                        <ul className="diagnostic-history">
+                          {mods.map((mod) => (
+                            <li key={mod.id}>
+                              <strong>{mod.title}</strong>
+                              <span>
+                                {mod.id} · {mod.version ?? 'Version unknown'} ·{' '}
+                                {mod.managed ? 'Managed' : 'Unmanaged'}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p>No {group.id} mods.</p>
+                      )}
+                    </section>
+                  );
+                })}
+              </div>
             </section>
             {(['problem', 'warning', 'possible'] as const).map((kind) => (
               <section className="settings-section troubleshooting-section" key={kind}>
@@ -345,25 +386,6 @@ export function TroubleshootingPage({
               ) : data.historyError ? null : (
                 <p>No recorded operations yet.</p>
               )}
-            </section>
-            <section className="settings-section troubleshooting-section">
-              <h2>Installed selection</h2>
-              <ul className="diagnostic-history">
-                {data.mods.map((m) => (
-                  <li key={m.id}>
-                    <strong>{m.title}</strong>
-                    <span>
-                      {m.id} · {m.version ?? 'Version unknown'} ·{' '}
-                      {m.enabled === undefined
-                        ? 'Enabled state unknown'
-                        : m.enabled
-                          ? 'Enabled'
-                          : 'Disabled'}{' '}
-                      · {m.managed ? 'Managed' : 'Unmanaged'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
             </section>
           </>
         )}

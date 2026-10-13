@@ -12,6 +12,13 @@ prerequisite version evidence, managed/unmanaged and enabled/disabled mods, acti
 profile differences, file integrity, declared dependencies and recent operations.
 Unknown evidence remains unknown.
 
+The **Setup overview** groups installed mods into **Enabled mods**, **Disabled mods**,
+and, when needed, **Enabled state unknown**. Each group retains the mod identity,
+version and managed/unmanaged status. Optional Talisman appears in the prerequisite
+overview only when installed; missing required dependencies still produce findings.
+Installation previews and confirmations keep their file-change lists collapsed
+until you choose to expand them.
+
 If setup or profile selection changes while this page is open, it marks the displayed
 checks as needing refresh. Generating a report always takes fresh checks under the lock.
 
