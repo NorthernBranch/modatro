@@ -9,6 +9,13 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
+
+# Serialize release builds so each sees the previous published version.
+# New PR commits may cancel their obsolete checks; release builds finish in order.
+concurrency:
+  group: modatro-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || 'releases' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
@@ -16,6 +23,7 @@ jobs:
     runs-on: ubuntu-22.04
     outputs:
       package_desktop: ${{ steps.scope.outputs.package_desktop }}
+      release_bump: ${{ steps.version.outputs.release_bump }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -28,10 +36,13 @@ jobs:
           node-version: '24'
           package-manager-cache: false
       - uses: pnpm/action-setup@v6
+      - run: pnpm install --frozen-lockfile
       - name: Assign automatic app version
+        id: version
         if: steps.scope.outputs.package_desktop == 'true'
         run: node scripts/build-version.mjs
-      - run: pnpm install --frozen-lockfile
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Check formatting, catalogue, types, unit tests and build
         run: pnpm check
       - run: pnpm exec install-electron
@@ -159,3 +170,4 @@ jobs:
         run: node scripts/release.mjs
         env:
           GH_TOKEN: ${{ github.token }}
+          MODATRO_RELEASE_BUMP: ${{ needs.validate.outputs.release_bump }}

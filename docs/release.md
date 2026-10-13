@@ -28,18 +28,38 @@ files, shipped assets and packaging configuration are release inputs, as defined
 in `scripts/release-scope.mjs`. Git deletions and renames are included. Version tags
 and manual runs explicitly request packaging; manual runs do not publish releases.
 
-Each packaging-enabled workflow run assigns an increasing app version automatically, for example
+Each packaging-enabled workflow run assigns the next app version automatically, for example
 `0.4.0`, followed by `0.4.1`. Merging into `main` triggers the same process as a
 push. The renderer, Electron app, platform installers and release notes all use
-that version. Retrying a workflow retains its assigned version. There are no
+that version. Retrying a published workflow retains its original version. There are no
 version-bump commits and no need to edit `package.json` for normal releases.
 
-The baseline in `build/version.json` starts the 0.4 series. Its null first-run anchor
-keeps the first release at `0.4.0` even if PR checks or failed runs consume workflow
-numbers. Once that beta is published, its tag provides the anchor for later patch
-builds. Both validation and publishing checkouts fetch the full tags so they compute
-the same version. Later PR and check-only runs can produce gaps in published patches.
-For a future minor bump, change the baseline and reset `firstRunNumber` to `null`.
+Version assignment reads published GitHub Releases, including betas, using the CI
+token. The merged PR title selects how the highest published semantic version advances:
+
+| PR title prefix | Example from `0.4.3` |
+| --------------- | -------------------- |
+| `MAJOR:`        | `1.0.0`              |
+| `MINOR:`        | `0.5.0`              |
+| `PATCH:`        | `0.4.4`              |
+| No prefix       | `0.4.4`              |
+
+Prefixes are case-insensitive and must start the title. The merge method and commit
+message do not select the bump: CI reads the merged PR associated with the main
+commit. Direct pushes default to a patch. PR builds use their event's title; the
+final merged title controls publication. The selected bump is passed from validation
+to publishing so every installer uses the same tested version.
+
+Intervening PR, documentation, website or failed workflow runs do not consume
+versions. Draft releases and bare Git tags do not consume versions either.
+If release history cannot be read, the build stops rather than guessing a version.
+Release workflows run serially so overlapping pushes cannot reserve the same next
+version. A failed, unpublished build does not permanently consume its version.
+
+The baseline in `build/version.json` sets the minimum version, currently `0.4.0`.
+For a deliberate minor or major bump, set it to the new `X.Y.0` version. Normal
+releases use the title prefix above and default to patches. Documentation and
+website-only PRs still skip application releases, regardless of their title prefix.
 
 Beta tags also identify the run and commit, such as `v0.4.0-beta.build.42.aaaaaaa`.
 GitHub marks these as **Pre-release**, with **Modatro Beta 0.4.0** in the release

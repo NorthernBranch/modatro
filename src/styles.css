@@ -2522,6 +2522,33 @@ details > p {
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
+.diagnostic-mod-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 16px;
+}
+.diagnostic-mod-group {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+}
+.diagnostic-mod-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.diagnostic-mod-heading h3 {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.diagnostic-mod-group .diagnostic-history {
+  max-height: 20rem;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
 .troubleshooting-section .diagnostic-finding,
 .troubleshooting-section .diagnostic-log {
   display: grid;
