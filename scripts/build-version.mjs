@@ -2,10 +2,29 @@ import { appendFile, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readFileSync } from 'node:fs';
-import semver from 'semver';
 const baseline = JSON.parse(
   readFileSync(new URL('../build/version.json', import.meta.url), 'utf8'),
 );
+
+// The publisher restores artifacts without installing packages. Version assignment
+// needs just the numeric core of valid SemVer tags;
+// beta labels and build metadata do not change the next release's numeric core.
+function versionParts(value) {
+  if (typeof value !== 'string' || value.length > 256) return null;
+  const match =
+    /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.exec(
+      value,
+    );
+  if (!match || match[4]?.split('.').some((part) => /^0\d+$/.test(part))) return null;
+  const parts = match.slice(1, 4).map(Number);
+  return parts.every(Number.isSafeInteger) ? parts : null;
+}
+function compareVersions(left, right) {
+  for (let i = 0; i < 3; i++) {
+    if (left[i] !== right[i]) return left[i] < right[i] ? -1 : 1;
+  }
+  return 0;
+}
 
 // Only published releases consume a version. Drafts and bare Git tags do not.
 function apiHeaders(env) {
@@ -96,17 +115,19 @@ export function buildVersion(
   if (!/^[1-9]\d*$/.test(env.GITHUB_RUN_NUMBER ?? ''))
     throw new Error('A positive GitHub workflow run number is required.');
   const run = Number(env.GITHUB_RUN_NUMBER);
-  if (!/^\d+\.\d+\.0$/.test(config.baseVersion) || !semver.valid(config.baseVersion))
+  const base = versionParts(config.baseVersion);
+  if (!/^\d+\.\d+\.0$/.test(config.baseVersion) || !base)
     throw new Error('The automatic version baseline is invalid.');
   if (!Number.isSafeInteger(run)) throw new Error('The workflow run number is invalid.');
   if (!['major', 'minor', 'patch'].includes(bump)) throw new Error('The release bump is invalid.');
   const published = tags.flatMap((tag) => {
-    const parsed = tag.startsWith('v') ? semver.parse(tag.slice(1)) : null;
+    const parsed = tag.startsWith('v') ? versionParts(tag.slice(1)) : null;
     if (!parsed) return [];
     const generated = /^v\d+\.\d+\.\d+-beta\.build\.([1-9]\d*)\.([a-f0-9]{7,40})$/.exec(tag);
     return [
       {
-        version: `${parsed.major}.${parsed.minor}.${parsed.patch}`,
+        version: parsed.join('.'),
+        parts: parsed,
         run: generated?.[1],
         sha: generated?.[2],
       },
@@ -119,10 +140,22 @@ export function buildVersion(
       throw new Error('The published workflow release does not match this commit.');
     return sameRun[0].version;
   }
-  const latest = published.map((release) => release.version).sort(semver.rcompare)[0];
-  let next = latest ? semver.inc(latest, bump) : config.baseVersion;
-  if (semver.lt(next, config.baseVersion)) next = config.baseVersion;
-  let [major, minor, patch] = next.split('.').map(Number);
+  const latest = published.reduce(
+    (highest, release) =>
+      !highest || compareVersions(release.parts, highest.parts) > 0 ? release : highest,
+    null,
+  );
+  let next = [...base];
+  if (latest) {
+    next = [...latest.parts];
+    const field = { major: 0, minor: 1, patch: 2 }[bump];
+    next[field]++;
+    for (let i = field + 1; i < 3; i++) next[i] = 0;
+    if (!next.every(Number.isSafeInteger))
+      throw new Error('The next version exceeds supported desktop version limits.');
+    if (compareVersions(next, base) < 0) next = [...base];
+  }
+  let [major, minor, patch] = next;
   // Keep all platforms' numeric version fields within their supported limits.
   if (patch > 65535) {
     minor++;
