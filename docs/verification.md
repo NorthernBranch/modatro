@@ -141,6 +141,10 @@ Browser regressions also check that only installed prerequisites have overview b
 that regular mods are not duplicated as badges, enabled/disabled/unknown
 mod groups at desktop and mobile widths, and collapsed installation file lists that
 can be expanded without hiding package information or confirmation controls.
+Text-layout coverage expands prerequisite and installed source records, inspects
+mod details and file previews, and checks settings and error paths at 1440, 1024,
+768 and 375 pixels. Long URLs, SHA-256 hashes, filenames and mod names must stay
+inside their cards and dialogs rather than being clipped.
 
 Version tests cover consecutive published patches despite workflow gaps, semantic
 ordering, major/minor/patch PR title prefixes, default patch behavior, validated

@@ -97,6 +97,13 @@ const snapshot = {
       packageVersion: '26.829.0',
       latestPackageId: 'thunderstore/Steamodded-Steamodded',
       sourceUrl: 'https://github.com/Steamodded/smods',
+      provenance: {
+        sourceType: 'tag',
+        repositoryUrl: 'https://github.com/Steamodded/smods',
+        downloadUrl: 'https://github.com/Steamodded/smods/archive/refs/tags/26.829.0.zip',
+        releaseTag: '26.829.0',
+        sha256: 'a'.repeat(64), // Synthetic documentation example, not a release checksum.
+      },
     },
     {
       id: 'Talisman',
@@ -277,7 +284,13 @@ try {
   await page.screenshot({ path: path.join(output, 'installed.png'), animations: 'disabled' });
   await page.getByRole('button', { name: 'Prerequisites', exact: true }).click();
   await page.getByRole('heading', { name: 'Lovely', exact: true }).waitFor();
+  await page
+    .locator('.prerequisite-card')
+    .filter({ has: page.getByRole('heading', { name: 'Steamodded', exact: true }) })
+    .locator('summary')
+    .click();
   await page.screenshot({ path: path.join(output, 'prerequisites.png'), animations: 'disabled' });
+  await page.locator('.prerequisite-card details[open] summary').click();
   await page.getByRole('button', { name: 'Manage profiles', exact: true }).click();
   await page.getByRole('heading', { name: 'Mod profiles', exact: true }).waitFor();
   await page.screenshot({ path: path.join(output, 'profiles.png'), animations: 'disabled' });
