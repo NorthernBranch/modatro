@@ -72,6 +72,20 @@ it('allows an optional named version tag without editing package.json', () => {
   expect(() => versionFor({ GITHUB_REF: 'refs/tags/vinvalid' })).toThrow();
 });
 
+it('reads valid beta and metadata tags while excluding malformed release versions', () => {
+  const env = { GITHUB_RUN_NUMBER: '100' };
+  const tags = [
+    'v0.4.3-beta.build.30.aaaaaaa',
+    'v0.4.10-beta.1+build.001',
+    'v01.0.0',
+    'v1.0.0-beta.01',
+    'v1.0.0+build..meta',
+    'v1.0.0-',
+    'v9007199254740993.0.0',
+  ];
+  expect(buildVersion(env, current, tags)).toBe('0.4.11');
+});
+
 it.each([
   ['MAJOR: new format', '0.4.3', '1.0.0'],
   ['MAJOR: new format', '1.8.2', '2.0.0'],

@@ -147,6 +147,10 @@ ordering, major/minor/patch PR title prefixes, default patch behavior, validated
 merged PR lookup, deliberate minor bumps, completed reruns, paginated release history,
 draft exclusion and unavailable history. Publication still verifies the assigned
 version and all platform installers before writing a GitHub release.
+A child-process regression copies release scripts into a temporary checkout with
+no `node_modules`, verifies all platform artifacts, and exercises draft creation
+and publication through a stubbed GitHub CLI. This covers the dependency-free
+publishing environment, which ordinary PR packaging jobs do not run.
 
 These changes have been exercised locally on Windows and in an Ubuntu 22.04 container.
 macOS and Proton paths use upstream documentation and fixtures. Actual cross-platform loader logs,

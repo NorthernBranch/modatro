@@ -21,6 +21,10 @@ installs its own build dependencies, creates its installers and verifies package
 desktop startup before uploading. Publishing waits for every platform to pass and
 uses the same tested version.
 
+The publishing job restores the tested build and installer artifacts without
+installing application dependencies. Release and version-assignment scripts use
+only Node built-ins so that this clean checkout can verify and publish the artifacts.
+
 Documentation, website, test-only and fixture-only changes still run shared checks,
 including the website browser checks. They skip build-artifact upload, all four
 packaging jobs and release publication. App sources, bundled policy JSON, dependency

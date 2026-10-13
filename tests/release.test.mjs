@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { afterEach, expect, it, vi } from 'vitest';
 import { publishRelease, releaseDetails } from '../scripts/release.mjs';
 
@@ -94,6 +95,54 @@ it('creates a draft containing all installers and checksums before publishing', 
   expect(await fs.readFile(path.join(f.directory, 'release-notes.md'), 'utf8')).toContain(
     env.GITHUB_SHA,
   );
+});
+
+it('publishes tested artifacts from a clean checkout with no installed packages', async () => {
+  const f = await fixture();
+  const checkout = await fs.mkdtemp(path.join(os.tmpdir(), 'modatro-publish-checkout-'));
+  roots.push(checkout);
+  await fs.mkdir(path.join(checkout, 'scripts'));
+  await fs.mkdir(path.join(checkout, 'build'));
+  for (const name of ['build-version.mjs', 'release.mjs'])
+    await fs.copyFile(
+      new URL(`../scripts/${name}`, import.meta.url),
+      path.join(checkout, 'scripts', name),
+    );
+  await fs.copyFile(
+    new URL('../build/version.json', import.meta.url),
+    path.join(checkout, 'build/version.json'),
+  );
+  await fs.writeFile(
+    path.join(checkout, 'package.json'),
+    JSON.stringify({ version, type: 'module' }),
+  );
+  const input = `
+    import { publishRelease } from './scripts/release.mjs';
+    const fixture = JSON.parse(process.argv[2]);
+    const calls = [];
+    const release = await publishRelease({ ...fixture, run(args) {
+      calls.push(args[1]);
+      return args[1] === 'view' ? { status: 1 } : { status: 0, stdout: '' };
+    }});
+    console.log(JSON.stringify({ tag: release.tag, calls }));
+  `;
+  const result = spawnSync(
+    process.execPath,
+    ['--input-type=module', '-', JSON.stringify({ version, env, tags, directory: f.directory })],
+    {
+      cwd: checkout,
+      input,
+      encoding: 'utf8',
+      timeout: 15000,
+      windowsHide: true,
+    },
+  );
+  expect(result.error).toBeUndefined();
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout)).toEqual({
+    tag: f.details.tag,
+    calls: ['view', 'create', 'edit'],
+  });
 });
 it.each([0, 1, 2, 3, 4])(
   'does not mutate GitHub when platform installer %i is missing',
