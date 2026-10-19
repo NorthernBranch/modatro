@@ -146,7 +146,11 @@ export class CreatorService {
   private async collision(id: string, draft: CreatorDraft) {
     for (const item of await this.list()) {
       if (item.id === id) continue;
-      const { stored } = await this.read(item.id);
+      // Collision checks need metadata only; decoding every project's artwork
+      // here would make ordinary saves increasingly expensive.
+      const stored = CreatorProjectSchema.parse(
+        JSON.parse(await readSmall(await this.file(`${this.location(item.id)}/project.json`))),
+      );
       if (
         stored.draft.modId.toLowerCase() === draft.modId.toLowerCase() ||
         stored.draft.prefix === draft.prefix

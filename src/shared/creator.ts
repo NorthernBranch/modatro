@@ -22,8 +22,10 @@ export const CreatorId = z
   .max(48)
   .regex(/^[A-Za-z][A-Za-z0-9_]*$/)
   .refine(
-    (v) => !['steamodded', 'smods', 'lovely', 'balatro', 'talisman'].includes(v.toLowerCase()),
-    'Choose a unique mod ID, not a prerequisite ID.',
+    (v) =>
+      !['steamodded', 'smods', 'lovely', 'balatro', 'talisman'].includes(v.toLowerCase()) &&
+      !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i.test(v),
+    'Choose a unique portable mod ID, not a prerequisite or reserved filename.',
   );
 export const CreatorPrefix = z
   .string()

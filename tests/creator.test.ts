@@ -298,6 +298,8 @@ describe('local Mod Creator', () => {
     );
     expect(CreatorDraftSchema.safeParse({ ...p.draft, modId: '../../escape' }).success).toBe(false);
     expect(CreatorDraftSchema.safeParse({ ...p.draft, modId: 'Steamodded' }).success).toBe(false);
+    for (const modId of ['CON', 'aux', 'COM1', 'LPT9'])
+      expect(CreatorDraftSchema.safeParse({ ...p.draft, modId }).success).toBe(false);
     expect(
       CreatorDraftSchema.safeParse({ ...p.draft, lua: '--' + 'é'.repeat(70000) }).success,
     ).toBe(false);
