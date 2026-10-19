@@ -279,6 +279,11 @@ describe('local Mod Creator', () => {
     );
     await expect(save(f, other, { modId: 'Taken' })).rejects.toThrow('installed mod');
     await expect(save(f, other, { prefix: 'taken_prefix' })).rejects.toThrow('prefix');
+    await put(
+      path.join(f.mods, 'External', 'legacy.lua'),
+      '--- STEAMODDED HEADER\n--- MOD_ID: LegacyThing\n--- MOD_NAME: Legacy\n--- MOD_AUTHOR: [Tester]\n--- MOD_DESCRIPTION: Fixture',
+    );
+    await expect(save(f, other, { prefix: 'lega' })).rejects.toThrow('prefix');
     const b = await build(f);
     await expect(save(f, b.p, { modId: 'NewIdentity' })).rejects.toThrow('fixed after');
   });

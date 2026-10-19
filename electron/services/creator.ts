@@ -23,6 +23,7 @@ import { UserError } from './errors';
 import { type Storage } from './storage';
 import { type TransactionEngine } from './transaction';
 import { cardArtwork, decodeArtwork, placeholderArtwork } from './creator-art';
+import { parseLuaHeader } from './metadata';
 
 const digest = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
 const buildRecord = z
@@ -177,11 +178,20 @@ export class CreatorService {
           candidates.push(`${mod.folderName}/${name}`);
       }
       if (!record && mod.folderName.endsWith('.lua')) candidates.push(mod.folderName);
+      candidates.sort(
+        (a, b) =>
+          a.split('/').length - b.split('/').length ||
+          Number(a.endsWith('.lua')) - Number(b.endsWith('.lua')) ||
+          a.localeCompare(b),
+      );
       for (const file of candidates.slice(0, 30)) {
         if (!(await exists(await safeDestination(root, file)))) continue;
         const text = await readSmall(await safeDestination(root, file));
         if (file.endsWith('.lua')) {
-          if (/^\s*---\s*PREFIX:\s*(\S+)/m.exec(text)?.[1] === draft.prefix)
+          const legacy = parseLuaHeader(text);
+          const prefix =
+            /^\s*---\s*PREFIX:\s*(\S+)/m.exec(text)?.[1] ?? legacy?.id?.slice(0, 4).toLowerCase();
+          if (prefix?.toLowerCase() === draft.prefix.toLowerCase())
             throw new UserError('An installed mod already uses this prefix.');
           continue;
         }
