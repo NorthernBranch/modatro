@@ -180,6 +180,7 @@ export class ModInstaller {
         if (localArchive) await atomicCopy(localArchive, download);
         const provenance: InstallationSource = localArchive
           ? {
+              creator: mod.creator,
               sourceType: 'local',
               provider: 'local',
               sha256: await hashFile(download),
@@ -189,6 +190,15 @@ export class ModInstaller {
               mod,
               await hashFile(download),
             );
+        if (
+          mod.creator &&
+          (!localArchive ||
+            mod.source?.provider !== 'local' ||
+            provenance.sha256 !== mod.creator.buildId)
+        )
+          throw new UserError(
+            'The local build archive changed before staging. Rebuild it before installing.',
+          );
         if (!localArchive) provenance.finalUrl = downloader.finalUrl ?? mod.downloadUrl;
         await this.logger.log('download.complete', {
           modId: mod.id,
@@ -306,6 +316,14 @@ export class ModInstaller {
     let mod = ModSchema.parse(input);
     const previous = this.storage.state.installations.find((r) => r.modId === mod.id),
       roots = this.roots();
+    if (
+      previous?.provenance?.creator &&
+      (mod.source?.provider !== 'local' ||
+        mod.creator?.projectId !== previous.provenance.creator.projectId)
+    )
+      throw new UserError(
+        'Locally created mods can only be replaced by builds from the same project. Catalogue updates cannot overwrite them.',
+      );
     if (previous?.adopted)
       mod = ModSchema.parse({ ...mod, folderName: previous.folderName.replace(/\.lua$/, '') });
     const strategy = selectStrategy({ mod, staging, directFile });

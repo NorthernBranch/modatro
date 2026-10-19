@@ -78,53 +78,13 @@ An optional tag such as `v1.0.0` can publish a
 named release; CI takes the version from the tag without a package-file edit.
 Pull requests and manual workflow runs provide build artifacts without publishing.
 
-## Included features
+## Application scope
 
-- Bundled and saved author-removal/release restrictions take precedence over saved
-  catalogues. Public policy feeds refresh directly from this repository.
-  Offline browsing and local management remain available.
-- Windows and Linux omit the window menu bar and retain native window controls.
-  macOS retains its standard system menu. Release builds disable DevTools;
-  `pnpm dev` enables them, while packaged apps always use release behavior.
-- New downloads record their exact source, release/commit, timestamp and archive
-  SHA-256. Unexpected changes under the same immutable release stop automation.
-- Live Thunderstore discovery with cached offline browsing, automatic author-controlled
-  GitHub release discovery, separate installation/update permissions and public removal policies.
-- Automatic app version increments on pushes and merges, shared by every platform installer.
-- Explicit consent when installed Lovely or Steamodded versions cannot be verified;
-  missing or known incompatible requirements remain blocked.
-- External folders and standalone Lua mods can be adopted without a catalogue entry.
-  Existing installation records migrate with a saved-state backup and honest provenance.
-- Game-file changes require confirmation of the actual plan; advanced users can
-  inspect a download's file changes before installation.
-- Linux AppImage and DEB packaging, Steam/Flatpak library discovery and Proton Mods
-  directory integration for Steam Deck and generic Linux desktops.
-- Direct prerequisite install/update/adoption actions, visible dependency chains and
-  actionable archive-discovered requirements.
-- Original backups survive updates that change only a filename's casing.
-- Game launch shares the file-operation lock; early macOS launch failures show
-  architecture and installation guidance.
-- Recovery finishes pending commit markers before subsequent operations, and
-  rechecks files immediately before restoration.
-- External adoption requires a unique directory match; duplicate prerequisite
-  installations do not establish an arbitrary version.
-- Structured entry points are validated, loader requirements are enforced, and
-  installation records use the version proved by downloaded metadata.
-- Startup skeletons, failed prerequisite checks, Check again actions and precise
-  uninstall reports improve loading and recovery feedback.
-- Packaged desktop startup checks added to each CI platform target.
-- macOS packages receive complete bundle signatures, checked before upload. This
-  replaces incomplete inherited Electron signatures that can cause “damaged” alerts.
-  Release notes distinguish ad-hoc beta builds from Developer ID signed, notarized builds.
-
-See [release verification](verification.md) for automated coverage and remaining
-platform validation.
-
-An optional Balatro mod index can be configured by GitHub URL at setup or in
-Settings. It is fetched at runtime and deduplicated with Thunderstore preferred.
-GitHub manual archives take priority when a registry listing links to a supported
-author repository. GitHub star counts use cached, budgeted lookups; rate limits can
-delay new release checks and show a retry time.
+See the [README](../README.md#what-modatro-does) for current capabilities,
+[profiles](profiles.md) for shared selections, and [Mod Creator](mod-creator.md)
+for the optional experimental project editor. The creator is off by default;
+its build checks do not establish in-game compatibility. Modatro's recovery
+backups protect recorded mod-file changes, not Balatro saves.
 
 ## Install Modatro
 
@@ -223,7 +183,11 @@ operation. An unknown version is never reported as verified.
   Steamodded beta/date formats and Balatro letter versions are compared explicitly.
   Balatro's version is read from `version.jkr` in its game archive; invalid or ambiguous
   data remains unknown.
-- Backups are retained after uninstall and are not automatically deleted.
+- Mod-file backups are retained after uninstall and are not automatically deleted.
+  Back up Balatro saves separately; the reminder and guidance are in Settings.
+- Mod Creator templates target Steamodded 26.1002.0 and require Lovely. Creation,
+  PNG processing, syntax parsing and ZIP building are local. Static validation
+  cannot establish game compatibility or code safety.
 
 See [troubleshooting](troubleshooting.md) for folder selection, offline browsing,
 changed files and recovery messages.

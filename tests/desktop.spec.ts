@@ -108,7 +108,96 @@ test('desktop has an isolated renderer, working preload and validated IPC', asyn
     await expect(page.getByRole('heading', { name: 'Make the game your own.' })).toBeVisible();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Just the way you like it.' })).toBeVisible();
+    await page.getByRole('button', { name: 'Dismiss save backup reminder', exact: true }).click();
+    await expect(page.getByRole('complementary', { name: 'Save backup reminder' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Show reminder again', exact: true }).click();
+    await expect(page.getByRole('complementary', { name: 'Save backup reminder' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Create mods', exact: true })).toHaveCount(0);
+    await page.getByLabel('Enable Mod Creator', { exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Enable experimental Mod Creator?' }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'I understand — enable', exact: true }).click();
+    await page.getByRole('button', { name: 'Create mods', exact: true }).click();
+    await page.getByRole('button', { name: 'New project', exact: true }).click();
+    const create = page.getByRole('dialog');
+    await create.getByLabel('Mod name', { exact: true }).fill('Fixture Joker');
+    await create.getByLabel('Author', { exact: true }).fill('Fixture author');
+    await create.getByRole('button', { name: 'Create project', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Fixture Joker', exact: true })).toBeVisible();
+    await page.getByLabel('Mod name', { exact: true }).fill('Unsaved fixture');
+    await page.getByRole('button', { name: 'Installed', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Discard unsaved creator changes?' }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Keep editing', exact: true }).click();
+    await expect(page.getByLabel('Mod name', { exact: true })).toHaveValue('Unsaved fixture');
+    // Electron resolves beforeunload with its native prompt. Stop Playwright
+    // from also auto-dismissing the already-resolved Chromium notification.
+    page.on('dialog', () => {});
+    await application.evaluate(({ dialog, BrowserWindow }) => {
+      dialog.showMessageBoxSync = (() => {
+        (globalThis as Record<string, unknown>).creatorClosePrompt = true;
+        return 0;
+      }) as typeof dialog.showMessageBoxSync;
+      BrowserWindow.getAllWindows()[0]!.close();
+    });
+    await expect
+      .poll(() =>
+        application.evaluate(() => (globalThis as Record<string, unknown>).creatorClosePrompt),
+      )
+      .toBe(true);
+    await expect(page.getByLabel('Mod name', { exact: true })).toHaveValue('Unsaved fixture');
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+    await expect(
+      page.getByText('Draft saved. Installed files are unchanged.', { exact: true }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Edit custom Lua', exact: true }).click();
+    await page
+      .getByLabel('main.lua source', { exact: true })
+      .fill('-- retained custom source\nreturn 7');
+    await page.getByRole('button', { name: 'Return to template', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Continue', exact: true }).click();
+    await expect(page.getByLabel('main.lua source', { exact: true })).toBeEditable({
+      editable: false,
+    });
+    await page.getByRole('button', { name: 'Build mod', exact: true }).click();
+    await expect(
+      page.getByText(
+        'Build created. Validation passed for syntax and package structure; no in-game test has run.',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    const creatorState = await page.evaluate(() => window.modatro!.snapshot());
+    expect(creatorState.ok && creatorState.value.localMods).toEqual([]);
+    const creatorSaved = JSON.parse(
+      await fs.readFile(path.join(data, 'data', 'state.json'), 'utf8'),
+    );
+    expect(creatorSaved.settings).toMatchObject({
+      creatorEnabled: true,
+      creatorAcknowledged: true,
+    });
+    const projectFiles = await fs.readdir(path.join(data, 'creator', 'projects'));
+    const history = await fs.readdir(
+      path.join(data, 'creator', 'projects', projectFiles[0]!, 'history'),
+    );
+    const retained = await Promise.all(
+      history
+        .filter((file) => file.endsWith('.lua'))
+        .map((file) =>
+          fs.readFile(
+            path.join(data, 'creator', 'projects', projectFiles[0]!, 'history', file),
+            'utf8',
+          ),
+        ),
+    );
+    expect(retained.some((source) => source.includes('retained custom source'))).toBe(true);
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByLabel('Enable Mod Creator', { exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Create mods', exact: true })).toHaveCount(0);
+    expect(await fs.readdir(path.join(data, 'creator', 'projects'))).toEqual(projectFiles);
   } finally {
+    await application.evaluate(({ app }) => app.exit());
     await application.close();
     await fs.rm(data, { recursive: true, force: true });
   }

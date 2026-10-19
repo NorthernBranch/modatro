@@ -108,6 +108,7 @@ export function LocalRow({
           {local.state === 'update-available' && mod ? ` → Latest ${mod.version}` : ''}
           <span>·</span>
           {local.managed ? 'Managed by Modatro' : 'Installed externally'}
+          {local.provenance?.creator ? ' · Locally created · Experimental' : ''}
           {local.deprecated ? ' · Deprecated' : ''}
         </p>
         {local.availabilityReason && <p className="muted-text">{local.availabilityReason}</p>}
@@ -121,6 +122,16 @@ export function LocalRow({
         {local.managed && (
           <details>
             <summary>Source and file record</summary>
+            {local.provenance?.creator && (
+              <>
+                <p>
+                  Experimental local project: <code>{local.provenance.creator.projectId}</code>
+                </p>
+                <p>
+                  Installed build: <code>{local.provenance.creator.buildId}</code>
+                </p>
+              </>
+            )}
             <p>
               Source:{' '}
               {local.provenance?.sourceType === 'external'

@@ -3,10 +3,57 @@ import { spawn } from 'node:child_process';
 import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+import { build } from 'esbuild';
 
 // Capture the real renderer with representative data. The bridge below cannot
 // access Electron, the network, application data or a user's game installation.
 const root = fileURLToPath(new URL('../', import.meta.url));
+await mkdir(path.join(root, 'test-results'), { recursive: true });
+const fixtureModule = path.join(root, 'test-results/screenshot-creator.cjs');
+await build({
+  stdin: {
+    contents:
+      "export { placeholderArtwork,cardArtwork } from './electron/services/creator-art'; export { generateLua } from './src/shared/creator-lua'; export {creatorIdentities} from './src/shared/creator';",
+    resolveDir: root,
+  },
+  outfile: fixtureModule,
+  bundle: true,
+  platform: 'node',
+  format: 'cjs',
+  logLevel: 'silent',
+});
+const { placeholderArtwork, cardArtwork, generateLua, creatorIdentities } = createRequire(
+  import.meta.url,
+)(fixtureModule);
+const creatorId = '55555555-5555-4555-8555-555555555555';
+const creatorDraft = {
+  name: 'Little Lucky',
+  author: 'Example creator',
+  description: 'An experimental Joker made locally with Modatro.',
+  version: '1.0.0',
+  ...creatorIdentities(creatorId),
+  recipe: 'joker-mult',
+  amount: 4,
+  suit: 'Hearts',
+  dollars: 10,
+  hands: 1,
+  discards: 0,
+  mode: 'template',
+  lua: '',
+  crop: { x: 0.5, y: 0.5, zoom: 1 },
+};
+creatorDraft.lua = generateLua(creatorDraft);
+const creatorProject = {
+  schemaVersion: 1,
+  id: creatorId,
+  draft: creatorDraft,
+  token: '1'.repeat(64),
+  createdAt: '2026-10-19T12:00:00Z',
+  updatedAt: '2026-10-19T12:00:00Z',
+  builds: [],
+  previewUrl: `data:image/png;base64,${cardArtwork(placeholderArtwork(false), creatorDraft.crop, 2).toString('base64')}`,
+};
 const preview = JSON.parse(await readFile(path.join(root, 'src/preview-catalogue.json'), 'utf8'));
 const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 const titles = new Set([
@@ -170,103 +217,125 @@ try {
     if (new URL(route.request().url()).origin === url) return route.continue();
     return route.abort();
   });
-  await page.addInitScript((state) => {
-    const reply = async () => ({ ok: true, value: state });
-    const unavailable = async () => ({
-      ok: false,
-      error: { message: 'Documentation capture is read-only.' },
-    });
-    window.modatro = {
-      snapshot: reply,
-      profileOperation: unavailable,
-      previewProfile: async (id) => ({
-        ok: true,
-        value: {
-          profileId: id,
-          name: state.profiles.items.find((p) => p.id === id).name,
-          token: '44444444-4444-4444-8444-444444444444',
-          expiresAt: '2026-10-12T12:05:00Z',
-          enable: state.localMods.filter((m) => m.title === 'JokerDisplay').map((m) => m.id),
-          disable: state.localMods
-            .filter((m) => ['PlayLog', 'FoolsDisplay'].includes(m.title))
-            .map((m) => m.id),
-          retained: state.localMods
-            .filter((m) => ['Lovely', 'Steamodded'].includes(m.title))
-            .map((m) => m.id),
-          selection: state.profiles.items.find((p) => p.id === id).selection,
-          blockers: [],
-          warnings: [
-            'Unmanaged mods, if present, remain untouched and may still affect gameplay. Review them in Installed if you want to adopt them.',
-          ],
-        },
-      }),
-      switchProfile: unavailable,
-      troubleshoot: async () => ({
-        ok: true,
-        value: {
-          generatedAt: '2026-10-12T12:00:00Z',
-          appVersion: state.appVersion,
-          platform: state.platform,
-          arch: state.arch,
-          gameVersion: state.validation.detectedVersion,
-          prerequisites: state.prerequisites.map((p) => ({
-            id: p.id,
-            installed: p.installed,
-            version: p.installedVersion,
-          })),
-          mods: state.localMods.map((m) => ({
-            id: m.id,
-            title: m.title,
-            version: m.version,
-            enabled: !m.disabled,
-            managed: true,
-          })),
-          profile: state.profiles,
-          findings: [],
-          history: [
-            {
-              id: '33333333-3333-4333-8333-333333333333',
-              time: '2026-10-12T11:55:00Z',
-              type: 'profile-switch',
-              ids: [],
-              versions: [],
-              outcome: 'success',
-              profile: 'Everyday',
-            },
-          ],
-          logs: [
-            {
-              id: 'synthetic-loader-log',
-              name: 'example-run.log',
-              source: 'Lovely / Steamodded',
-              modifiedAt: '2026-10-12T11:50:00Z',
-              stale: false,
-            },
-          ],
-          report: '# Synthetic support report\nNo personal data is used.',
-        },
-      }),
-      chooseDiagnosticLog: unavailable,
-      exportReport: unavailable,
-      refresh: reply,
-      detect: unavailable,
-      choosePath: unavailable,
-      selectCandidate: unavailable,
-      action: unavailable,
-      cancel: unavailable,
-      importDefinition: unavailable,
-      launch: unavailable,
-      openFolder: unavailable,
-      openModFolder: unavailable,
-      openLink: unavailable,
-      diagnostics: unavailable,
-      saveSettings: unavailable,
-      checkAppUpdates: reply,
-      githubStars: async () => ({ ok: true, value: {} }),
-      onProgress: () => () => {},
-      onSnapshot: () => () => {},
-    };
-  }, snapshot);
+  snapshot.settings.creatorEnabled = true;
+  snapshot.settings.creatorAcknowledged = true;
+  await page.addInitScript(
+    ({ state, creatorProject }) => {
+      const reply = async () => ({ ok: true, value: state });
+      const unavailable = async () => ({
+        ok: false,
+        error: { message: 'Documentation capture is read-only.' },
+      });
+      window.modatro = {
+        creator: async (request) =>
+          ['list', 'load'].includes(request.operation)
+            ? {
+                ok: true,
+                value: {
+                  projects: [
+                    {
+                      id: creatorProject.id,
+                      name: creatorProject.draft.name,
+                      updatedAt: creatorProject.updatedAt,
+                      builds: 0,
+                    },
+                  ],
+                  project: request.operation === 'load' ? creatorProject : undefined,
+                },
+              }
+            : unavailable(),
+        snapshot: reply,
+        profileOperation: unavailable,
+        previewProfile: async (id) => ({
+          ok: true,
+          value: {
+            profileId: id,
+            name: state.profiles.items.find((p) => p.id === id).name,
+            token: '44444444-4444-4444-8444-444444444444',
+            expiresAt: '2026-10-12T12:05:00Z',
+            enable: state.localMods.filter((m) => m.title === 'JokerDisplay').map((m) => m.id),
+            disable: state.localMods
+              .filter((m) => ['PlayLog', 'FoolsDisplay'].includes(m.title))
+              .map((m) => m.id),
+            retained: state.localMods
+              .filter((m) => ['Lovely', 'Steamodded'].includes(m.title))
+              .map((m) => m.id),
+            selection: state.profiles.items.find((p) => p.id === id).selection,
+            blockers: [],
+            warnings: [
+              'Unmanaged mods, if present, remain untouched and may still affect gameplay. Review them in Installed if you want to adopt them.',
+            ],
+          },
+        }),
+        switchProfile: unavailable,
+        troubleshoot: async () => ({
+          ok: true,
+          value: {
+            generatedAt: '2026-10-12T12:00:00Z',
+            appVersion: state.appVersion,
+            platform: state.platform,
+            arch: state.arch,
+            gameVersion: state.validation.detectedVersion,
+            prerequisites: state.prerequisites.map((p) => ({
+              id: p.id,
+              installed: p.installed,
+              version: p.installedVersion,
+            })),
+            mods: state.localMods.map((m) => ({
+              id: m.id,
+              title: m.title,
+              version: m.version,
+              enabled: !m.disabled,
+              managed: true,
+            })),
+            profile: state.profiles,
+            findings: [],
+            history: [
+              {
+                id: '33333333-3333-4333-8333-333333333333',
+                time: '2026-10-12T11:55:00Z',
+                type: 'profile-switch',
+                ids: [],
+                versions: [],
+                outcome: 'success',
+                profile: 'Everyday',
+              },
+            ],
+            logs: [
+              {
+                id: 'synthetic-loader-log',
+                name: 'example-run.log',
+                source: 'Lovely / Steamodded',
+                modifiedAt: '2026-10-12T11:50:00Z',
+                stale: false,
+              },
+            ],
+            report: '# Synthetic support report\nNo personal data is used.',
+          },
+        }),
+        chooseDiagnosticLog: unavailable,
+        exportReport: unavailable,
+        refresh: reply,
+        detect: unavailable,
+        choosePath: unavailable,
+        selectCandidate: unavailable,
+        action: unavailable,
+        cancel: unavailable,
+        importDefinition: unavailable,
+        launch: unavailable,
+        openFolder: unavailable,
+        openModFolder: unavailable,
+        openLink: unavailable,
+        diagnostics: unavailable,
+        saveSettings: unavailable,
+        checkAppUpdates: reply,
+        githubStars: async () => ({ ok: true, value: {} }),
+        onProgress: () => () => {},
+        onSnapshot: () => () => {},
+      };
+    },
+    { state: snapshot, creatorProject },
+  );
   const output = path.join(root, 'docs/images');
   await mkdir(output, { recursive: true });
   await page.goto(url);
@@ -332,6 +401,11 @@ try {
   await page.getByRole('button', { name: 'Updates', exact: true }).click();
   await page.getByRole('heading', { name: 'Keep your next run fresh.', exact: true }).waitFor();
   await page.screenshot({ path: path.join(output, 'updates.png'), animations: 'disabled' });
+  await page.getByRole('button', { name: 'Create mods', exact: true }).click();
+  await page.getByRole('button', { name: 'Little Lucky 0 builds', exact: true }).click();
+  await page.getByRole('heading', { name: 'Little Lucky', exact: true }).waitFor();
+  await page.screenshot({ path: path.join(output, 'creator.png'), animations: 'disabled' });
+  await copyFile(path.join(output, 'creator.png'), path.join(websiteImages, 'creator.png'));
   const issues = [];
   for (const width of [1440, 1024, 768, 375]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -342,6 +416,7 @@ try {
       'Prerequisites',
       'Troubleshooting',
       'Settings',
+      'Create mods',
     ]) {
       await page
         .locator('nav')
@@ -349,6 +424,10 @@ try {
         .click();
       if (name === 'Troubleshooting')
         await page.getByRole('heading', { name: 'Setup overview' }).waitFor();
+      if (name === 'Create mods') {
+        await page.getByRole('button', { name: 'Little Lucky 0 builds', exact: true }).click();
+        await page.getByRole('heading', { name: 'Little Lucky', exact: true }).waitFor();
+      }
       const layout = await page.evaluate(() => {
         const main = document.querySelector('.main-content'),
           bar = document.querySelector('.topbar-actions');
@@ -363,10 +442,8 @@ try {
     }
   }
   if (issues.length) throw new Error('App layout overflow: ' + JSON.stringify(issues));
-  console.log('Layout review passed on all six pages at 1440, 1024, 768 and 375 pixels.');
-  console.log(
-    'Saved Discover, Installed, Updates, Prerequisites, Settings, Profiles, Profile switch and Troubleshooting screenshots to docs/images/.',
-  );
+  console.log('Layout review passed on all seven pages at 1440, 1024, 768 and 375 pixels.');
+  console.log('Saved all nine app views, including the experimental Creator, to docs/images/.');
 } finally {
   try {
     await browser?.close();

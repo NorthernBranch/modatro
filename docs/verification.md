@@ -30,6 +30,7 @@ successful installer build alone does not establish real-game compatibility.
 | Downloads and trust          | HTTPS/redirect boundaries, checksums, immutable releases, independent restrictions and author-manifest validation                                                 | `download.test.ts`, `trust.test.ts`, `thunderstore.test.ts`                            |
 | GitHub limits and popularity | Shared cooldowns, fresh API metadata reuse, uncached raw policies, star counts and persisted request budgets                                                      | `github-requests.test.ts`, `github-stars.test.ts`                                      |
 | App updates                  | Quiet release notices, validated platform assets, cached metadata and explicit download actions                                                                   | `app-updates.test.ts`, `ui-requests.spec.ts`                                           |
+| Creator                      | Stable IDs/collisions, escaped recipes, deterministic ZIPs, PNG/alpha limits, draft/build separation, source history, restoration and failed replacements         | `creator.test.ts`, `application.test.ts`, `desktop.spec.ts`                            |
 | Releases                     | Baseline version assignment, unique beta tags, all-platform assets, checksums, draft retries and signing reports                                                  | `build-version.test.mjs`, `release.test.mjs`, `signing.test.mjs`                       |
 | Interface and isolation      | Search, categories, details, themes, dependency confirmations, error handling, focus and isolated Electron startup                                                | `ui.spec.ts`, `ui-requests.spec.ts`, `desktop.spec.ts`                                 |
 
@@ -48,6 +49,8 @@ pnpm check
 pnpm exec install-electron
 pnpm exec playwright install chromium
 pnpm test:ui
+pnpm exec playwright test --config playwright.website.config.mjs
+node scripts/screenshots.mjs
 ```
 
 `pnpm check` covers formatting, catalogue generation, types, unit/service tests and
@@ -105,57 +108,37 @@ See [catalogue hardening coverage](catalogue-verification.md),
 [the Thunderstore migration](thunderstore-migration.md), and
 [release signing](signing.md) for the relevant boundaries.
 
-## Profile and report checks
+## Profiles, reports and creator acceptance
 
-`profiles.test.ts` exercises validated names and CRUD, explicit active deletion,
-state backups and migration, persisted unsaved selection changes, shared-version updates,
-required dependency retention, missing and unlisted mods, unmanaged preservation,
-unsupported moves, external edits, stale tokens, rollback and startup commit recovery.
-Game-running and operation-lock checks use deterministic isolated fixtures.
-Coverage includes three profiles created before installation, automatic active-profile
-saves, disabled entries in inactive profiles, older missing selections, repeated
-switches without external duplicates, preserved unsaved toggles and atomic install
-rollback. Scanner tests cover empty remnants, real external files, Windows directory
-casing and invalid managed metadata. File-I/O failures drain outstanding work before
-rollback; browser tests prevent dismissing an in-progress profile switch.
+Profile tests cover migration backups, active/inactive install selections, required
+loader retention, repeated switching without duplicates, external edits, stale
+tokens and rollback. Diagnostic tests cover read-only checks, bounded opt-in log
+excerpts, honest unknown states, redaction and reviewed export. Actual desktop IPC
+is tested with disposable fixtures beneath the real home so production path rules
+still apply. Real personal logs, games and saves remain excluded.
 
-`troubleshooting.test.ts` checks verified versus unknown findings, disabled records,
-opt-in logs, stale times, bounded tail/excerpt reads, malformed and binary input,
-opaque picker IDs, rejected renderer paths, redaction, explicit reviewed export,
-read-only locked diagnostics and bounded history separate from recovery material.
-The desktop suite exercises keyboard profile creation, duplicate/rename, reviewed
-switching, actual validated IPC, troubleshooting generation, editable report export
-through a stubbed native dialog, and Escape/focus behavior. All paths and logs are
-inside temporary fixtures. Real personal logs, games and saves are excluded.
+Creator tests build all five recipes against conventions checked in Steamodded
+26.1002.0 documentation and tagged source. They verify JSON/Lua escaping, atlas
+sizes, alpha, deterministic hashes, private-file exclusion and optimistic save
+conflicts. The real installer stages two revisions, restores an older build and
+rolls back an injected replacement failure while preserving drafts and both ZIPs.
+Uninstall and project archiving have separate fixture coverage. Custom Lua with
+runtime actions is parsed without executing it.
 
-The desktop fixture uses a unique disposable directory beneath the real home so
-manual Mods overrides pass the same macOS/Linux folder restrictions as production.
-It does not use Steam, save or installed-app folders; the fixture is removed after
-the app closes. The test checks the profile-preview IPC reply explicitly so a path
-validation failure is reported directly instead of timing out waiting for a dialog.
-Active Default-profile deletion keeps the same displayed name, so the desktop test
-waits for the edit to close and the active identity to change before issuing diagnostics.
-A browser regression holds deletion pending while opening Troubleshooting, then
-checks that its initial request starts only after the configuration operation finishes.
-Browser regressions also check that only installed prerequisites have overview badges,
-that regular mods are not duplicated as badges, enabled/disabled/unknown
-mod groups at desktop and mobile widths, and collapsed installation file lists that
-can be expanded without hiding package information or confirmation controls.
-Text-layout coverage expands prerequisite and installed source records, inspects
-mod details and file previews, and checks settings and error paths at 1440, 1024,
-768 and 375 pixels. Long URLs, SHA-256 hashes, filenames and mod names must stay
-inside their cards and dialogs rather than being clipped.
+Electron coverage includes first-use acknowledgement, persisted preferences, the
+save reminder, project creation, unsaved navigation/window protection, custom-source
+preservation before regeneration and building without installation. Native dialogs
+use controlled responses. Screenshot capture checks all seven main pages at 1440,
+1024, 768 and 375 pixels; the website checks all four screenshot modals.
 
-Version tests cover consecutive published patches despite workflow gaps, semantic
-ordering, major/minor/patch PR title prefixes, default patch behavior, validated
-merged PR lookup, deliberate minor bumps, completed reruns, paginated release history,
-draft exclusion and unavailable history. Publication still verifies the assigned
-version and all platform installers before writing a GitHub release.
-A child-process regression copies release scripts into a temporary checkout with
-no `node_modules`, verifies all platform artifacts, and exercises draft creation
-and publication through a stubbed GitHub CLI. This covers the dependency-free
-publishing environment, which ordinary PR packaging jobs do not run.
+**No in-game creator tests have run as part of this feature.** Static validation
+does not prove game behaviour, code safety or compatibility with other mods.
+Before release, test each recipe with backed-up saves and the declared loader
+versions, recording exact versions and actual outcomes. See [Mod Creator](mod-creator.md)
+for recipe semantics, resource limits, custom-code restrictions and restoration.
 
-These changes have been exercised locally on Windows and in an Ubuntu 22.04 container.
-macOS and Proton paths use upstream documentation and fixtures. Actual cross-platform loader logs,
-filesystem permissions and native dialogs still need release testing on those platforms.
+Version tests cover semantic ordering, PR title prefixes, merged PR lookup,
+published-history gaps, draft exclusion and retries. A child-process regression
+uses a temporary checkout without node_modules to match the dependency-free
+publishing job. Publication verifies the assigned version and every platform asset
+before modifying GitHub Releases.

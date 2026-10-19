@@ -38,7 +38,7 @@ Log content is excluded initially. Select up to five logs and choose **Read sele
 excerpts**, or use **Choose saved text log** through the native picker. Discovery
 uses the approved Mods folder, not an arbitrary renderer path. Supported locations
 are documented by [Lovely](https://github.com/ethangreen-dev/lovely-injector) and
-[Steamodded logging](https://github.com/Steamodded/smods/wiki/Logging):
+[Steamodded logging](https://docs.smods.dev/API%20Documentation/Logging/):
 
 | Setup                 | Loader log location relative to its configured Mods folder                         |
 | --------------------- | ---------------------------------------------------------------------------------- |
@@ -154,6 +154,25 @@ install/update actions appear when a supported catalogue release meets the requi
 external installations must be adopted first. A failed latest-version check preserves
 installed status and labels any last known release.
 
+Missing supported dependencies from either the catalogue or downloaded archive are
+included in an installation confirmation. Modatro lists their versions and installs
+them before the requested mod after approval. Cancelling leaves installed files
+unchanged; a failed dependency check blocks the whole plan. An installed loader with
+an unknown version still requires explicit verification rather than automatic replacement.
+
+Discover shows loader presence separately from version compatibility. An external
+Steamodded or Lovely installation can be detected without proving which Thunderstore
+package was installed. Canonical loader requirements use a known runtime version when
+the package version is unrecorded. Steamodded's beta build numbers (including zero-padded
+requirements such as Amulet's `1.0.0~BETA-0827c`) and newer date-based
+versions are compared in their supported formats. Unknown runtime versions require the
+existing per-operation consent; missing or known incompatible requirements still block.
+
+Modatro verifies a managed Lovely version against the installed binary's recorded
+hash. A manual installation may remain unversioned. Lovely writes its reported version
+to `Mods/lovely/log` when Balatro starts; an old log does not prove the version of a
+DLL that has since been replaced.
+
 ## The catalogue will not refresh
 
 Modatro keeps the last validated catalogue when Thunderstore or the GitHub supplement is
@@ -199,28 +218,8 @@ Catalogue browsing shows the saved refresh time. Thunderstore and the public
 repository's removal/release feeds must be reachable for new downloads and updates.
 Bundled and saved restrictions remain in effect. Local uninstall and enable/disable
 remain available for managed files. Refresh when connected; an older saved catalogue
-cannot override a known restriction. No private-repository configuration is required.
-
-## Installed loaders show an unverified version
-
-Missing supported dependencies from either the catalogue or downloaded archive are
-included in an installation confirmation. Modatro lists their versions and installs
-them before the requested mod after approval. Cancelling leaves installed files
-unchanged; a failed dependency check blocks the whole plan. An installed loader with
-an unknown version still requires explicit verification rather than automatic replacement.
-
-Discover shows loader presence separately from version compatibility. An external
-Steamodded or Lovely installation can be detected without proving which Thunderstore
-package was installed. Canonical loader requirements use a known runtime version when
-the package version is unrecorded. Steamodded's beta build numbers (including zero-padded
-requirements such as Amulet's `1.0.0~BETA-0827c`) and newer date-based
-versions are compared in their supported formats. Unknown runtime versions require the
-existing per-operation consent; missing or known incompatible requirements still block.
-
-Modatro verifies a managed Lovely version against the installed binary's recorded
-hash. A manual installation may remain unversioned. Lovely writes its reported version
-to `Mods/lovely/log` when Balatro starts; an old log does not prove the version of a
-DLL that has since been replaced.
+cannot override a known restriction. Local ZIPs and creator builds do not require a remote catalogue lookup, but still
+check installed dependencies and file ownership.
 
 ## GitHub downloads and manual installations
 
@@ -286,6 +285,19 @@ A recorded file has changed since installation. Review each conflict before choo
 
 Keep is selected by default. Backups remain available after uninstall through
 **Settings → Open backups**.
+
+## Creator source or builds need attention
+
+If a save reports that the project changed on disk, keep the editor text elsewhere
+before reloading. Reloading preserves disk changes and treats externally edited
+`main.lua` as custom code. Save it before building. Returning to a template requires
+confirmation and preserves the prior custom source in project history.
+
+A valid syntax result is not a game test. For a crash, close Balatro, inspect the
+loader log and restore a previous build through **Build history and export → Install
+this build** if needed. Uninstalling keeps the project; archiving a project keeps
+its installed mod. Disabling the feature hides the creator without deleting either.
+See [Mod Creator](mod-creator.md) for limits, source recovery and save-backup guidance.
 
 ## File operations are locked after recovery
 

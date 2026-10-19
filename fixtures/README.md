@@ -9,7 +9,9 @@ traversal paths, symbolic links, duplicate entries, invalid size declarations an
 corrupt checksums. Replacement tests write only to temporary game folders.
 
 The mod fixtures cover standard and nested layouts, Lovely patches, explicit file
-replacements and malformed metadata. They are test inputs, not installable mods.
+replacements and malformed metadata. They are test inputs, not installable mods. Creator tests generate original PNGs
+and Lua in temporary project directories and exercise build/install/restore and
+rollback without touching a running game. Lua is parsed, never executed.
 
 Generated tests also cover release wrappers with outer Lovely error patches,
 dependency batches, native Lovely library evidence, and Balatro's `version.jkr`

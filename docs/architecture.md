@@ -10,22 +10,23 @@ esbuild bundles the main process and preload; electron-builder creates installer
 contract. The renderer receives normalized data through the preload bridge. Downloads,
 archives, filesystem access and repository retrieval run in the main process.
 
-| Layer                                                  | Responsibility                                                                   |
-| ------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| `src/pages` and `src/components`                       | Discovery, the local collection, prerequisites, settings and dialogs             |
-| `electron/preload.ts`                                  | Explicit typed methods for each IPC operation                                    |
-| `electron/main.ts`                                     | Windows, protocol handling, IPC validation, native dialogs and launch actions    |
-| `electron/application.ts`                              | Service orchestration, snapshots, settings and imported definitions              |
-| `GameDetectionService`                                 | Steam discovery, platform validation and separate game/Mods roots                |
-| `ModSource`, `ThunderstoreModSource`, `LocalModSource` | Provider boundary, normalized catalogue/versions and local definitions           |
-| `ModatroCatalogueRepository`                           | Production Thunderstore catalogue, cache and explicit legacy opt-in              |
-| `CatalogueTrust`                                       | Independent persistent revocations/release blocks and fresh-download eligibility |
-| `ArtifactHistory`                                      | Archive provenance, supplied checksums and immutable-release change detection    |
-| `InstalledModsService`                                 | Local scanning, file integrity and prerequisite evidence                         |
-| `GitHubPrerequisiteProvider`                           | Latest prerequisite release checks                                               |
-| Installation strategies                                | Mod-root detection, standalone Lua files and explicit game-file mappings         |
-| `ModInstaller`                                         | Staging, dependency checks, file plans and installation records                  |
-| `TransactionEngine` and `BackupService`                | Backups, commits, rollback and startup recovery                                  |
+| Layer                                                  | Responsibility                                                                         |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `src/pages` and `src/components`                       | Discovery, local collection, creator, prerequisites, settings and dialogs              |
+| `electron/preload.ts`                                  | Explicit typed methods for each IPC operation                                          |
+| `electron/main.ts`                                     | Windows, protocol handling, IPC validation, native dialogs and launch actions          |
+| `electron/application.ts`                              | Service orchestration, snapshots, settings and imported definitions                    |
+| `GameDetectionService`                                 | Steam discovery, platform validation and separate game/Mods roots                      |
+| `ModSource`, `ThunderstoreModSource`, `LocalModSource` | Provider boundary, normalized catalogue/versions and local definitions                 |
+| `ModatroCatalogueRepository`                           | Production Thunderstore catalogue, cache and explicit legacy opt-in                    |
+| `CatalogueTrust`                                       | Independent persistent revocations/release blocks and fresh-download eligibility       |
+| `ArtifactHistory`                                      | Archive provenance, supplied checksums and immutable-release change detection          |
+| `InstalledModsService`                                 | Local scanning, file integrity and prerequisite evidence                               |
+| `GitHubPrerequisiteProvider`                           | Latest prerequisite release checks                                                     |
+| Installation strategies                                | Mod-root detection, standalone Lua files and explicit game-file mappings               |
+| `CreatorService`                                       | Local projects, source history, collision checks, PNG atlases and immutable build ZIPs |
+| `ModInstaller`                                         | Staging, dependency checks, file plans and installation records                        |
+| `TransactionEngine` and `BackupService`                | Backups, commits, rollback and startup recovery                                        |
 
 `ConfiguredModIndex` supplies the optional user-configured source, `GitHubStars`
 handles cached popularity, and `AppUpdates` checks desktop releases independently
@@ -105,6 +106,28 @@ are retained across restarts and uninstall. Runtime versions come from loader me
 while package versions remain separate for update and registry dependency checks.
 
 ## File operations
+
+Creator schemas in `src/shared/creator.ts` validate explicit IPC operations; no
+renderer-supplied project paths are accepted. Settings gate access with persisted
+experimental acknowledgement. Projects live in `creator/projects/<uuid>/`, separate
+from installed destinations. Optimistic content tokens reject stale writes after
+external edits. Custom source and prior project JSON are preserved in local history
+before template regeneration. This is recoverable file saving, not a claim of an
+atomic multi-file project transaction.
+
+`luaparse` parses LuaJIT syntax without execution. `pngjs` validates PNG CRCs after
+byte/dimension checks; interlaced inflation is explicitly bounded. Originals remain
+in the project and manual nearest-neighbour sampling produces 71×95 and 142×190
+atlases. `fflate` creates deterministic ZIPs from an explicit six-file allowlist;
+private state and unrelated files are never globbed into exports.
+
+Build ZIPs live outside editable projects at `creator/builds/<uuid>/<sha256>.zip`.
+Stable local definitions reuse the normal installer with a verified local archive,
+without remote source lookups. Installation provenance stores project/build IDs.
+Previous ZIPs remain available for explicit restoration through the same update
+path. Catalogue definitions cannot replace a managed creator identity. Uninstall
+leaves source and builds; project archiving leaves installed files. The native
+export picker writes only ZIPs outside game, Mods and internal data roots.
 
 Archive-root detection prefers a declared mod identity over overlapping `main.lua`
 or Lovely filename hints. This avoids installing wrapper folders and their error

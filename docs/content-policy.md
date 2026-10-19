@@ -36,6 +36,12 @@ catalogue images; Modatro's neutral icons provide a fallback. Documentation
 screenshots use that neutral fallback with representative data. Official Balatro
 artwork or logos are not used as Modatro's brand.
 
+Locally authored creator projects stay on the user's computer and are not submitted
+to a catalogue automatically. Modatro's original generated J-card and patterned-back
+placeholders are CC0 1.0; exported ZIPs include that permission. Imported art and Lua
+retain their authors' rights. The placeholder permission does not license other
+content in an exported mod.
+
 ## Removal requests and copyright complaints
 
 Authors and rights holders can use [Request removal](https://github.com/NorthernBranch/modatro/issues/new?template=removal.yml).

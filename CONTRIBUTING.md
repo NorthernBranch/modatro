@@ -56,7 +56,9 @@ Backend tests use temporary copies of [test fixtures](fixtures/README.md). Deskt
 tests set `MODATRO_TEST_DATA` to an isolated directory, which disables automatic game
 discovery and background network refreshes and isolates Electron's browser profile
 and single-instance lock. Keep file-operation tests isolated from
-real game folders.
+real game folders. Creator tests must also keep source projects, artwork and exported
+ZIPs in temporary data. Parse custom Lua without executing it; do not validate
+creator changes by installing into a real game or reading personal saves.
 
 ## Build installers
 
@@ -107,15 +109,12 @@ capture changes still run shared checks, but skip installer packaging and publis
 `scripts/release-scope.mjs` checks the complete Git diff, including removals and
 renames. App sources, bundled policy feeds, dependencies, assets and packaging
 configuration qualify; version tags and manual runs explicitly enable packaging.
-CI assigns the app, installer and release-note version before building. The baseline
-in `build/version.json` starts the 0.4 series at `0.4.0`. With `firstRunNumber: null`,
-PRs, failed attempts and check-only runs before publication do not increase that
-version. The first published beta tag records the workflow run that anchors the
-series; subsequent runs increase the patch relative to that run. For example, a first
-release at run 42 uses `0.4.0`, and run 43 uses `0.4.1`. Retrying a release run
-retains its version. Beta tags identify the run and commit, for example
-`v0.4.0-beta.build.42.aaaaaaa`. Future minor bumps change the baseline version and
-reset `firstRunNumber` to `null`; explicit numeric anchors remain supported.
+CI assigns one version from published GitHub Releases and the PR title before building.
+Use `MAJOR:`, `MINOR:` or `PATCH:` at the start of the title; no prefix defaults to
+patch. After merging, CI queries the PR associated with the main commit, so the
+merge method and displayed commit message do not determine the bump. Failed,
+check-only and intervening PR runs do not consume versions. Normal releases need
+no package-file edit. See [release version rules](docs/release.md).
 
 For an optional named release, push a `v<version>` tag. CI assigns that version
 without requiring a package-file edit. Versions with a prerelease suffix remain
@@ -130,21 +129,20 @@ separate platform credentials.
 
 ## Documentation screenshots
 
-Capture Discover, Installed, Updates, Prerequisites, Settings, Profiles, Profile switch and Troubleshooting from the
-real renderer with synthetic setup evidence and history. The script also copies
-the website screenshots and checks all six pages at desktop, tablet and narrow widths; it never reads personal logs or game saves.
+Capture the current interface with representative catalogue data, synthetic setup
+evidence and a sample creator project. The script checks all seven main pages at
+desktop, tablet and narrow widths; it never reads personal logs or game saves.
 
-The README uses screenshots of the real renderer with representative data for Discover, Installed, Prerequisites, Profiles and Troubleshooting. Setup evidence, history and any log examples are synthetic. Regenerate
-them from the repository root:
+The screenshots use the real renderer. Setup evidence, history and any log examples
+are synthetic. Regenerate them from the repository root:
 
 ```sh
 pnpm exec playwright install chromium
 node scripts/screenshots.mjs
 ```
 
-The script starts its own Vite server on port 5183, captures all eight app views
-into `docs/images/`, then closes the browser and server. Discover, Profiles and
-Troubleshooting images are also copied to `website/images/` for the landing page.
+The script starts its own Vite server on port 5183, captures nine app views
+into `docs/images/`, then closes the browser and server. Discover, Profiles, Troubleshooting and Creator images are also copied to `website/images/` for the landing page.
 The prerequisite preview expands a representative source record with a synthetic
 checksum so long-value wrapping is visible. The script uses a
 read-only desktop bridge and blocks external requests; it cannot discover or change

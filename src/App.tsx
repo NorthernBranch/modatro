@@ -20,8 +20,9 @@ import {
   Spade,
   TriangleAlert,
   X,
+  WandSparkles,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import { AsyncButton } from './components/AsyncButton';
 import { ExistingInstallNotice } from './components/ExistingInstallNotice';
@@ -37,6 +38,7 @@ import { PrerequisitesPage } from './pages/PrerequisitesPage';
 import { ProfileControls } from './components/ProfileControls';
 import { TroubleshootingPage } from './pages/TroubleshootingPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { SaveBackupNotice } from './components/CreatorSettings';
 import type {
   AppError,
   ConflictDecision,
@@ -58,19 +60,39 @@ import {
   sourceLabel,
 } from './shared/trust';
 
-type Page = 'discover' | 'installed' | 'updates' | 'prerequisites' | 'settings' | 'troubleshooting';
+type Page =
+  | 'discover'
+  | 'installed'
+  | 'updates'
+  | 'prerequisites'
+  | 'settings'
+  | 'troubleshooting'
+  | 'creator';
+const CreatorPage = lazy(() =>
+  import('./pages/CreatorPage').then((module) => ({ default: module.CreatorPage })),
+);
 const navigation: { id: Page; label: string; icon: typeof Compass }[] = [
   { id: 'discover', label: 'Discover', icon: Compass },
   { id: 'installed', label: 'Installed', icon: Layers3 },
   { id: 'updates', label: 'Updates', icon: Download },
   { id: 'prerequisites', label: 'Prerequisites', icon: PackageCheck },
   { id: 'troubleshooting', label: 'Troubleshooting', icon: Stethoscope },
+  { id: 'creator', label: 'Create mods', icon: WandSparkles },
   { id: 'settings', label: 'Settings', icon: Settings2 },
 ];
 
 export function App() {
   const [snapshot, setSnapshot] = useState<Snapshot>();
-  const [page, setPage] = useState<Page>('discover');
+  const [page, setPageState] = useState<Page>('discover');
+  const creatorDirty = useRef(false);
+  const [pendingPage, setPendingPage] = useState<Page>();
+  const onCreatorDirty = useCallback((dirty: boolean) => {
+    creatorDirty.current = dirty;
+  }, []);
+  const setPage = useCallback((next: Page) => {
+    if (creatorDirty.current && next !== 'creator') setPendingPage(next);
+    else setPageState(next);
+  }, []);
   const [profileManage, setProfileManage] = useState(false);
 
   const [selected, setSelected] = useState<ModDefinition>();
@@ -427,26 +449,28 @@ export function App() {
         </a>
         <div className="sidebar-label">YOUR MOD SPACE</div>
         <nav>
-          {navigation.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              aria-label={label}
-              title={label}
-              className={`nav-item ${page === id ? 'active' : ''}`}
-              aria-current={page === id ? 'page' : undefined}
-              onClick={() => {
-                setPage(id);
-              }}
-            >
-              <Icon size={19} />
-              <span>{label}</span>
-              {id === 'updates' && updates.length > 0 ? (
-                <span className="nav-count">{updates.length}</span>
-              ) : id === 'installed' && installed.length > 0 ? (
-                <span className="nav-count muted">{installed.length}</span>
-              ) : null}
-            </button>
-          ))}
+          {navigation
+            .filter((item) => item.id !== 'creator' || snapshot?.settings.creatorEnabled)
+            .map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                aria-label={label}
+                title={label}
+                className={`nav-item ${page === id ? 'active' : ''}`}
+                aria-current={page === id ? 'page' : undefined}
+                onClick={() => {
+                  setPage(id);
+                }}
+              >
+                <Icon size={19} />
+                <span>{label}</span>
+                {id === 'updates' && updates.length > 0 ? (
+                  <span className="nav-count">{updates.length}</span>
+                ) : id === 'installed' && installed.length > 0 ? (
+                  <span className="nav-count muted">{installed.length}</span>
+                ) : null}
+              </button>
+            ))}
         </nav>
         <div className="sidebar-bottom">
           <div className="game-panel">
@@ -550,6 +574,20 @@ export function App() {
           </div>
         </header>
         <main className="main-content" id="main-content">
+          {snapshot && !snapshot.preview && !snapshot.settings.saveNoticeDismissed && (
+            <SaveBackupNotice
+              pending={configuring}
+              dismiss={() =>
+                void callSnapshot('settings', 'Hiding save reminder', () =>
+                  api.saveSettings({
+                    theme: snapshot.settings.theme,
+                    setupComplete: snapshot.settings.setupComplete,
+                    saveNoticeDismissed: true,
+                  }),
+                )
+              }
+            />
+          )}
           {snapshot?.safetyError && (
             <div className="banner danger">
               <ShieldCheck size={19} />
@@ -660,8 +698,41 @@ export function App() {
               setAbout={setAbout}
             />
           )}
+          {snapshot && page === 'creator' && snapshot.settings.creatorEnabled && (
+            <Suspense fallback={<p role="status">Loading Mod Creator…</p>}>
+              <CreatorPage
+                snapshot={snapshot}
+                requests={requests}
+                onDirty={onCreatorDirty}
+                requestAction={requestAction}
+                launch={launch}
+              />
+            </Suspense>
+          )}
         </main>
       </div>
+      {pendingPage && (
+        <Dialog title="Discard unsaved creator changes?" onClose={() => setPendingPage(undefined)}>
+          <p className="dialog-description">
+            Your last saved draft and installed build will be kept.
+          </p>
+          <div className="dialog-footer">
+            <button className="button button-secondary" onClick={() => setPendingPage(undefined)}>
+              Keep editing
+            </button>
+            <button
+              className="button button-primary"
+              onClick={() => {
+                creatorDirty.current = false;
+                setPageState(pendingPage);
+                setPendingPage(undefined);
+              }}
+            >
+              Discard changes
+            </button>
+          </div>
+        </Dialog>
+      )}
       {selected && snapshot && (
         <Dialog title={selected.title} onClose={() => setSelected(undefined)} wide>
           {requirementTrail.length > 0 && (

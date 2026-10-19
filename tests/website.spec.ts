@@ -182,7 +182,7 @@ test('screenshots expand in a contained modal and restore focus when closed', as
   const originalUrl = page.url();
   for (const width of [1440, 375]) {
     await page.setViewportSize({ width, height: 900 });
-    for (const name of ['Discover', 'Profiles', 'Troubleshooting']) {
+    for (const name of ['Discover', 'Profiles', 'Troubleshooting', 'Creator']) {
       const opener = page.getByRole('link', { name: `View the ${name} screenshot at full size` });
       await opener.click();
       const dialog = page.getByRole('dialog', { name: `${name} in Modatro` });

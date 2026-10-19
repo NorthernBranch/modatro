@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { api } from '../api';
 import { AsyncButton } from '../components/AsyncButton';
 import { ModIndexSettings } from '../components/ModIndexSettings';
+import { CreatorSettings } from '../components/CreatorSettings';
 import type { Requests } from '../hooks/useRequests';
 import { PageHeading, PaletteIcon, SettingsRow } from '../components/PageElements';
 import type { Reply, Snapshot } from '../shared/model';
@@ -64,6 +65,7 @@ export function SettingsPage({
       />
       {snapshot && (
         <div className="settings-layout">
+          <CreatorSettings snapshot={snapshot} requests={requests} callSnapshot={callSnapshot} />
           <section className="settings-section">
             <h2>Application updates</h2>
             <SettingsRow
@@ -259,7 +261,7 @@ export function SettingsPage({
             </SettingsRow>
             <SettingsRow
               title="Original file backups"
-              description="Preserved for recovery and uninstall. Backups are never automatically deleted."
+              description="Mod files preserved for recovery and uninstall, never automatically deleted. These do not include Balatro saves."
             >
               <AsyncButton
                 className="text-button"
