@@ -172,6 +172,58 @@ it('keeps the assigned bump consistent when publishing and retains completed rer
   ).toBe('0.5.0');
 });
 
+it('uses the supported PR API contract to resolve a real merged-MINOR response shape', async () => {
+  const env = {
+    GITHUB_EVENT_NAME: 'push',
+    GITHUB_REF: 'refs/heads/main',
+    GITHUB_REPOSITORY: 'tests/modatro',
+    GITHUB_SHA: 'a'.repeat(40),
+  };
+  const summary = {
+    number: 8,
+    title: 'MINOR: Add experimental Mod Creator',
+    merged_at: '2026-10-19T22:19:44Z',
+    base: { ref: 'main' },
+  };
+  const request = vi.fn(async (_url, options) => ({
+    ok: true,
+    json: async () => [
+      options.headers['X-GitHub-Api-Version'] === '2022-11-28'
+        ? { ...summary, merge_commit_sha: env.GITHUB_SHA }
+        : summary,
+    ],
+  }));
+  const bump = await releaseBump(env, request);
+  expect(bump).toBe('minor');
+  expect(
+    buildVersion(
+      { ...env, GITHUB_RUN_NUMBER: '100' },
+      current,
+      ['v0.4.5-beta.build.37.bbbbbbb'],
+      bump,
+    ),
+  ).toBe('0.5.0');
+  expect(request.mock.calls[0][1].headers['X-GitHub-Api-Version']).toBe('2022-11-28');
+});
+
+it('stops instead of publishing a patch when merged PR metadata omits its commit identity', async () => {
+  const env = {
+    GITHUB_EVENT_NAME: 'push',
+    GITHUB_REF: 'refs/heads/main',
+    GITHUB_REPOSITORY: 'tests/modatro',
+    GITHUB_SHA: 'a'.repeat(40),
+  };
+  const request = vi
+    .fn()
+    .mockResolvedValue({
+      ok: true,
+      json: async () => [
+        { title: 'MINOR: feature', merged_at: '2026-10-19T22:19:44Z', base: { ref: 'main' } },
+      ],
+    });
+  await expect(releaseBump(env, request)).rejects.toThrow('stopped rather than guessing a patch');
+});
+
 it('reads all release pages with CI authentication and excludes unpublished drafts', async () => {
   const release = (index) => ({
     tag_name: `v0.4.${index}`,
