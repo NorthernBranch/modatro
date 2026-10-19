@@ -54,6 +54,13 @@ commit. Direct pushes default to a patch. PR builds use their event's title; the
 final merged title controls publication. The selected bump is passed from validation
 to publishing so every installer uses the same tested version.
 
+Merged-PR lookup explicitly uses GitHub's supported `2022-11-28` REST contract,
+which includes the `merge_commit_sha` needed to verify the PR against the main
+commit. The `2026-03-10` contract removed that field. Missing merge identity now
+stops assignment instead of silently selecting a patch. The older contract is
+[supported until March 10, 2028](https://docs.github.com/en/rest/about-the-rest-api/api-versions#supported-api-versions);
+release-history requests continue using the current API contract.
+
 Intervening PR, documentation, website or failed workflow runs do not consume
 versions. Draft releases and bare Git tags do not consume versions either.
 If release history cannot be read, the build stops rather than guessing a version.

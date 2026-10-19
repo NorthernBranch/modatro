@@ -27,8 +27,8 @@ function compareVersions(left, right) {
 }
 
 // Only published releases consume a version. Drafts and bare Git tags do not.
-function apiHeaders(env) {
-  const headers = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2026-03-10' };
+function apiHeaders(env, version = '2026-03-10') {
+  const headers = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': version };
   const token = env.GH_TOKEN ?? env.GITHUB_TOKEN;
   if (token) headers.Authorization = `Bearer ${token}`;
   return headers;
@@ -53,7 +53,13 @@ export async function releaseBump(env = process.env, request = fetch, event) {
   for (let page = 1; page <= 100; page++) {
     const response = await request(
       `https://api.github.com/repos/${env.GITHUB_REPOSITORY}/commits/${env.GITHUB_SHA}/pulls?per_page=100&page=${page}`,
-      { headers: apiHeaders(env), signal: AbortSignal.timeout(30000), redirect: 'error' },
+      // The 2026 API removed merge_commit_sha. Keep this lookup on the
+      // supported 2022 contract until its replacement can verify the merge.
+      {
+        headers: apiHeaders(env, '2022-11-28'),
+        signal: AbortSignal.timeout(30000),
+        redirect: 'error',
+      },
     );
     if (!response.ok) throw new Error(`Cannot read merged pull requests: HTTP ${response.status}.`);
     const pulls = await response.json();
@@ -63,8 +69,15 @@ export async function releaseBump(env = process.env, request = fetch, event) {
     )
       throw new Error('The merged pull request list is invalid.');
     for (const pull of pulls) {
-      if (!pull.merged_at || pull.base.ref !== 'main' || pull.merge_commit_sha !== env.GITHUB_SHA)
-        continue;
+      if (!pull.merged_at || pull.base.ref !== 'main') continue;
+      if (
+        typeof pull.merge_commit_sha !== 'string' ||
+        !/^[a-f0-9]{40}$/.test(pull.merge_commit_sha)
+      )
+        throw new Error(
+          'GitHub omitted the merged PR commit SHA. Version assignment stopped rather than guessing a patch.',
+        );
+      if (pull.merge_commit_sha !== env.GITHUB_SHA) continue;
       const candidate = bumpFromTitle(pull.title);
       if (candidate === 'major' || (candidate === 'minor' && bump !== 'major')) bump = candidate;
     }
