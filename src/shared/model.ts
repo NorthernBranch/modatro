@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ModIndexUrl } from './mod-index';
+import { CreatorOriginSchema, type CreatorRequest, type CreatorResponse } from './creator';
 import {
   ProfilesSchema,
   type ProfileSummary,
@@ -124,6 +125,7 @@ export type ModVersion = z.infer<typeof ModVersionSchema>;
 export const ModSchema = z
   .object({
     id: ModId,
+    creator: CreatorOriginSchema.optional(),
     title: z.string().min(1).max(200),
     author: z.string().min(1).max(200),
     version: z.string().min(1).max(100),
@@ -251,6 +253,9 @@ export interface GameCandidate {
   validation: PathValidationResult;
 }
 export const SettingsSchema = z.object({
+  creatorEnabled: z.boolean().optional(),
+  creatorAcknowledged: z.boolean().optional(),
+  saveNoticeDismissed: z.boolean().optional(),
   modIndexUrl: ModIndexUrl.optional(),
   gamePath: z.string().optional(),
   modsPath: z.string().optional(),
@@ -258,10 +263,20 @@ export const SettingsSchema = z.object({
   setupComplete: z.boolean().default(false),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
+export const SettingsUpdateSchema = SettingsSchema.pick({
+  theme: true,
+  setupComplete: true,
+  modIndexUrl: true,
+  creatorEnabled: true,
+  creatorAcknowledged: true,
+  saveNoticeDismissed: true,
+}).strict();
+export type SettingsUpdate = z.infer<typeof SettingsUpdateSchema>;
 export const RootSchema = z.enum(['mods', 'game', 'disabled']);
 export type FileRoot = z.infer<typeof RootSchema>;
 export const HashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 export const InstallationSourceSchema = z.object({
+  creator: CreatorOriginSchema.optional(),
   sourceType: z.enum([
     'release-asset',
     'tag',
@@ -480,6 +495,7 @@ export interface InstallPlan {
   packages?: { id: string; title: string; version: string; update: boolean; source?: string }[];
 }
 export interface ModatroApi {
+  creator?(request: CreatorRequest): Promise<Reply<CreatorResponse>>;
   profileOperation?(operation: ProfileOperation): Promise<Reply<Snapshot>>;
   previewProfile?(id: string): Promise<Reply<ProfilePlan>>;
   switchProfile?(confirmation: { profileId: string; token: string }): Promise<Reply<Snapshot>>;
@@ -493,9 +509,7 @@ export interface ModatroApi {
   detect(): Promise<Reply<Snapshot>>;
   choosePath(kind: 'game' | 'mods'): Promise<Reply<Snapshot>>;
   selectCandidate(path: string): Promise<Reply<Snapshot>>;
-  saveSettings(
-    settings: Pick<Settings, 'theme' | 'setupComplete' | 'modIndexUrl'>,
-  ): Promise<Reply<Snapshot>>;
+  saveSettings(settings: SettingsUpdate): Promise<Reply<Snapshot>>;
   action(
     id: string,
     action: ModAction,

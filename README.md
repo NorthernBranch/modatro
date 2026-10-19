@@ -22,8 +22,7 @@ configurations are shared across profiles; unmanaged mods can still affect gamep
 
 Screenshots show the current interface with representative catalogue and installation
 data. The prerequisite preview includes an expanded source record with a synthetic
-checksum; URLs and hashes wrap within the card. Click either smaller image to view
-it at full size.
+checksum. Click either smaller image to view it at full size.
 
 ## Download
 
@@ -69,6 +68,11 @@ and macOS may block opening them. Check the release notes and
   installed mods. New downloads require current source and removal checks.
 - **Application updates:** quietly indicate newer GitHub releases. Downloading and
   installing an update always requires your action.
+- **Mod Creator (experimental, optional):** create a local Joker, deck or blank
+  Steamodded mod; edit Lua, import PNG artwork, save drafts, build/install and export
+  ZIPs. Enable it in Settings after acknowledging the disclaimer.
+- **Save guidance:** a dismissible reminder explains how to back up Balatro saves
+  separately from Modatro's mod-file backups.
 - **Appearance:** choose a dark, light or system theme.
 
 GitHub counts are cached and refreshed in small batches to preserve API capacity
@@ -77,7 +81,7 @@ temporarily prevent new release checks without removing your cached catalogue.
 
 ## Get started
 
-1. Install Modatro and close Balatro before changing mods.
+1. Install Modatro, back up your Balatro saves, and close Balatro before changing mods.
 2. Select your Balatro installation during setup. Use Steam discovery or choose
    the game folder manually; the game and Mods folders remain separate.
 3. Open **Prerequisites** to check Lovely, Steamodded and any additional requirements.
@@ -98,6 +102,17 @@ On Steam Deck, use Desktop Mode and follow the [Steam/Proton setup guide](docs/l
 For application updates, use **Settings → Application updates → Download update**,
 then close Modatro and run the new installer. Keep application data and backups.
 
+## Create a local mod
+
+Enable **Settings → Experimental features → Mod Creator**, then open **Create mods**.
+Create a project, save the draft, build it and install that build explicitly.
+Editing source never updates installed files until you choose Install changes.
+Templates target Steamodded 26.1002.0 and require Lovely; syntax/package validation
+does not prove safety or in-game compatibility. See the [creator guide](docs/mod-creator.md)
+for recipes, artwork, source history, restoration and export.
+
+[![Experimental creator with a representative Joker project](docs/images/creator.png)](docs/mod-creator.md)
+
 ## Documentation and contributions
 
 | Mod profiles                                                              | Troubleshooting                                                                                           |
@@ -111,23 +126,25 @@ Open profiles beside **Launch**, and **Troubleshooting** in the sidebar. The fir
 upgrade backs up existing state before creating a Default profile; see the
 [profile migration notes](docs/profiles.md#state-upgrade).
 
-| Guide                                      | Covers                                                             |
-| ------------------------------------------ | ------------------------------------------------------------------ |
-| [Troubleshooting](docs/troubleshooting.md) | Setup, dependencies, rate limits, changed files and recovery       |
-| [Profiles](docs/profiles.md)               | Named selections, shared files, unsaved changes and safe switching |
-| [Releases](docs/release.md)                | Downloads, supported formats and release workflow                  |
-| [Linux and Steam Deck](docs/linux.md)      | AppImage / DEB installation and Proton integration                 |
-| [Signing](docs/signing.md)                 | Actual release signing status and maintainer setup                 |
-| [Contributing](CONTRIBUTING.md)            | Development, checks, packaging and screenshot capture              |
-| [Architecture](docs/architecture.md)       | Services, provider boundaries and transactions                     |
-| [Verification](docs/verification.md)       | Automated coverage and manual testing limits                       |
-| [Catalogue](catalogue/README.md)           | Metadata, permissions, exceptions and removal feeds                |
-| [Website](docs/website.md)                 | Platform downloads, Cloudflare Pages and domain setup              |
+| Guide                                      | Covers                                                                  |
+| ------------------------------------------ | ----------------------------------------------------------------------- |
+| [Troubleshooting](docs/troubleshooting.md) | Setup, dependencies, rate limits, changed files and recovery            |
+| [Mod Creator](docs/mod-creator.md)         | Optional project editor, recipes, artwork, builds and local ZIP exports |
+| [Profiles](docs/profiles.md)               | Named selections, shared files, unsaved changes and safe switching      |
+| [Releases](docs/release.md)                | Downloads, supported formats and release workflow                       |
+| [Linux and Steam Deck](docs/linux.md)      | AppImage / DEB installation and Proton integration                      |
+| [Signing](docs/signing.md)                 | Actual release signing status and maintainer setup                      |
+| [Contributing](CONTRIBUTING.md)            | Development, checks, packaging and screenshot capture                   |
+| [Architecture](docs/architecture.md)       | Services, provider boundaries and transactions                          |
+| [Verification](docs/verification.md)       | Automated coverage and manual testing limits                            |
+| [Catalogue](catalogue/README.md)           | Metadata, permissions, exceptions and removal feeds                     |
+| [Website](docs/website.md)                 | Platform downloads, Cloudflare Pages and domain setup                   |
 
 Mods are third-party code. Modatro checks metadata, paths and file integrity; it
 does not certify mod safety or guarantee that mods work together. Authors retain
 ownership, and verified removal requests stop future downloads without remotely
 changing installed copies. Read the [content and removal policy](docs/content-policy.md).
 
-Modatro is licensed under [MIT](LICENSE). It is not affiliated with, endorsed by,
+Modatro is licensed under [MIT](LICENSE). Creator dependency notices are included in
+[THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt). It is not affiliated with, endorsed by,
 or sponsored by LocalThunk or Playstack.

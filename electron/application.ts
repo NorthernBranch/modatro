@@ -11,9 +11,9 @@ import {
   type ModDefinition,
   type OperationReport,
   type Progress,
-  type Settings,
   type Snapshot,
   type UnverifiedPrerequisite,
+  type SettingsUpdate,
 } from '../src/shared/model';
 import { ModatroCatalogueRepository } from './services/catalogue';
 import { GameDetectionService, LaunchService } from './services/detection';
@@ -41,6 +41,7 @@ import { ProfileService } from './services/profiles';
 import { TroubleshootingService } from './services/troubleshooting';
 import { profileSummary } from '../src/shared/profile-selection';
 import type { ProfileOperation } from '../src/shared/features';
+import { CreatorService } from './services/creator';
 
 export class ModatroApplication {
   readonly storage: Storage;
@@ -56,6 +57,7 @@ export class ModatroApplication {
   readonly installer: ModInstaller;
   readonly profiles: ProfileService;
   readonly troubleshooting: TroubleshootingService;
+  readonly creator: CreatorService;
   readonly localSource = new LocalModSource(() => this.custom);
   private candidates: GameCandidate[] = [];
   private custom: ModDefinition[] = [];
@@ -116,6 +118,15 @@ export class ModatroApplication {
       this.transactions,
       () => this.snapshot(),
       this.profiles,
+    );
+    this.creator = new CreatorService(
+      this.storage,
+      this.transactions,
+      async () => (await this.snapshot()).localMods,
+      async (definition) => {
+        this.custom = [...this.custom.filter((mod) => mod.id !== definition.id), definition];
+        await this.storage.write('data/custom-mods.json', this.custom);
+      },
     );
   }
   async profileOperation(request: ProfileOperation) {
@@ -338,12 +349,17 @@ export class ModatroApplication {
       return this.snapshot();
     });
   }
-  async saveSettings(settings: Pick<Settings, 'theme' | 'setupComplete' | 'modIndexUrl'>) {
+  async saveSettings(settings: SettingsUpdate) {
     if (settings.modIndexUrl !== undefined) {
       const value = ModIndexUrl.parse(settings.modIndexUrl);
       settings = { ...settings, modIndexUrl: value ? indexLocation(value).url : '' };
     }
     return this.transactions.locked(async () => {
+      if (
+        settings.creatorEnabled &&
+        !(settings.creatorAcknowledged || this.storage.state.settings.creatorAcknowledged)
+      )
+        throw new UserError('Acknowledge the Mod Creator disclaimer before enabling it.');
       if (
         settings.setupComplete &&
         (!this.storage.state.settings.gamePath ||
@@ -478,7 +494,9 @@ export class ModatroApplication {
             (staged) => this.dependencyPlan(target, acceptedUnverified, staged),
           );
         } else {
-          const archive = this.localArchives.get(mod.id);
+          const archive = mod.creator
+            ? await this.creator.archiveFor(mod.creator)
+            : this.localArchives.get(mod.id);
           if (mod.source?.provider === 'local' && !archive)
             throw new UserError('Choose the local ZIP again using Install from file.');
           await this.installer.install(
@@ -489,7 +507,7 @@ export class ModatroApplication {
             acceptedUnverified,
             archive,
           );
-          if (archive) this.localArchives.delete(mod.id);
+          if (archive && !mod.creator) this.localArchives.delete(mod.id);
         }
       } catch (error) {
         if (error instanceof UserError && [404, 410].includes(error.statusCode ?? 0)) {
@@ -548,6 +566,8 @@ export class ModatroApplication {
       this.storage.state.installations.some((record) => record.modId === id),
       undefined,
       true,
+      [],
+      mod.creator ? await this.creator.archiveFor(mod.creator) : this.localArchives.get(mod.id),
     );
     if (!plan) throw new UserError('The install plan could not be prepared.');
     return plan;

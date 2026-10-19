@@ -69,6 +69,7 @@ export function sourceType(url: string): InstallationSource['sourceType'] {
   return 'other';
 }
 export function approvalLabel(mod: ModDefinition) {
+  if (mod.creator) return 'Locally created · Experimental';
   return {
     'author-approved': 'Author approved',
     'legacy-index': 'Legacy index',

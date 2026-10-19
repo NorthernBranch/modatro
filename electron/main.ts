@@ -13,8 +13,8 @@ import {
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
-import { ModIndexUrl } from '../src/shared/mod-index';
-import { ModId, RelativePath, RootSchema } from '../src/shared/model';
+import { ModId, RelativePath, RootSchema, SettingsUpdateSchema } from '../src/shared/model';
+import { CreatorRequestSchema } from '../src/shared/creator';
 import { ModatroApplication } from './application';
 import { errorReply, UserError } from './services/errors';
 import { contained, exists, safeDestination } from './services/files';
@@ -109,6 +109,18 @@ async function createWindow() {
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event) => event.preventDefault());
   window.webContents.on('will-attach-webview', (event) => event.preventDefault());
+  window.webContents.on('will-prevent-unload', (event) => {
+    const choice = dialog.showMessageBoxSync(window!, {
+      type: 'question',
+      title: 'Unsaved creator draft',
+      message: 'Discard unsaved changes and close Modatro?',
+      detail: 'Your last saved draft and installed build will be kept.',
+      buttons: ['Keep editing', 'Discard changes'],
+      defaultId: 0,
+      cancelId: 0,
+    });
+    if (choice === 1) event.preventDefault();
+  });
   await window.loadURL(rendererUrl);
   window.on('closed', () => {
     window = undefined;
@@ -162,6 +174,33 @@ void app
       (snapshot) => window?.webContents.send('modatro:changed', snapshot),
     );
     await application.initialize();
+    application.creator.native = {
+      artwork: async () => {
+        const result = await dialog.showOpenDialog(window!, {
+          title: 'Import original PNG artwork',
+          properties: ['openFile'],
+          filters: [{ name: 'PNG artwork', extensions: ['png'] }],
+        });
+        return result.canceled ? undefined : result.filePaths[0];
+      },
+      export: async (name) => {
+        const result = await dialog.showSaveDialog(window!, {
+          title: 'Export built mod ZIP',
+          defaultPath: name,
+          filters: [{ name: 'Mod ZIP', extensions: ['zip'] }],
+        });
+        return result.canceled ? undefined : result.filePath;
+      },
+      open: async (folder) => {
+        const error = await shell.openPath(folder);
+        if (error) throw new UserError('The project folder could not be opened.', undefined, error);
+      },
+    };
+    handle('creator', CreatorRequestSchema, async (request) => {
+      const result = await application.creator.perform(request);
+      await application.publish();
+      return result;
+    });
     handle('snapshot', z.undefined(), () => application.snapshot());
     handle('profileOperation', ProfileOperationSchema, (request) =>
       application.profileOperation(request),
@@ -215,17 +254,7 @@ void app
         throw new UserError('Select a detected installation or browse for a folder.');
       return application.setPath('game', p);
     });
-    handle(
-      'saveSettings',
-      z
-        .object({
-          theme: z.enum(['dark', 'light', 'system']),
-          setupComplete: z.boolean(),
-          modIndexUrl: ModIndexUrl.optional(),
-        })
-        .strict(),
-      (settings) => application.saveSettings(settings),
-    );
+    handle('saveSettings', SettingsUpdateSchema, (settings) => application.saveSettings(settings));
     handle(
       'action',
       z

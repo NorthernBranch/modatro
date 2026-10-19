@@ -55,6 +55,7 @@ export function DiscoverPage({
     () =>
       (snapshot?.catalogue.mods ?? []).filter(
         (mod) =>
+          !mod.creator &&
           mod.permissions?.display !== false &&
           (!mod.deprecated ||
             snapshot?.localMods.some(

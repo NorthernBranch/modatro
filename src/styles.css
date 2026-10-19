@@ -1,5 +1,376 @@
 @import url('/fonts.css');
 
+.save-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 24px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.save-notice details {
+  flex: 1;
+  min-width: 0;
+}
+.save-notice p {
+  margin-top: 10px;
+  max-width: 90ch;
+}
+.creator-disclaimer {
+  padding: 16px 20px;
+  margin: 20px 0 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+.creator-disclaimer p {
+  margin-top: 12px;
+  max-width: 90ch;
+}
+.creator-layout {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.creator-projects {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+.creator-projects h2 {
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.creator-project {
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  padding: 14px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  min-width: 0;
+}
+.creator-project.selected {
+  border-color: var(--accent);
+}
+.creator-project strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.creator-project span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.creator-workspace {
+  min-width: 0;
+  display: grid;
+  gap: 24px;
+}
+.creator-section {
+  align-content: start;
+  min-width: 0;
+  padding: 24px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  display: grid;
+  gap: 18px;
+}
+.creator-section h2 {
+  font-size: 18px;
+}
+.creator-section p {
+  font-size: 13px;
+  line-height: 1.8;
+}
+.creator-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.creator-section-heading p {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.creator-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.creator-fields label,
+.creator-range {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 0;
+}
+.creator-fields input,
+.creator-fields select,
+.creator-fields textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 10px 12px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+.creator-fields textarea {
+  resize: vertical;
+  line-height: 1.7;
+}
+.creator-fields small {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.creator-wide {
+  grid-column: 1/-1;
+}
+.creator-advanced summary,
+.creator-history summary {
+  cursor: pointer;
+  font-size: 13px;
+}
+.creator-advanced[open],
+.creator-history[open] {
+  display: grid;
+  gap: 16px;
+}
+.creator-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.creator-actions .button {
+  font-size: 12px;
+}
+.creator-artwork {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.creator-card-preview {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.creator-card-preview canvas {
+  width: 71px;
+  height: 95px;
+  image-rendering: pixelated;
+  background: repeating-conic-gradient(#728078 0% 25%, #404d45 0% 50%) 0/12px 12px;
+}
+.creator-art-controls {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.creator-range {
+  grid-template-columns: 110px minmax(0, 1fr);
+  align-items: center;
+}
+.creator-range input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.creator-code {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.creator-code-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  font-size: 11px;
+  background: var(--bg);
+  color: var(--muted);
+}
+.lua-editor {
+  height: 340px;
+  position: relative;
+  background: var(--bg);
+}
+.lua-editor pre,
+.lua-editor textarea {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  border: 0;
+  padding: 16px;
+  overflow: auto;
+  white-space: pre;
+  overflow-wrap: normal;
+  font:
+    12px/1.8 Consolas,
+    'Courier New',
+    monospace;
+  tab-size: 2;
+  letter-spacing: normal;
+}
+.lua-editor pre {
+  pointer-events: none;
+  color: var(--text);
+}
+.lua-editor pre code {
+  font: inherit;
+}
+.lua-editor textarea {
+  width: 100%;
+  height: 100%;
+  resize: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text);
+  -webkit-text-fill-color: transparent;
+}
+.lua-editor textarea::selection {
+  background: #6c8a7866;
+}
+.lua-keyword {
+  color: #d6afe9;
+}
+.lua-string {
+  color: #b3e99b;
+}
+.lua-comment {
+  color: #87958c;
+}
+.lua-number {
+  color: #e9cb8a;
+}
+:root[data-theme='light'] .lua-keyword {
+  color: #7a3c97;
+}
+:root[data-theme='light'] .lua-string {
+  color: #34732c;
+}
+:root[data-theme='light'] .lua-number {
+  color: #806014;
+}
+.creator-diagnostics {
+  padding: 12px 16px;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+}
+.creator-diagnostics p {
+  font-size: 11px;
+}
+.creator-build {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.creator-build > div:first-child {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+  min-width: 0;
+}
+.creator-build span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.creator-result {
+  color: var(--accent);
+}
+.creator-validation {
+  color: var(--red);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.creator-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.creator-toggle input {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+@media (min-width: 1400px) {
+  .creator-workspace {
+    grid-template-columns: minmax(0, 1fr) 230px;
+  }
+  .creator-workspace > .creator-section:nth-child(1) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .creator-workspace > .creator-section:nth-child(2) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .creator-workspace > .creator-section:nth-child(3) {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+  .creator-workspace > .creator-section:nth-child(n + 4) {
+    grid-column: 1/-1;
+  }
+  .creator-artwork,
+  .creator-range {
+    grid-template-columns: 1fr;
+  }
+  .creator-card-preview {
+    justify-items: start;
+  }
+}
+@media (max-width: 1100px) {
+  .creator-layout {
+    grid-template-columns: 1fr;
+  }
+  .creator-projects {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .creator-projects h2 {
+    grid-column: 1/-1;
+  }
+  .creator-section {
+    padding: 20px;
+  }
+}
+@media (max-width: 650px) {
+  .creator-fields,
+  .creator-artwork {
+    grid-template-columns: 1fr;
+  }
+  .creator-projects {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .creator-section {
+    padding: 16px;
+  }
+  .creator-range {
+    grid-template-columns: 1fr;
+  }
+}
+
 :root {
   font-family:
     'Inter',

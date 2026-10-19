@@ -30,7 +30,10 @@
     "catalogue:check": "node scripts/compile-catalogue.mjs --check"
   },
   "dependencies": {
+    "fflate": "0.8.2",
+    "luaparse": "0.3.1",
     "lucide-react": "^0.577.0",
+    "pngjs": "7.0.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "semver": "^7.7.3",
@@ -39,7 +42,9 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
+    "@types/luaparse": "^0.2.13",
     "@types/node": "^24.10.0",
+    "@types/pngjs": "^6.0.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@types/semver": "^7.7.1",
@@ -62,7 +67,8 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "package.json"
+      "package.json",
+      "THIRD_PARTY_NOTICES.txt"
     ],
     "asar": true,
     "mac": {

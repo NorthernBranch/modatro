@@ -4,6 +4,58 @@ import { ModatroApplication } from '../electron/application';
 import { tempRoot } from './helpers';
 
 const roots: string[] = [];
+it('persists creator acknowledgement and save notice preference without deleting projects when disabled', async () => {
+  const root = await tempRoot();
+  roots.push(root);
+  vi.stubEnv('MODATRO_TEST_DATA', root);
+  const make = () =>
+    new ModatroApplication(
+      root,
+      'test',
+      'test',
+      () => {},
+      () => {},
+    );
+  const app = make();
+  await app.initialize();
+  expect(app.storage.state.settings.creatorEnabled).toBeUndefined();
+  await expect(
+    app.saveSettings({ theme: 'dark', setupComplete: false, creatorEnabled: true }),
+  ).rejects.toThrow('Acknowledge');
+  await app.saveSettings({
+    theme: 'dark',
+    setupComplete: false,
+    creatorEnabled: true,
+    creatorAcknowledged: true,
+    saveNoticeDismissed: true,
+  });
+  const project = (
+    await app.creator.perform({
+      operation: 'create',
+      name: 'Persistent',
+      author: 'Tester',
+      recipe: 'blank',
+    })
+  ).project!;
+  await app.saveSettings({ theme: 'light', setupComplete: false, creatorEnabled: false });
+  const reloaded = make();
+  await reloaded.initialize();
+  expect(reloaded.storage.state.settings).toMatchObject({
+    creatorEnabled: false,
+    creatorAcknowledged: true,
+    saveNoticeDismissed: true,
+    theme: 'light',
+  });
+  await reloaded.saveSettings({
+    theme: 'light',
+    setupComplete: false,
+    creatorEnabled: true,
+    saveNoticeDismissed: false,
+  });
+  expect(
+    (await reloaded.creator.perform({ operation: 'load', id: project.id })).project?.draft.name,
+  ).toBe('Persistent');
+});
 afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();

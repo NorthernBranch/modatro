@@ -12,7 +12,9 @@ and contain 1–60 characters. Up to 100 profiles are supported.
 A profile records enabled or disabled states by stable managed installation identity,
 including source-qualified identities. Installed versions and configurations are
 shared: updating a mod affects all profiles using it. Profiles are not Balatro save
-slots. Switching never moves, replaces or deletes save files.
+slots. Switching never moves, replaces or deletes save files. Creator builds share
+one installed revision across profiles too; switching does not select an older
+project build. Back up Balatro saves separately from mod files.
 
 Unmanaged mods remain untouched and can still affect gameplay. Review them in
 **Installed** and use the existing adoption action where supported. Lovely's native

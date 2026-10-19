@@ -99,9 +99,10 @@ can remain in the dashboard.
 
 ## Feature screenshots
 
-The local landing page includes Discover, Profiles and Troubleshooting screenshots,
-with representative selections and synthetic diagnostics. Capture all eight app views
-with `node scripts/screenshots.mjs`; the script copies the three website images into
+The landing page includes Discover, Profiles, Troubleshooting and Creator screenshots,
+with representative selections, synthetic diagnostics and an example local project.
+The creator is listed as an optional experimental feature. Capture all nine app views
+with `node scripts/screenshots.mjs`; the script copies the four website images into
 `website/images/`. Screenshot cards remain contained at desktop and mobile widths.
 
 Clicking any screenshot opens an enlarged, labelled dialog inside the page. Close
