@@ -213,14 +213,12 @@ it('stops instead of publishing a patch when merged PR metadata omits its commit
     GITHUB_REPOSITORY: 'tests/modatro',
     GITHUB_SHA: 'a'.repeat(40),
   };
-  const request = vi
-    .fn()
-    .mockResolvedValue({
-      ok: true,
-      json: async () => [
-        { title: 'MINOR: feature', merged_at: '2026-10-19T22:19:44Z', base: { ref: 'main' } },
-      ],
-    });
+  const request = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => [
+      { title: 'MINOR: feature', merged_at: '2026-10-19T22:19:44Z', base: { ref: 'main' } },
+    ],
+  });
   await expect(releaseBump(env, request)).rejects.toThrow('stopped rather than guessing a patch');
 });
 
