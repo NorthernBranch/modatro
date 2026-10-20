@@ -11,7 +11,7 @@ import {
   type FileRoot,
 } from '../../src/shared/model';
 import { UserError } from './errors';
-import { atomicCopy, exists, hashFile, safeDestination, syncDirectory } from './files';
+import { atomicCopy, exists, fileBatches, hashFile, safeDestination, syncDirectory } from './files';
 import { Logger, Storage } from './storage';
 import { OperationHistoryStore } from './history';
 
@@ -50,12 +50,13 @@ export class BackupService {
     transactionId: string,
     index: number,
     source: string,
+    expectedHash?: string,
   ): Promise<{ path: string; hash: string }> {
     const relative = `backups/${transactionId}/${index}.original`;
     const destination = await safeDestination(this.storage.root, relative);
     if (await exists(destination))
       throw new UserError('A backup already exists at this location. It will not be overwritten.');
-    const originalHash = await hashFile(source);
+    const originalHash = expectedHash ?? (await hashFile(source));
     await atomicCopy(source, destination);
     if ((await hashFile(destination)) !== originalHash || (await hashFile(source)) !== originalHash)
       throw new UserError(
@@ -76,6 +77,7 @@ export class BackupService {
 }
 export class TransactionEngine {
   private busy = false;
+  private maintenancePending = true;
   readonly backup: BackupService;
   // Tests use a deterministic hook to fail or simulate a process interruption.
   constructor(
@@ -97,7 +99,19 @@ export class TransactionEngine {
       this.storage.assertSafe();
       return await work();
     } finally {
-      this.busy = false;
+      try {
+        // The operation has settled and state is durable. Never race cleanup
+        // with a transaction, or discard evidence while recovery is blocked.
+        if (this.maintenancePending && !this.storage.safetyError) {
+          try {
+            await this.recover();
+          } catch (error) {
+            await this.logger.log('backups.cleanup.deferred', String(error));
+          }
+        }
+      } finally {
+        this.busy = false;
+      }
     }
   }
   async inspectLocked<T>(work: () => Promise<T>): Promise<T> {
@@ -122,6 +136,7 @@ export class TransactionEngine {
     this.storage.assertSafe();
     await this.recover();
     this.storage.assertSafe();
+    this.maintenancePending = true;
     const id = randomUUID();
     const journalPath = `transactions/${id}.json`;
     if (new Set(changes.map((c) => `${c.root}:${c.path.toLowerCase()}`)).size !== changes.length)
@@ -135,9 +150,8 @@ export class TransactionEngine {
       phase: 'prepared',
     };
     await this.logger.log('transaction.prepare', { id, count: changes.length });
-    for (let i = 0; i < changes.length; i++) {
-      const change = changes[i]!,
-        destination = await safeDestination(roots[change.root], change.path);
+    const prepared = await fileBatches([...changes.entries()], async ([i, change]) => {
+      const destination = await safeDestination(roots[change.root], change.path);
       const before = (await exists(destination)) ? await hashFile(destination) : undefined;
       if (before !== change.expectedBefore)
         throw new UserError(
@@ -148,7 +162,7 @@ export class TransactionEngine {
         (!change.afterHash || (await hashFile(change.source)) !== change.afterHash)
       )
         throw new UserError('A staged file failed its integrity check.');
-      const backup = before ? await this.backup.capture(id, i, destination) : undefined;
+      const backup = before ? await this.backup.capture(id, i, destination, before) : undefined;
       const temporaryPath = change.source
         ? path.posix.join(path.posix.dirname(change.path), `.modatro-${id}-${i}.tmp`)
         : undefined;
@@ -156,27 +170,31 @@ export class TransactionEngine {
         throw new UserError(
           'The transaction temporary path already exists. No files were changed.',
         );
-      journal.changes.push({
+      const entry = {
         root: change.root,
         path: change.path,
         beforeHash: before,
         beforeBackup: backup?.path,
         afterHash: change.afterHash,
         temporaryPath,
-      });
+      };
+      const directories: TransactionJournal['createdDirectories'] = [];
       if (change.source) {
         const parts = change.path.split('/');
         parts.pop();
         for (let count = 1; count <= parts.length; count++) {
           const dir = parts.slice(0, count).join('/');
-          if (
-            !(await exists(await safeDestination(roots[change.root], dir))) &&
-            !journal.createdDirectories.some((d) => d.root === change.root && d.path === dir)
-          )
-            journal.createdDirectories.push({ root: change.root, path: dir });
+          if (!(await exists(await safeDestination(roots[change.root], dir))))
+            directories.push({ root: change.root, path: dir });
         }
       }
-    }
+      return { entry, directories };
+    });
+    journal.changes = prepared.map((p) => p.entry);
+    const directories = new Map(
+      prepared.flatMap((p) => p.directories).map((d) => [`${d.root}:${d.path}`, d]),
+    );
+    journal.createdDirectories = [...directories.values()];
     const next = StateSchema.parse(buildState(journal));
     next.lastTransaction = id;
     const history = new OperationHistoryStore(this.storage);
@@ -331,10 +349,14 @@ export class TransactionEngine {
     const files = (await fs.readdir(this.storage.file('transactions'))).filter((f) =>
       f.endsWith('.json'),
     );
+    const completed: { relative: string; journal: TransactionJournal }[] = [];
     for (const file of files) {
       try {
         const journal = await this.storage.read(`transactions/${file}`, JournalSchema);
-        if (!journal || journal.phase !== 'prepared') continue;
+        if (!journal || file !== `${journal.id}.json`)
+          throw new UserError('Invalid transaction journal identity.');
+        completed.push({ relative: `transactions/${file}`, journal });
+        if (journal.phase !== 'prepared') continue;
         if (journal.id === this.storage.state.lastTransaction) {
           journal.phase = 'committed';
           await this.storage.write(`transactions/${file}`, journal);
@@ -364,5 +386,92 @@ export class TransactionEngine {
         break;
       }
     }
+    if (!this.storage.safetyError && (this.maintenancePending || completed.length)) {
+      try {
+        await this.pruneCompleted(completed);
+        this.maintenancePending = false;
+      } catch (error) {
+        // Maintenance must never turn a successful file operation into a failure.
+        this.maintenancePending = true;
+        await this.logger.log('backups.cleanup.deferred', String(error));
+      }
+    }
+  }
+
+  private async pruneCompleted(completed: { relative: string; journal: TransactionJournal }[]) {
+    if (this.storage.safetyError || completed.some((e) => e.journal.phase === 'prepared')) return;
+    const references = new Set<string>();
+    const key = (relative: string) => relative.normalize('NFKC').toLowerCase();
+    const retain = (state: AppState) => {
+      for (const record of state.installations)
+        for (const file of record.files) if (file.backupPath) references.add(key(file.backupPath));
+    };
+    const current = StateSchema.parse(this.storage.state);
+    const persisted = await this.storage.read('data/state.json', StateSchema);
+    if (!persisted || JSON.stringify(persisted) !== JSON.stringify(current))
+      throw new UserError('Saved state changed before backup cleanup; backups were preserved.');
+    retain(current);
+    const originals = new Map<string, { path: string; hash: string }>();
+    for (const record of current.installations)
+      for (const file of record.files) {
+        if (!file.backupPath) continue;
+        if (
+          !file.originalHash ||
+          (originals.has(key(file.backupPath)) &&
+            originals.get(key(file.backupPath))!.hash !== file.originalHash)
+        )
+          throw new UserError('Original backup references are inconsistent; cleanup was deferred.');
+        originals.set(key(file.backupPath), { path: file.backupPath, hash: file.originalHash });
+      }
+    // If an active original is missing/corrupt, older scratch copies may still
+    // help manual recovery. Preserve everything until that is resolved.
+    await fileBatches([...originals.values()], (original) =>
+      this.backup.verified(original.path, original.hash),
+    );
+    // Upgrade snapshots remain available for manual recovery too. Validate every
+    // recognized snapshot before deleting anything; uncertainty defers cleanup.
+    for (const name of await fs.readdir(await safeDestination(this.storage.root, 'data'))) {
+      if (!/^state-v\d+(?:-[a-f0-9]{16})?\.backup\.json$/.test(name)) continue;
+      const state = await this.storage.read(`data/${name}`, StateSchema);
+      if (!state) throw new UserError('An upgrade snapshot changed during backup cleanup.');
+      retain(state);
+    }
+    // Terminal journals are no longer recovery inputs. Compact operation history
+    // is retained separately. Retire journals before deleting their scratch backups.
+    for (const entry of completed) {
+      const file = await safeDestination(this.storage.root, entry.relative);
+      await fs.unlink(file);
+    }
+    if (completed.length) await syncDirectory(this.storage.file('transactions'));
+    const directory = await safeDestination(this.storage.root, 'backups');
+    let removed = 0;
+    for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.isSymbolicLink() || !z.uuid().safeParse(entry.name).success)
+        continue;
+      const relative = `backups/${entry.name}`;
+      const folder = await safeDestination(this.storage.root, relative);
+      const files = await fs.readdir(folder, { withFileTypes: true });
+      await fileBatches(files, async (file) => {
+        const owned = `${relative}/${file.name}`;
+        const temporary = /^\.modatro-([a-f0-9-]+)\.tmp$/.exec(file.name)?.[1];
+        const scratch =
+          /^\d+\.original$/.test(file.name) ||
+          (!!temporary && z.uuid().safeParse(temporary).success);
+        if (!file.isFile() || file.isSymbolicLink() || !scratch || references.has(key(owned)))
+          return;
+        await fs.unlink(await safeDestination(this.storage.root, owned));
+        removed++;
+      });
+      try {
+        await fs.rmdir(await safeDestination(this.storage.root, relative));
+      } catch (error) {
+        if (
+          !['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes((error as NodeJS.ErrnoException).code ?? '')
+        )
+          throw error;
+      }
+    }
+    if (removed || completed.length)
+      await this.logger.log('backups.cleanup', { files: removed, journals: completed.length });
   }
 }

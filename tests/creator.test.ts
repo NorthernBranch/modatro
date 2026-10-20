@@ -309,12 +309,13 @@ describe('local Mod Creator', () => {
     ).definition!;
     await f.installer.install(restore, true, undefined, false, [], first.zip);
     expect(await fs.readFile(installed, 'utf8')).toBe(original);
-    expect(await fs.readdir(f.storage.file('backups'))).not.toEqual([]);
+    expect(await fs.readdir(f.storage.file('backups'))).toEqual([]);
     await f.installer.uninstall(first.d.id);
     expect((await f.creator.perform({ operation: 'load', id: p.id })).project?.draft.lua).toContain(
       'return 42',
     );
     expect(await exists(second.zip)).toBe(true);
+    expect(await exists(first.zip)).toBe(true);
   });
   it('rolls back a failed replacement while preserving drafts and both immutable builds', async () => {
     let fail = false;

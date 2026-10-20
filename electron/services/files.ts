@@ -57,8 +57,14 @@ export async function safeDestination(root: string, relative: string): Promise<s
   for (let i = 0; i < segments.length; i++) {
     const parent = component;
     component = path.join(component, segments[i]!);
-    if (!(await exists(component))) return path.join(component, ...segments.slice(i + 1));
-    const st = await fs.lstat(component);
+    let st;
+    try {
+      st = await fs.lstat(component);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+        return path.join(component, ...segments.slice(i + 1));
+      throw error;
+    }
     if (
       st.isSymbolicLink() ||
       (i < segments.length - 1 && !st.isDirectory()) ||
@@ -144,6 +150,12 @@ export async function atomicCopy(
   } finally {
     if (created) await fs.rm(temp, { force: true });
   }
+}
+// Disposable staging is verified before the prepared journal is written. It is
+// never a recovery source: flushing and renaming every scratch copy adds latency
+// without improving durability. Final copies and rollback backups still fsync.
+export async function stageCopy(source: string, destination: string): Promise<void> {
+  await fs.copyFile(source, destination, constants.COPYFILE_EXCL);
 }
 export async function walkFiles(
   root: string,

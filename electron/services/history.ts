@@ -63,7 +63,7 @@ export class OperationHistoryStore {
           ? after.profiles?.items.find((p) => p.id === after.profiles!.activeId)?.name
           : undefined,
     };
-    // Separate bounded history: never prune recovery journals or their backups.
+    // Bounded summaries remain after TransactionEngine retires completed journals.
     try {
       const current = await this.read();
       const index = current.findIndex((e) => e.id === id);

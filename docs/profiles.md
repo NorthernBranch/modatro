@@ -71,6 +71,10 @@ Cancel, Escape or a click outside. It closes after success; a failed switch leav
 the controls available again. Empty folders left by earlier switches are ignored
 by discovery, and new switches remove empty source directories after committing.
 
+Background clicks leave dialogs open, including unsaved profile forms. Use an explicit
+Close/Cancel action or Escape when available. Completed switch scratch backups are
+pruned automatically; originals still needed for uninstall or recovery are retained.
+
 ## Unsaved selections
 
 Manual uninstalls, enables and disables show **Unsaved changes** when the

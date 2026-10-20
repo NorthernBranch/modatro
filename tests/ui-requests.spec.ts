@@ -75,13 +75,7 @@ test('Custom Lua is a metadata-and-source workspace without guided controls or c
   await page.getByRole('dialog').getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(page.getByRole('radio', { name: 'Custom Lua', exact: true })).toBeVisible();
 });
-for (const action of [
-  'Got it',
-  'Close dialog',
-  'Escape',
-  'outside',
-  'Open experimental settings',
-]) {
+for (const action of ['Got it', 'Close dialog', 'Escape', 'Open experimental settings']) {
   test(`creator announcement persists ${action} dismissal without enabling the feature`, async ({
     page,
   }) => {
@@ -92,7 +86,6 @@ for (const action of [
     await expect(dialog).toContainText('New: Experimental Mod Creator');
     await expect(dialog).toContainText('dedicated Joker, Deck and Voucher builders');
     if (action === 'Escape') await page.keyboard.press('Escape');
-    else if (action === 'outside') await page.mouse.click(3, 3);
     else await dialog.getByRole('button', { name: action, exact: true }).click();
     await expect(dialog).toHaveCount(0);
     expect(
@@ -110,6 +103,24 @@ for (const action of [
     await expect(dialog).toHaveCount(0);
   });
 }
+
+test('background clicks and lost focus keep the announcement open without saving a dismissal', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.settings.dismissedAnnouncements = undefined;
+  await mockDesktop(page, state);
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('New: Experimental Mod Creator');
+  await page.mouse.click(3, 3);
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await expect(dialog).toBeVisible();
+  expect(
+    await page.evaluate(() => window.requestsTest.state.settings.dismissedAnnouncements),
+  ).toBeUndefined();
+  await dialog.getByRole('button', { name: 'Got it', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+});
 test('creator announcement waits for loaded settings and onboarding and remains dismissed after version changes', async ({
   page,
 }) => {
@@ -749,6 +760,16 @@ test('profile actions stay concise and switching cannot be dismissed until it fi
   };
   await mockDesktop(page, state, { switchProfile: 'hold' });
   await page.getByRole('button', { name: 'Manage profiles', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Create profile from current selection', exact: true })
+    .click();
+  await page.getByLabel('Profile name', { exact: true }).fill('Unsaved profile name');
+  await page.mouse.click(2, 2);
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await expect(page.getByLabel('Profile name', { exact: true })).toHaveValue(
+    'Unsaved profile name',
+  );
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
   for (const action of ['Rename', 'Duplicate', 'Delete'])
     await expect(page.getByRole('button', { name: `${action} Other`, exact: true })).toHaveText(
       action,

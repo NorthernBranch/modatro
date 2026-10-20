@@ -64,8 +64,9 @@ and macOS may block opening them. Check the release notes and
   adopt identified existing mods explicitly.
 - **Profiles:** save managed selections, switch safely, and export/import profiles
   for backup or sharing with dependency-first installation.
-- **File records:** retain provenance, hashes and original-file backups. Changed
-  files require review, and interrupted transactions have recovery records.
+- **File records:** retain provenance, hashes and needed originals; unused transaction
+  backups are pruned automatically. Changed files require review, and interrupted
+  operations retain recovery records.
 - **Offline browsing:** keep the last validated catalogue and locally manage
   installed mods. New downloads require current source and removal checks.
 - **Application updates:** quietly indicate newer GitHub releases. Downloading and

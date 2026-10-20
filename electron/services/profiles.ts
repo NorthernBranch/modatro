@@ -14,7 +14,7 @@ import { evaluateDependency, externalLoaderRequirement } from '../../src/shared/
 import type { InstallationRecord, Prerequisite, Snapshot } from '../../src/shared/model';
 import { thunderstoreId } from '../../src/shared/thunderstore';
 import { dependencyId } from './metadata';
-import { atomicCopy, fileBatches, hashFile, safeDestination } from './files';
+import { stageCopy, fileBatches, hashFile, safeDestination } from './files';
 import { ModInstaller } from './installer';
 import { Storage } from './storage';
 import { UserError } from './errors';
@@ -314,7 +314,7 @@ export class ProfileService {
         await fileBatches([...changes.entries()], async ([i, change]) => {
           if (change.source) {
             const file = path.join(staging, `${i}`);
-            await atomicCopy(change.source, file);
+            await stageCopy(change.source, file);
             change.source = file;
           }
         });
