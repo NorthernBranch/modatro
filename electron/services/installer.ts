@@ -26,9 +26,11 @@ import {
   canonicalDirectory,
   contained,
   exists,
+  fileBatches,
   hashFile,
   readSmall,
   safeDestination,
+  stageCopy,
   walkFiles,
 } from './files';
 import {
@@ -1056,14 +1058,13 @@ export class ModInstaller {
       // sources which one of its own earlier operations removes.
       const staging = await fs.mkdtemp(this.storage.file('staging/toggle-'));
       try {
-        for (let i = 0; i < changes.length; i++) {
-          const c = changes[i]!;
+        await fileBatches([...changes.entries()], async ([i, c]) => {
           if (c.source) {
             const temp = path.join(staging, `${i}`);
-            await atomicCopy(c.source, temp);
+            await stageCopy(c.source, temp);
             c.source = temp;
           }
-        }
+        });
         if (!disabled)
           this.assertDependencies(
             evaluateDependencies(record.dependencies, await this.getPrerequisites()),
@@ -1127,8 +1128,12 @@ export class ModInstaller {
           );
       }
     }
-    const nextFiles: InstalledFileRecord[] = [];
-    for (const f of record.files) {
+    const owners = new Map(
+      this.storage.state.installations
+        .filter((r) => r.modId !== record.modId)
+        .flatMap((r) => r.files.map((f) => [`${f.root}:${f.path.toLowerCase()}`, r] as const)),
+    );
+    const prepared = await fileBatches(record.files, async (f) => {
       const current = await safeDestination(roots[f.root], f.path);
       if (!(await exists(current)) || (await hashFile(current)) !== f.installedHash)
         throw new UserError(`“${f.path}” has changed or is missing. It will not be moved.`);
@@ -1141,21 +1146,18 @@ export class ModInstaller {
         throw new UserError(
           'The destination already exists. Resolve the conflict before enabling or disabling this mod.',
         );
-      const owner = this.storage.state.installations.find(
-        (r) =>
-          r.modId !== record.modId &&
-          r.files.some(
-            (owned) =>
-              owned.root === targetRoot && owned.path.toLowerCase() === targetPath.toLowerCase(),
-          ),
-      );
+      const owner = owners.get(`${targetRoot}:${targetPath.toLowerCase()}`);
       if (owner) throw new UserError(`${owner.title} owns the destination.`);
-      changes.push(
-        { root: targetRoot, path: targetPath, source: current, afterHash: f.installedHash },
-        { root: f.root, path: f.path, expectedBefore: f.installedHash },
-      );
-      nextFiles.push({ ...f, root: targetRoot, path: targetPath });
-    }
+      return {
+        changes: [
+          { root: targetRoot, path: targetPath, source: current, afterHash: f.installedHash },
+          { root: f.root, path: f.path, expectedBefore: f.installedHash },
+        ] satisfies Change[],
+        file: { ...f, root: targetRoot, path: targetPath },
+      };
+    });
+    changes.push(...prepared.flatMap((p) => p.changes));
+    const nextFiles: InstalledFileRecord[] = prepared.map((p) => p.file);
     return { changes, nextFiles };
   }
   async adopt(externalFolder: string, mod?: ModDefinition) {

@@ -40,6 +40,9 @@ test('keyboard shortcuts and dialogs preserve focus', async ({ page }) => {
   await trigger.click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
+  await page.mouse.click(2, 2);
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await expect(dialog).toBeVisible();
   await page.keyboard.press('Tab');
   await expect
     .poll(async () => page.evaluate(() => !!document.activeElement?.closest('dialog')))

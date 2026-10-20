@@ -104,7 +104,7 @@ describe('manifest-based installation and removal', () => {
     expect(await fs.readFile(path.join(f.game, 'foo.lua'), 'utf8')).toBe('replacement 1.0.0');
     await f.installer.uninstall('replacement');
     expect(await fs.readFile(path.join(f.game, 'foo.lua'), 'utf8')).toBe('original');
-    expect(await exists(f.storage.file(file.backupPath!))).toBe(true);
+    expect(await exists(f.storage.file(file.backupPath!))).toBe(false);
   });
   it('blocks automatic overwrite of a user-modified replacement', async () => {
     const f = await fixture();

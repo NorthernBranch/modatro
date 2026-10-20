@@ -158,6 +158,20 @@ the final two steps. A failure before that marker restores verified before-image
 and removes files created by the transaction. A subsequent external edit blocks
 rollback rather than being overwritten.
 
+After startup recovery and settled file operations, completed journals are retired
+and unreferenced `.original` files and abandoned backup-copy temporaries are pruned.
+Originals referenced by installed
+records or validated state-upgrade snapshots remain; blocked or uncertain recovery
+prevents cleanup. Unknown backup entries, creator history/builds and Balatro saves
+are outside this cleanup. Compact operation history retains the last 100 outcomes.
+
+Independent preflight/backup reads and disposable staging copies run in bounded
+batches. Scratch staging does not fsync each file; rollback backups, final writes
+and state still use durable atomic copies. Mutation order, path checks, hash
+verification and rollback barriers remain intact. The synthetic Windows benchmark
+can be repeated with `node scripts/benchmark-file-operations.mjs`; it creates only
+temporary data and reports startup cleanup separately from steady-state operations.
+
 Downloaded provenance records the requested and final URL, repository, source type,
 tag/commit, download time and archive SHA-256. A previously observed immutable artifact
 or supplied checksum cannot be silently replaced. Game-file changes require a short-lived
@@ -294,7 +308,7 @@ possible evidence, never proof of a named mod's responsibility.
 `OperationHistoryStore` keeps at most 100 records in `data/operation-history.json`.
 Transactions record uncertain preparation, verified success or rollback failure status;
 startup recovery reconciles known journal outcomes. History failures do not interrupt
-rollback and history pruning never touches transactions or backups. It contains
+rollback; backup cleanup is handled separately by the transaction engine. It contains
 identities, timestamps and version transitions rather than raw journals or file paths.
 Reports redact common secrets and approved root paths, exclude unselected logs, and
 remain editable before explicit clipboard copying or native-save export. Nothing is

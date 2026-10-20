@@ -34,18 +34,6 @@ export function Dialog({
         event.preventDefault();
         if (dismissible) onClose();
       }}
-      onClick={(event) => {
-        if (dismissible && event.target === ref.current) {
-          const rect = ref.current.getBoundingClientRect();
-          if (
-            event.clientX < rect.left ||
-            event.clientX > rect.right ||
-            event.clientY < rect.top ||
-            event.clientY > rect.bottom
-          )
-            onClose();
-        }
-      }}
       aria-labelledby={titleId}
     >
       <div className="dialog-heading">
