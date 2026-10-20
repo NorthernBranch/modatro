@@ -267,6 +267,11 @@ test('setup and theme saves preserve selected folders through validated desktop 
       page.getByRole('heading', { name: 'New: Experimental Mod Creator' }),
     ).toBeVisible();
     await page.getByRole('button', { name: 'Got it', exact: true }).click();
+    // Dismissal is an asynchronous durable settings write. Reloading before
+    // its reply can bootstrap the new renderer from the previous snapshot.
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    const dismissed = JSON.parse(await fs.readFile(path.join(data, 'data', 'state.json'), 'utf8'));
+    expect(dismissed.settings.dismissedAnnouncements).toContain('mod-creator-introduction');
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Make the game your own.' })).toBeVisible();
     await expect(page.getByRole('dialog')).toHaveCount(0);

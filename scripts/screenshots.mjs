@@ -39,6 +39,14 @@ const creatorDraft = {
   lua: '',
   crop: { x: 0.5, y: 0.5, zoom: 1 },
 };
+creatorDraft.content.rules = [
+  {
+    trigger: 'scored',
+    conditions: [{ kind: 'ranks', values: ['Jack'] }],
+    effect: 'repetitions',
+    amount: 2,
+  },
+];
 creatorDraft.lua = generateLua(creatorDraft);
 const creatorProject = {
   schemaVersion: 2,
@@ -418,6 +426,11 @@ try {
   });
   await page.screenshot({ path: path.join(output, 'creator.png'), animations: 'disabled' });
   await copyFile(path.join(output, 'creator.png'), path.join(websiteImages, 'creator.png'));
+  const description = page.getByRole('group', { name: 'In-game description styling preview' });
+  await description.scrollIntoViewIfNeeded();
+  await description
+    .locator('..')
+    .screenshot({ path: path.join(output, 'creator-description.png'), animations: 'disabled' });
   for (const [type, name] of [
     ['deck', 'Ace Avenue'],
     ['voucher', 'Room to Grow'],
@@ -495,7 +508,9 @@ try {
   }
   if (issues.length) throw new Error('App layout overflow: ' + JSON.stringify(issues));
   console.log('Layout review passed on all seven pages at 1440, 1024, 768 and 375 pixels.');
-  console.log('Saved eleven app views, including all three Creator builders, to docs/images/.');
+  console.log(
+    'Saved twelve app views, including all three Creator builders and styled description, to docs/images/.',
+  );
 } finally {
   try {
     await browser?.close();

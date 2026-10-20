@@ -4,6 +4,7 @@ import { api } from '../api';
 import { AsyncButton } from '../components/AsyncButton';
 import { Dialog } from '../components/Dialog';
 import { LuaEditor } from '../components/LuaEditor';
+import { CreatorDescription } from '../components/CreatorDescription';
 import { PageHeading } from '../components/PageElements';
 import type { Requests } from '../hooks/useRequests';
 import {
@@ -23,7 +24,7 @@ import {
   VoucherBuilder,
   ContentDescription,
 } from '../components/CreatorBuilders';
-import { contentDescription, type ContentType } from '../shared/creator-content';
+import { type ContentType } from '../shared/creator-content';
 import { artworkColours, builtinPixels } from '../shared/creator-artwork';
 import type { ModAction, ModDefinition, Snapshot } from '../shared/model';
 
@@ -566,11 +567,13 @@ export function CreatorPage({
                       ? ' / $' + draft.content.cost
                       : '')}
               </p>
-              <p className="creator-rule-summary">
-                {draft.mode === 'custom'
-                  ? 'Custom Lua: configuration is not a simulation of your code.'
-                  : contentDescription(draft.content)}
-              </p>
+              {draft.mode === 'custom' ? (
+                <p className="creator-rule-summary">
+                  Custom Lua: configuration is not a simulation of your code.
+                </p>
+              ) : (
+                <CreatorDescription content={draft.content} />
+              )}
               <p>
                 Saving changes your project only. Install a build explicitly, then launch the game
                 to test it. Close Balatro before installing changes.

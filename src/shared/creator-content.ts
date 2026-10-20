@@ -42,6 +42,7 @@ export const ConditionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('ranks'), values: rankList }).strict(),
   z.object({ kind: z.literal('suits'), values: suitList }).strict(),
   z.object({ kind: z.literal('face') }).strict(),
+  z.object({ kind: z.literal('position'), value: z.enum(['first', 'last']) }).strict(),
   z.object({ kind: z.literal('hand'), value: z.enum(pokerHands) }).strict(),
   z.object({ kind: z.literal('played'), ...comparison }).strict(),
   z.object({ kind: z.literal('scoring'), ...comparison }).strict(),
@@ -59,29 +60,53 @@ export const effects = {
   mult: 'Add Mult',
   xmult: 'Multiply Mult',
   dollars: 'Earn money at round end',
+  repetitions: 'Retrigger scored card',
 } as const;
+export function allowedEffects(trigger: JokerRule['trigger']) {
+  return trigger === 'round'
+    ? (['dollars'] as const)
+    : trigger === 'scored'
+      ? (['chips', 'mult', 'xmult', 'repetitions'] as const)
+      : (['chips', 'mult', 'xmult'] as const);
+}
 export function allowedConditions(trigger: JokerRule['trigger']) {
   return trigger === 'round'
     ? (['hands-left', 'discards-left'] as const)
     : trigger === 'scored'
-      ? (['ranks', 'suits', 'face', 'hand', 'played', 'scoring'] as const)
-      : (['hand', 'played', 'scoring'] as const);
+      ? ([
+          'ranks',
+          'suits',
+          'face',
+          'position',
+          'hand',
+          'played',
+          'scoring',
+          'hands-left',
+          'discards-left',
+        ] as const)
+      : (['hand', 'played', 'scoring', 'hands-left', 'discards-left'] as const);
 }
 export const RuleSchema = z
   .object({
     trigger: z.enum(['scored', 'main', 'round']),
-    conditions: z.array(ConditionSchema).max(8),
-    effect: z.enum(['chips', 'mult', 'xmult', 'dollars']),
+    conditions: z.array(ConditionSchema).max(9),
+    effect: z.enum(['chips', 'mult', 'xmult', 'dollars', 'repetitions']),
     amount: z.number().finite().min(0).max(100000),
   })
   .strict()
   .superRefine((rule, ctx) => {
     const problem = (message: string, path: string[]) =>
       ctx.addIssue({ code: 'custom', message, path });
-    if ((rule.trigger === 'round') !== (rule.effect === 'dollars'))
-      problem('Round-end rules earn money; scoring rules add Chips/Mult or multiply Mult.', [
-        'effect',
-      ]);
+    if (!(allowedEffects(rule.trigger) as readonly string[]).includes(rule.effect))
+      problem(
+        'Retriggers require scored cards; round-end rules earn money; main scoring adds Chips/Mult or multiplies Mult.',
+        ['effect'],
+      );
+    if (
+      rule.effect === 'repetitions' &&
+      (!Number.isInteger(rule.amount) || rule.amount < 1 || rule.amount > 10)
+    )
+      problem('Choose 1–10 additional retriggers per matching card.', ['amount']);
     if (
       rule.effect === 'xmult'
         ? rule.amount < 1 || rule.amount > 1000
@@ -385,26 +410,49 @@ export function deckPreset(index: number, current: DeckContent): DeckContent {
   }
   return d;
 }
-export function conditionSummary(c: RuleCondition): string {
-  if (c.kind === 'ranks') return `scored card rank is ${c.values.join(' or ')}`;
-  if (c.kind === 'suits') return `scored card is ${c.values.join(' or ')}`;
-  if (c.kind === 'face') return 'scored card is a face card';
-  if (c.kind === 'hand') return `the scored hand is a ${c.value}`;
-  return `${{ played: 'played cards', scoring: 'scoring cards', 'hands-left': 'remaining hands', 'discards-left': 'remaining discards' }[c.kind]} ${c.operator.replaceAll('-', ' ')} ${c.amount}`;
+export type DescriptionHighlight = (text: string, style: string) => string;
+const plainHighlight: DescriptionHighlight = (text) => text;
+export function conditionSummary(c: RuleCondition, highlight = plainHighlight): string {
+  if (c.kind === 'ranks')
+    return `card rank is ${c.values.map((v) => highlight(v, 'attention')).join(' or ')}`;
+  if (c.kind === 'suits')
+    return `card is ${c.values.map((v) => highlight(v, 'attention')).join(' or ')}`;
+  if (c.kind === 'face') return `card is a ${highlight('face card', 'attention')}`;
+  if (c.kind === 'position') return `card is the ${highlight(c.value, 'attention')} scoring card`;
+  if (c.kind === 'hand') return `the scored hand is a ${highlight(c.value, 'attention')}`;
+  return `${{ played: 'played cards', scoring: 'scoring cards', 'hands-left': 'remaining hands', 'discards-left': 'remaining discards' }[c.kind]} ${c.operator.replaceAll('-', ' ')} ${highlight(String(c.amount), 'attention')}`;
 }
-export function ruleSummary(r: JokerRule) {
+export function ruleSummary(r: JokerRule, highlight = plainHighlight) {
+  const cardCondition =
+    r.trigger === 'scored'
+      ? r.conditions.find((c) => c.kind === 'ranks' || c.kind === 'face' || c.kind === 'suits')
+      : undefined;
+  const target =
+    'each scored ' +
+    (cardCondition?.kind === 'ranks'
+      ? cardCondition.values.length === 1
+        ? highlight(cardCondition.values[0]!, 'attention')
+        : `card with rank ${cardCondition.values.map((v) => highlight(v, 'attention')).join(' or ')}`
+      : cardCondition?.kind === 'face'
+        ? highlight('face card', 'attention')
+        : cardCondition?.kind === 'suits'
+          ? `card of ${cardCondition.values.map((v) => highlight(v, 'attention')).join(' or ')}`
+          : 'card');
+  const conditions = r.conditions.filter((c) => c !== cardCondition);
   const effect =
     r.effect === 'dollars'
-      ? `Earn $${r.amount}`
-      : r.effect === 'xmult'
-        ? `Gives ×${r.amount} Mult`
-        : `Gives +${r.amount} ${r.effect === 'chips' ? 'Chips' : 'Mult'}`;
-  return `${effect}${r.trigger === 'scored' ? ' for each played card that scores' : r.trigger === 'round' ? ' at the end of the round' : ' during Joker scoring'}${r.conditions.length ? ` when ${r.conditions.map(conditionSummary).join(' AND ')}` : ''}.`;
+      ? `Earn ${highlight('$' + r.amount, 'money')}`
+      : r.effect === 'repetitions'
+        ? `Retrigger ${target} ${highlight(String(r.amount), 'attention')} additional ${r.amount === 1 ? 'time' : 'times'}`
+        : r.effect === 'xmult'
+          ? `${highlight('X' + r.amount, 'xmult')} Mult`
+          : `${highlight('+' + r.amount, r.effect)} ${r.effect === 'chips' ? 'Chips' : 'Mult'}`;
+  return `${effect}${r.effect === 'repetitions' ? '' : r.trigger === 'scored' ? ` for ${target}` : r.trigger === 'round' ? ' at end of round' : ''}${conditions.length ? ` when ${conditions.map((c) => conditionSummary(c, highlight)).join(' and ')}` : ''}.`;
 }
 export const signed = (n: number) => `${n >= 0 ? '+' : '−'}${Math.abs(n)}`;
 export function automaticDescription(c: CreatorContent): string {
   if (c.type === 'blank') return 'A blank Steamodded entry point, ready for your own trusted Lua.';
-  if (c.type === 'joker') return c.rules.map(ruleSummary).join('\n');
+  if (c.type === 'joker') return c.rules.map((rule) => ruleSummary(rule)).join('\n');
   if (c.type === 'voucher')
     return c.effects
       .map(

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   allowedConditions,
+  allowedEffects,
   automaticDescription,
   baseResources,
   compositionCards,
@@ -131,8 +132,9 @@ export function ContentDescription({
       </button>
       <p className="muted-text">
         Configuration preview, not an in-game simulation.{' '}
+        {content.type === 'joker' && 'Automatic descriptions use standard game highlights. '}
         {content.manualDescription !== undefined &&
-          'Manual text is preserved when configuration changes; check that it still describes the effect.'}
+          'Manual text is preserved when configuration changes and accepts Balatro style codes, such as {C:mult}+4{} Mult; check that it still describes the effect.'}
       </p>
     </div>
   );
@@ -141,16 +143,18 @@ const conditionLabels = {
   ranks: 'Scored card ranks',
   suits: 'Scored card suits',
   face: 'Scored card is a face card',
+  position: 'Position in scoring hand',
   hand: 'Resolved scoring hand',
   played: 'Number of played cards',
   scoring: 'Number of scoring cards',
-  'hands-left': 'Remaining hands at round end',
-  'discards-left': 'Remaining discards at round end',
+  'hands-left': 'Remaining hands',
+  'discards-left': 'Remaining discards',
 };
 function newCondition(kind: RuleCondition['kind']): RuleCondition {
   if (kind === 'ranks') return { kind, values: ['King'] };
   if (kind === 'suits') return { kind, values: ['Hearts'] };
   if (kind === 'face') return { kind };
+  if (kind === 'position') return { kind, value: 'first' };
   if (kind === 'hand') return { kind, value: 'Flush' };
   return { kind, operator: 'equals', amount: 1 };
 }
@@ -184,6 +188,21 @@ function ConditionEditor({
       <p>
         {conditionSummary(c)}. Uses the game’s face-card helper, including effects from other mods.
       </p>
+    );
+  if (c.kind === 'position')
+    return (
+      <label>
+        Position in scoring hand
+        <select
+          aria-label="Position in scoring hand"
+          value={c.value}
+          onChange={(e) => onChange({ ...c, value: e.target.value as typeof c.value })}
+        >
+          <option value="first">First scoring card</option>
+          <option value="last">Last scoring card</option>
+        </select>
+        <small>Uses scoring-card order, not every card in the played hand.</small>
+      </label>
     );
   if (c.kind === 'hand')
     return (
@@ -273,6 +292,13 @@ export function JokerBuilder({
           mods. Matching rules resolve from top to bottom, so +Mult before ×Mult differs from the
           reverse order. Round-end rules are excluded from held-card and repetition evaluations.
         </p>
+        <p>
+          Retrigger scored card adds 1–10 extra scoring passes per matching card, like the base-game
+          rank and face-card retrigger Jokers. Matching retrigger rules add together. Retriggers
+          repeat that card’s scoring and per-card Joker effects, not the whole hand or every Joker.
+          First/last refers to scoring-card order. Remaining hands is checked after the played hand
+          is spent: equals 0 means the last hand of the round.
+        </p>
         <p className="muted-text">
           Within a rank/suit selection, ANY selected value matches. Separate conditions must ALL
           match. Suit checks include Wild Cards and respect suitless cards; rank checks exclude
@@ -335,8 +361,11 @@ export function JokerBuilder({
                 changeRule(index, {
                   ...r,
                   trigger,
-                  effect:
-                    trigger === 'round' ? 'dollars' : r.effect === 'dollars' ? 'mult' : r.effect,
+                  effect: (allowedEffects(trigger) as readonly string[]).includes(r.effect)
+                    ? r.effect
+                    : trigger === 'round'
+                      ? 'dollars'
+                      : 'mult',
                   conditions: r.conditions.filter((condition) =>
                     (allowedConditions(trigger) as readonly string[]).includes(condition.kind),
                   ),
@@ -377,6 +406,7 @@ export function JokerBuilder({
             <label>
               Add condition
               <select
+                aria-label="Add condition"
                 value=""
                 onChange={(e) => {
                   if (e.target.value)
@@ -411,12 +441,16 @@ export function JokerBuilder({
                     ...r,
                     effect: e.target.value as JokerRule['effect'],
                     amount:
-                      e.target.value === 'xmult' ? Math.max(1, r.amount) : Math.floor(r.amount),
+                      e.target.value === 'repetitions'
+                        ? Math.max(1, Math.min(10, Math.floor(r.amount)))
+                        : e.target.value === 'xmult'
+                          ? Math.max(1, r.amount)
+                          : Math.floor(r.amount),
                   })
                 }
               >
                 {Object.entries(effects)
-                  .filter(([key]) => (r.trigger === 'round') === (key === 'dollars'))
+                  .filter(([key]) => (allowedEffects(r.trigger) as readonly string[]).includes(key))
                   .map(([key, label]) => (
                     <option key={key} value={key}>
                       {label}
@@ -425,10 +459,10 @@ export function JokerBuilder({
               </select>
             </label>
             <NumberField
-              label="Effect amount"
+              label={r.effect === 'repetitions' ? 'Additional retriggers' : 'Effect amount'}
               value={r.amount}
-              min={r.effect === 'xmult' ? 1 : 0}
-              max={r.effect === 'chips' ? 100000 : 1000}
+              min={r.effect === 'xmult' || r.effect === 'repetitions' ? 1 : 0}
+              max={r.effect === 'repetitions' ? 10 : r.effect === 'chips' ? 100000 : 1000}
               step={r.effect === 'xmult' ? 0.1 : 1}
               onChange={(amount) => changeRule(index, { ...r, amount })}
             />

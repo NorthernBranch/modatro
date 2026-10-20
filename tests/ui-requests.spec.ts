@@ -166,6 +166,53 @@ function editorProject(type: ContentType): CreatorProject {
     previewUrl: '',
   };
 }
+test('Joker retriggers use appropriate conditions and show standard description highlights', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.settings.creatorEnabled = true;
+  state.settings.creatorAcknowledged = true;
+  await mockDesktop(page, state, {}, editorProject('joker'));
+  await page.getByRole('button', { name: 'Create mods', exact: true }).click();
+  await page.getByRole('button', { name: 'UI mod 0 builds', exact: true }).click();
+  const rule = page.locator('.creator-rule').first();
+  await expect(
+    rule.getByLabel('Then', { exact: true }).locator('option[value="repetitions"]'),
+  ).toHaveCount(0);
+  await rule.getByLabel('When', { exact: true }).selectOption('scored');
+  await rule.getByLabel('Then', { exact: true }).selectOption('repetitions');
+  await rule.getByLabel('Additional retriggers').fill('2');
+  await rule.getByLabel('Add condition', { exact: true }).selectOption('ranks');
+  await rule.getByRole('checkbox', { name: 'King', exact: true }).uncheck();
+  await rule.getByRole('checkbox', { name: 'Jack', exact: true }).check();
+  await rule.getByLabel('Add condition', { exact: true }).selectOption('position');
+  await rule.getByLabel('Position in scoring hand', { exact: true }).selectOption('last');
+  await expect(page.getByLabel('Joker description', { exact: true })).toHaveValue(
+    /Retrigger.*Jack.*2.*last/,
+  );
+  const preview = page.getByRole('group', { name: 'In-game description styling preview' });
+  await expect(preview.locator('.creator-loc-attention').filter({ hasText: 'Jack' })).toBeVisible();
+  await expect(preview).not.toContainText('{C:');
+  await rule.getByLabel('When', { exact: true }).selectOption('main');
+  await expect(rule.getByLabel('Then', { exact: true })).toHaveValue('mult');
+  await expect(rule.getByLabel('Position in scoring hand', { exact: true })).toHaveCount(0);
+  await rule.getByLabel('Then', { exact: true }).selectOption('xmult');
+  await expect(preview.locator('.creator-loc-bg-mult')).toHaveText('X2');
+  await page.getByRole('button', { name: 'Write a manual description' }).click();
+  await page.getByLabel('Joker description', { exact: true }).fill('{C:chips}+25{} Chips');
+  await expect(preview.locator('.creator-loc-chips')).toHaveText('+25');
+  await page.getByLabel('Joker name', { exact: true }).fill('New name');
+  await expect(page.getByLabel('Joker description', { exact: true })).toHaveValue(
+    '{C:chips}+25{} Chips',
+  );
+  for (const width of [1440, 1024, 768, 375]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+  }
+});
+
 for (const type of ['joker', 'deck', 'voucher'] as const) {
   test(`${type} has dedicated controls, descriptions, artwork selection and responsive layout`, async ({
     page,

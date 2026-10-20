@@ -10,6 +10,8 @@ import {
   compositionCards,
   compositionSummary,
   ContentSchema,
+  RuleSchema,
+  automaticDescription,
   deckPreset,
   defaultContent,
   ranks,
@@ -20,6 +22,11 @@ import {
 } from '../src/shared/creator-content';
 import { generateLua, luaDiagnostics } from '../src/shared/creator-lua';
 import { builtinPixels } from '../src/shared/creator-artwork';
+import {
+  descriptionLines,
+  descriptionSegments,
+  localizedDescription,
+} from '../src/shared/creator-description';
 
 // Test-only VM. The application never loads this dependency or executes project Lua.
 const { lua, lauxlib, lualib, to_luastring, to_jsstring } = createRequire(import.meta.url)(
@@ -62,6 +69,151 @@ function draft(type: ContentType): CreatorDraft {
   };
 }
 describe('typed creator generation', () => {
+  it('retrigger rules match ranks/faces and stack only during played-card repetition checks', () => {
+    const d = draft('joker'),
+      c = d.content as JokerContent;
+    c.rules = [
+      {
+        trigger: 'scored',
+        conditions: [{ kind: 'ranks', values: ['Jack'] }],
+        effect: 'repetitions',
+        amount: 2,
+      },
+      { trigger: 'scored', conditions: [{ kind: 'face' }], effect: 'repetitions', amount: 1 },
+      { trigger: 'scored', conditions: [], effect: 'mult', amount: 4 },
+    ];
+    expect(CreatorDraftSchema.safeParse(d).success).toBe(true);
+    executeGenerated(
+      generateLua(d),
+      `
+      local joker={}; local jack=new_card(11,'Hearts')
+      local ctx={repetition=true,cardarea=G.play,other_card=jack}
+      local effect=center:calculate(joker,ctx)
+      assert(effect.repetitions==2 and effect.card==joker and effect.extra.repetitions==1 and not effect.extra.extra)
+      ctx.other_card=new_card(12,'Hearts'); assert(center:calculate(joker,ctx).repetitions==1)
+      ctx.other_card=new_card(10,'Hearts'); assert(center:calculate(joker,ctx)==nil)
+      ctx.other_card=jack; ctx.other_card.rankless=true; assert(center:calculate(joker,ctx)==nil)
+      ctx.other_card=jack; ctx.other_card.rankless=false; ctx.cardarea=G.hand; assert(center:calculate(joker,ctx)==nil)
+      ctx.cardarea=G.play; ctx.repetition_only=true; assert(center:calculate(joker,ctx)==nil)
+      ctx.repetition_only=nil; ctx.repetition=nil; ctx.individual=true
+      assert(center:calculate(joker,ctx).mult==4 and not center:calculate(joker,ctx).repetitions)
+      ctx.other_card.repetition_trigger=2; assert(center:calculate(joker,ctx).mult==4)
+      assert(center:calculate(joker,{joker_main=true})==nil)
+      assert(center:calculate(joker,{end_of_round=true})==nil)
+    `,
+    );
+  });
+  it('filters first/last scoring cards and remaining hands without mistaking unscored played cards', () => {
+    const d = draft('joker'),
+      c = d.content as JokerContent;
+    c.rules = [
+      {
+        trigger: 'scored',
+        conditions: [
+          { kind: 'position', value: 'first' },
+          { kind: 'hands-left', operator: 'equals', amount: 0 },
+        ],
+        effect: 'repetitions',
+        amount: 2,
+      },
+      {
+        trigger: 'scored',
+        conditions: [{ kind: 'position', value: 'last' }],
+        effect: 'repetitions',
+        amount: 1,
+      },
+    ];
+    executeGenerated(
+      generateLua(d),
+      `
+      local a,b,unscored=new_card(11,'Hearts'),new_card(13,'Spades'),new_card(2,'Clubs')
+      local ctx={repetition=true,cardarea=G.play,full_hand={unscored,a,b},scoring_hand={a,b},other_card=a}
+      G.GAME.current_round.hands_left=0
+      assert(center:calculate({},ctx).repetitions==2)
+      ctx.other_card=b; assert(center:calculate({},ctx).repetitions==1)
+      ctx.other_card=unscored; assert(center:calculate({},ctx)==nil)
+      ctx.other_card=a; G.GAME.current_round.hands_left=1; assert(center:calculate({},ctx)==nil)
+      G.GAME.current_round.hands_left=0; ctx.scoring_hand={a}
+      local effect=center:calculate({},ctx); assert(effect.repetitions==2 and effect.extra.repetitions==1)
+      ctx.scoring_hand={}; assert(center:calculate({},ctx)==nil)
+      ctx.scoring_hand=nil; assert(center:calculate({},ctx)==nil)
+    `,
+    );
+  });
+  it('rejects retriggers outside scored-card rules and non-whole or excessive repetitions', () => {
+    for (const trigger of ['main', 'round'] as const)
+      expect(
+        RuleSchema.safeParse({ trigger, conditions: [], effect: 'repetitions', amount: 1 }).success,
+      ).toBe(false);
+    for (const amount of [0, -1, 1.5, 11, Infinity, NaN])
+      expect(
+        RuleSchema.safeParse({ trigger: 'scored', conditions: [], effect: 'repetitions', amount })
+          .success,
+      ).toBe(false);
+    for (const amount of [1, 10])
+      expect(
+        RuleSchema.safeParse({ trigger: 'scored', conditions: [], effect: 'repetitions', amount })
+          .success,
+      ).toBe(true);
+    expect(
+      RuleSchema.safeParse({
+        trigger: 'main',
+        conditions: [{ kind: 'position', value: 'first' }],
+        effect: 'mult',
+        amount: 4,
+      }).success,
+    ).toBe(false);
+  });
+  it('generates standard highlights and compact, visibly wrapped localization without breaking controls', () => {
+    const d = draft('joker'),
+      c = d.content as JokerContent;
+    c.rules = [
+      { trigger: 'main', conditions: [], effect: 'chips', amount: 30 },
+      {
+        trigger: 'main',
+        conditions: [{ kind: 'hand', value: 'Flush' }],
+        effect: 'xmult',
+        amount: 2,
+      },
+      { trigger: 'round', conditions: [], effect: 'dollars', amount: 3 },
+      {
+        trigger: 'scored',
+        conditions: [{ kind: 'ranks', values: ['Jack'] }],
+        effect: 'repetitions',
+        amount: 2,
+      },
+    ];
+    const text = localizedDescription(c);
+    expect(text).toContain('{C:chips}+30{} Chips');
+    expect(text).toContain('{X:mult,C:white}X2{} Mult');
+    expect(text).toContain('{C:attention}Flush{}');
+    expect(text).toContain('{C:money}$3{}');
+    expect(text).toContain('{C:attention}Jack{}');
+    expect(automaticDescription(c)).not.toContain('{');
+    const lines = descriptionLines(text);
+    expect(lines.every((line) => [...line.replace(/\{[^{}]*\}/g, '')].length <= 32)).toBe(true);
+    executeGenerated(
+      generateLua(d),
+      `for _,line in ipairs(center.loc_txt.text) do assert(not string.find(line, '{[^}]*$')) end; assert(string.find(table.concat(center.loc_txt.text, ' '), '{C:chips}+30{} Chips', 1, true))`,
+    );
+    expect(
+      descriptionLines('{C:attention}A long highlighted phrase that spans lines{}', 20),
+    ).toEqual([
+      '{C:attention}A long highlighted{}',
+      '{C:attention}phrase that spans{}',
+      '{C:attention}lines{}',
+    ]);
+    c.manualDescription = '{C:mult}+7{} Mult\nLiteral " quote and backslash \\';
+    expect(localizedDescription(c)).toBe(c.manualDescription);
+    expect(luaDiagnostics(generateLua(d))).toEqual([]);
+    expect(descriptionSegments('{X:mult,C:white}X2{} Mult')).toEqual([
+      { text: 'X2', colour: 'white', background: 'mult' },
+      { text: ' Mult', colour: undefined, background: undefined },
+    ]);
+    expect(descriptionSegments('{C:javascript:alert(1)}<script>hello</script>')[0]?.text).toBe(
+      '<script>hello</script>',
+    );
+  });
   it.each(['joker', 'deck', 'voucher'] as const)(
     'generates parsable %s source with correct atlas references and escaped text',
     (type) => {
