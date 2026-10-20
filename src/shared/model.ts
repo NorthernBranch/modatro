@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ModIndexUrl } from './mod-index';
 import { CreatorOriginSchema, type CreatorRequest, type CreatorResponse } from './creator';
+import type { ProfileTransferRequest, ProfileTransferResult } from './profile-transfer';
 import {
   ProfilesSchema,
   type ProfileSummary,
@@ -253,6 +254,7 @@ export interface GameCandidate {
   validation: PathValidationResult;
 }
 export const SettingsSchema = z.object({
+  dismissedAnnouncements: z.array(z.string().min(1).max(80)).max(100).optional(),
   creatorEnabled: z.boolean().optional(),
   creatorAcknowledged: z.boolean().optional(),
   saveNoticeDismissed: z.boolean().optional(),
@@ -264,6 +266,7 @@ export const SettingsSchema = z.object({
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 export const SettingsUpdateSchema = SettingsSchema.pick({
+  dismissedAnnouncements: true,
   theme: true,
   setupComplete: true,
   modIndexUrl: true,
@@ -495,6 +498,7 @@ export interface InstallPlan {
   packages?: { id: string; title: string; version: string; update: boolean; source?: string }[];
 }
 export interface ModatroApi {
+  profileTransfer?(request: ProfileTransferRequest): Promise<Reply<ProfileTransferResult>>;
   creator?(request: CreatorRequest): Promise<Reply<CreatorResponse>>;
   profileOperation?(operation: ProfileOperation): Promise<Reply<Snapshot>>;
   previewProfile?(id: string): Promise<Reply<ProfilePlan>>;

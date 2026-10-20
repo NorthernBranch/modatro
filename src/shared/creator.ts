@@ -1,5 +1,12 @@
 import { z } from 'zod';
 import type { ModDefinition } from './model';
+import {
+  ContentSchema,
+  defaultContent,
+  contentDescription,
+  type JokerContent,
+  type DeckContent,
+} from './creator-content';
 
 export const CREATOR_TARGET = '26.1002.0';
 export const SAVE_NOTICE =
@@ -39,7 +46,7 @@ export const CropSchema = z
     zoom: z.number().min(1).max(8),
   })
   .strict();
-export const CreatorDraftSchema = z
+export const LegacyCreatorDraftSchema = z
   .object({
     name: z.string().trim().min(1).max(80),
     author: z.string().trim().min(1).max(80),
@@ -71,6 +78,49 @@ export const CreatorDraftSchema = z
     (v) => !['joker-mult', 'joker-suit'].includes(v.recipe) || v.amount <= 1000,
     'Mult must be between 0 and 1000.',
   );
+export const ArtworkSchema = z
+  .object({
+    source: z.enum(['builtin', 'upload', 'legacy']),
+    builtinId: z.string().regex(/^(joker|deck|voucher)-[1-5]$/),
+    legacyDeck: z.boolean().optional(),
+  })
+  .strict();
+export const CreatorDraftSchema = z
+  .object({
+    configVersion: z.literal(2),
+    name: z.string().trim().min(1).max(80),
+    author: z.string().trim().min(1).max(80),
+    description: z.string().max(2000),
+    version: z
+      .string()
+      .max(32)
+      .regex(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/),
+    modId: CreatorId,
+    prefix: CreatorPrefix,
+    content: ContentSchema,
+    artwork: ArtworkSchema,
+    mode: z.enum(['template', 'custom']),
+    lua: z
+      .string()
+      .max(128 * 1024)
+      .refine(
+        (v) => new TextEncoder().encode(v).byteLength <= 128 * 1024,
+        'Lua source exceeds 128 KiB in UTF-8.',
+      ),
+    crop: CropSchema,
+  })
+  .strict()
+  .superRefine((d, ctx) => {
+    if (
+      d.artwork.source === 'builtin' &&
+      !d.artwork.builtinId.startsWith((d.content.type === 'blank' ? 'joker' : d.content.type) + '-')
+    )
+      ctx.addIssue({
+        code: 'custom',
+        path: ['artwork'],
+        message: 'Choose artwork for this content type.',
+      });
+  });
 export type CreatorDraft = z.infer<typeof CreatorDraftSchema>;
 export const CreatorOriginSchema = z
   .object({ projectId: z.uuid(), buildId: z.string().regex(/^[a-f0-9]{64}$/) })
@@ -87,7 +137,7 @@ export const CreatorBuildSchema = z
 export type CreatorBuild = z.infer<typeof CreatorBuildSchema>;
 export const CreatorProjectSchema = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     id: z.uuid(),
     draft: CreatorDraftSchema,
     createdAt: z.iso.datetime(),
@@ -122,7 +172,8 @@ export const CreatorRequestSchema = z.discriminatedUnion('operation', [
       operation: z.literal('create'),
       name: z.string().trim().min(1).max(80),
       author: z.string().trim().min(1).max(80),
-      recipe: RecipeSchema,
+      contentType: z.enum(['joker', 'deck', 'voucher', 'custom']).optional(),
+      recipe: RecipeSchema.optional(),
     })
     .strict(),
   z.object({ operation: z.literal('load'), id: z.uuid() }).strict(),
@@ -166,13 +217,61 @@ export function creatorIdentities(id: string) {
   return { modId: `modatro_${suffix}`, prefix: `mc_${suffix}` };
 }
 export function recipeDescription(d: CreatorDraft) {
-  if (d.recipe === 'deck')
-    return `At the start of a new run: +$${d.dollars}, +${d.hands} hands per round and +${d.discards} discards per round. These are bonuses to the run’s normal starting values.`;
-  if (d.recipe === 'joker-suit')
-    return `Each scored ${d.suit} card gives +${d.amount} Mult. Retriggered scored cards apply the effect again.`;
-  if (d.recipe === 'blank')
-    return 'A blank Steamodded entry point, ready for your own trusted Lua.';
-  return `Gives +${d.amount} ${d.recipe === 'joker-chips' ? 'Chips' : 'Mult'} during Joker scoring for each played hand.`;
+  return contentDescription(d.content);
+}
+export function migrateCreatorProject(input: unknown) {
+  const object = input as { schemaVersion?: unknown; draft?: unknown };
+  if (object?.schemaVersion !== 1) return CreatorProjectSchema.parse(input);
+  // Validate the complete old envelope before preserving and translating it.
+  const legacySchema = CreatorProjectSchema.omit({ schemaVersion: true, draft: true }).extend({
+    schemaVersion: z.literal(1),
+    draft: LegacyCreatorDraftSchema,
+  });
+  const old = legacySchema.parse(input),
+    d = old.draft;
+  const content =
+    d.recipe === 'blank'
+      ? { type: 'blank' as const, name: d.name }
+      : defaultContent(d.recipe === 'deck' ? 'deck' : 'joker', d.name);
+  if (content.type === 'joker') {
+    const c = content as JokerContent;
+    c.rules = [
+      {
+        trigger: d.recipe === 'joker-suit' ? 'scored' : 'main',
+        conditions: d.recipe === 'joker-suit' ? [{ kind: 'suits', values: [d.suit] }] : [],
+        effect: d.recipe === 'joker-chips' ? 'chips' : 'mult',
+        amount: d.amount,
+      },
+    ];
+  }
+  if (content.type === 'deck')
+    Object.assign((content as DeckContent).resources, {
+      dollars: d.dollars,
+      hands: d.hands,
+      discards: d.discards,
+    });
+  return CreatorProjectSchema.parse({
+    ...old,
+    schemaVersion: 2,
+    draft: {
+      configVersion: 2,
+      name: d.name,
+      author: d.author,
+      description: d.description,
+      version: d.version,
+      modId: d.modId,
+      prefix: d.prefix,
+      mode: d.mode,
+      lua: d.lua,
+      crop: d.crop,
+      content,
+      artwork: {
+        source: old.artHash ? 'upload' : 'legacy',
+        builtinId: (d.recipe === 'deck' ? 'deck' : 'joker') + '-1',
+        legacyDeck: d.recipe === 'deck',
+      },
+    },
+  });
 }
 export function cropRectangle(width: number, height: number, crop: CreatorDraft['crop']) {
   const w = Math.min(width, (height * 71) / 95) / crop.zoom;

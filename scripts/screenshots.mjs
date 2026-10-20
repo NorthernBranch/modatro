@@ -14,7 +14,7 @@ const fixtureModule = path.join(root, 'test-results/screenshot-creator.cjs');
 await build({
   stdin: {
     contents:
-      "export { placeholderArtwork,cardArtwork } from './electron/services/creator-art'; export { generateLua } from './src/shared/creator-lua'; export {creatorIdentities} from './src/shared/creator';",
+      "export { placeholderArtwork,cardArtwork } from './electron/services/creator-art'; export { generateLua } from './src/shared/creator-lua'; export {creatorIdentities} from './src/shared/creator'; export {defaultContent} from './src/shared/creator-content';",
     resolveDir: root,
   },
   outfile: fixtureModule,
@@ -23,9 +23,8 @@ await build({
   format: 'cjs',
   logLevel: 'silent',
 });
-const { placeholderArtwork, cardArtwork, generateLua, creatorIdentities } = createRequire(
-  import.meta.url,
-)(fixtureModule);
+const { placeholderArtwork, cardArtwork, generateLua, creatorIdentities, defaultContent } =
+  createRequire(import.meta.url)(fixtureModule);
 const creatorId = '55555555-5555-4555-8555-555555555555';
 const creatorDraft = {
   name: 'Little Lucky',
@@ -33,19 +32,16 @@ const creatorDraft = {
   description: 'An experimental Joker made locally with Modatro.',
   version: '1.0.0',
   ...creatorIdentities(creatorId),
-  recipe: 'joker-mult',
-  amount: 4,
-  suit: 'Hearts',
-  dollars: 10,
-  hands: 1,
-  discards: 0,
+  configVersion: 2,
+  content: defaultContent('joker', 'Little Lucky'),
+  artwork: { source: 'builtin', builtinId: 'joker-1' },
   mode: 'template',
   lua: '',
   crop: { x: 0.5, y: 0.5, zoom: 1 },
 };
 creatorDraft.lua = generateLua(creatorDraft);
 const creatorProject = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   id: creatorId,
   draft: creatorDraft,
   token: '1'.repeat(64),
@@ -218,6 +214,7 @@ try {
     return route.abort();
   });
   snapshot.settings.creatorEnabled = true;
+  snapshot.settings.dismissedAnnouncements = ['mod-creator-introduction'];
   snapshot.settings.creatorAcknowledged = true;
   await page.addInitScript(
     ({ state, creatorProject }) => {
@@ -227,6 +224,17 @@ try {
         error: { message: 'Documentation capture is read-only.' },
       });
       window.modatro = {
+        profileTransfer: async () => ({
+          ok: true,
+          value: {
+            status: 'review',
+            token: '11111111-1111-4111-8111-111111111111',
+            name: 'Shared run',
+            mods: [{ title: 'JokerDisplay', version: '2.0.4', enabled: true, status: 'download' }],
+            blockers: [],
+            warnings: [],
+          },
+        }),
         creator: async (request) =>
           ['list', 'load'].includes(request.operation)
             ? {
@@ -404,8 +412,52 @@ try {
   await page.getByRole('button', { name: 'Create mods', exact: true }).click();
   await page.getByRole('button', { name: 'Little Lucky 0 builds', exact: true }).click();
   await page.getByRole('heading', { name: 'Little Lucky', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Joker builder', exact: true }).evaluate((el) => {
+    el.scrollIntoView({ block: 'start' });
+    window.scrollBy(0, -100);
+  });
   await page.screenshot({ path: path.join(output, 'creator.png'), animations: 'disabled' });
   await copyFile(path.join(output, 'creator.png'), path.join(websiteImages, 'creator.png'));
+  for (const [type, name] of [
+    ['deck', 'Ace Avenue'],
+    ['voucher', 'Room to Grow'],
+  ]) {
+    const draft = structuredClone(creatorDraft);
+    draft.name = name;
+    draft.content = defaultContent(type, name);
+    draft.artwork = { source: 'builtin', builtinId: type + '-2' };
+    if (type === 'deck') {
+      draft.content.composition.mode = 'rank';
+      draft.content.composition.total = 40;
+    }
+    draft.lua = generateLua(draft);
+    const example = { ...creatorProject, draft };
+    await page.evaluate((project) => {
+      window.modatro.creator = async () => ({
+        ok: true,
+        value: {
+          projects: [
+            { id: project.id, name: project.draft.name, updatedAt: project.updatedAt, builds: 0 },
+          ],
+          project,
+        },
+      });
+    }, example);
+    await page.getByRole('button', { name: 'Reload from disk', exact: true }).click();
+    await page
+      .getByRole('heading', {
+        name: (type === 'deck' ? 'Deck' : 'Voucher') + ' builder',
+        exact: true,
+      })
+      .evaluate((el) => {
+        el.scrollIntoView({ block: 'start' });
+        window.scrollBy(0, -100);
+      });
+    await page.screenshot({
+      path: path.join(output, 'creator-' + type + '.png'),
+      animations: 'disabled',
+    });
+  }
   const issues = [];
   for (const width of [1440, 1024, 768, 375]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -425,8 +477,8 @@ try {
       if (name === 'Troubleshooting')
         await page.getByRole('heading', { name: 'Setup overview' }).waitFor();
       if (name === 'Create mods') {
-        await page.getByRole('button', { name: 'Little Lucky 0 builds', exact: true }).click();
-        await page.getByRole('heading', { name: 'Little Lucky', exact: true }).waitFor();
+        await page.locator('.creator-project').first().click();
+        await page.getByRole('heading', { name: 'Room to Grow', exact: true }).waitFor();
       }
       const layout = await page.evaluate(() => {
         const main = document.querySelector('.main-content'),
@@ -443,7 +495,7 @@ try {
   }
   if (issues.length) throw new Error('App layout overflow: ' + JSON.stringify(issues));
   console.log('Layout review passed on all seven pages at 1440, 1024, 768 and 375 pixels.');
-  console.log('Saved all nine app views, including the experimental Creator, to docs/images/.');
+  console.log('Saved eleven app views, including all three Creator builders, to docs/images/.');
 } finally {
   try {
     await browser?.close();

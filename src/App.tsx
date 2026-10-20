@@ -30,6 +30,7 @@ import { ModIndexSettings } from './components/ModIndexSettings';
 import { EmptyState } from './components/PageElements';
 import { useRequests } from './hooks/useRequests';
 import { Dialog } from './components/Dialog';
+import { CreatorAnnouncement, CREATOR_ANNOUNCEMENT_ID } from './components/CreatorAnnouncement';
 import { ModArt } from './components/ModArt';
 import { PrerequisiteAction } from './components/PrerequisiteAction';
 import { DiscoverPage } from './pages/DiscoverPage';
@@ -711,6 +712,50 @@ export function App() {
           )}
         </main>
       </div>
+      <CreatorAnnouncement
+        ready={
+          !!snapshot &&
+          !snapshot.preview &&
+          (snapshot.settings.setupComplete || setupOpened.current) &&
+          !setup &&
+          !loadFailed &&
+          !snapshot.safetyError &&
+          !error &&
+          !operationReport &&
+          !confirmation &&
+          !selected &&
+          !about &&
+          !profileManage &&
+          !pendingPage &&
+          (!configuring || requests.isPending('announcement')) &&
+          !working
+        }
+        dismissed={!!snapshot?.settings.dismissedAnnouncements?.includes(CREATOR_ANNOUNCEMENT_ID)}
+        pending={requests.isPending('announcement')}
+        dismiss={async (openSettings) => {
+          if (!snapshot) return false;
+          const reply = await callSnapshot('announcement', 'Saving announcement preference', () =>
+            api.saveSettings({
+              theme: snapshot.settings.theme,
+              setupComplete: snapshot.settings.setupComplete,
+              dismissedAnnouncements: [
+                ...(snapshot.settings.dismissedAnnouncements ?? []),
+                CREATOR_ANNOUNCEMENT_ID,
+              ],
+            }),
+          );
+          if (!reply?.ok) return false;
+          if (openSettings) {
+            setPage('settings');
+            requestAnimationFrame(() => {
+              const section = document.getElementById('experimental-features');
+              section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              section?.focus();
+            });
+          }
+          return true;
+        }}
+      />
       {pendingPage && (
         <Dialog title="Discard unsaved creator changes?" onClose={() => setPendingPage(undefined)}>
           <p className="dialog-description">

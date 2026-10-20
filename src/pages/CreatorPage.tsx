@@ -11,14 +11,20 @@ import {
   CREATOR_TARGET,
   CreatorDraftSchema,
   cropRectangle,
-  recipeDescription,
-  recipes,
   type CreatorDraft,
   type CreatorProject,
   type CreatorRequest,
   type CreatorSummary,
 } from '../shared/creator';
 import { generateLua } from '../shared/creator-lua';
+import {
+  JokerBuilder,
+  DeckBuilder,
+  VoucherBuilder,
+  ContentDescription,
+} from '../components/CreatorBuilders';
+import { contentDescription, type ContentType } from '../shared/creator-content';
+import { artworkColours, builtinPixels } from '../shared/creator-artwork';
 import type { ModAction, ModDefinition, Snapshot } from '../shared/model';
 
 export function CreatorPage({
@@ -38,9 +44,9 @@ export function CreatorPage({
   const [project, setProject] = useState<CreatorProject>();
   const [draft, setDraft] = useState<CreatorDraft>();
   const [newProject, setNewProject] = useState(false);
-  const [name, setName] = useState('My first Joker');
+  const [name, setName] = useState('My first mod');
   const [author, setAuthor] = useState('');
-  const [recipe, setRecipe] = useState<CreatorDraft['recipe']>('joker-mult');
+  const [contentType, setContentType] = useState<ContentType | 'custom'>('joker');
   const [message, setMessage] = useState('');
   const [confirm, setConfirm] = useState<{
     title: string;
@@ -143,24 +149,46 @@ export function CreatorPage({
   );
   const latest = project?.builds.at(-1);
   const validation = draft ? CreatorDraftSchema.safeParse(draft) : undefined;
-  const code = draft?.mode === 'template' ? generateLua(draft) : (draft?.lua ?? '');
+  const code =
+    draft?.mode === 'template' && validation?.success ? generateLua(draft) : (draft?.lua ?? '');
+  const typeLabel =
+    draft?.mode === 'custom'
+      ? 'Custom Lua'
+      : draft?.content.type === 'deck'
+        ? 'Deck'
+        : draft?.content.type === 'voucher'
+          ? 'Voucher'
+          : draft?.content.type === 'blank'
+            ? 'Legacy blank mod'
+            : 'Joker';
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     if (!project || !draft) return;
+    if (draft.artwork.source === 'builtin' && canvas.current) {
+      canvas.current
+        .getContext('2d')
+        ?.putImageData(
+          new ImageData(new Uint8ClampedArray(builtinPixels(draft.artwork.builtinId)), 71, 95),
+          0,
+          0,
+        );
+      return;
+    }
     const image = new Image();
     let active = true;
     image.onload = () => {
       if (!active || !canvas.current) return;
       const context = canvas.current.getContext('2d');
       if (!context) return;
-      const r = project.artwork
-        ? cropRectangle(image.width, image.height, draft.crop)
-        : { x: 0, y: 0, width: image.width, height: image.height };
+      const r =
+        draft.artwork.source === 'upload' && project.artwork
+          ? cropRectangle(image.width, image.height, draft.crop)
+          : { x: 0, y: 0, width: image.width, height: image.height };
       context.imageSmoothingEnabled = false;
       context.clearRect(0, 0, 71, 95);
       context.drawImage(image, r.x, r.y, r.width, r.height, 0, 0, 71, 95);
     };
-    image.src = project.artwork?.dataUrl ?? project.previewUrl;
+    image.src = draft.artwork.source === 'upload' ? project.artwork!.dataUrl : project.previewUrl;
     return () => {
       active = false;
     };
@@ -185,15 +213,17 @@ export function CreatorPage({
         <summary>Before testing your mod</summary>
         <p>{CREATOR_DISCLAIMER}</p>
         <p>
-          Templates target Steamodded {CREATOR_TARGET} and require Lovely. Static validation does
-          not verify game behaviour.
+          Guided builders target Steamodded {CREATOR_TARGET} and require Lovely. Static validation
+          does not verify game behaviour.
         </p>
       </details>
       <div className="creator-layout">
         <aside className="creator-projects" aria-label="Local projects">
           <h2>Your projects</h2>
           {!projects.length && (
-            <p className="muted-text">Start with a small Joker, a deck or a blank mod.</p>
+            <p className="muted-text">
+              Create a Joker, a Deck or a Voucher. Your existing projects stay available.
+            </p>
           )}
           {projects.map((item) => (
             <button
@@ -239,182 +269,162 @@ export function CreatorPage({
                   building.
                 </div>
               )}
-              <div className="creator-fields">
-                <label>
-                  Mod name
-                  <input
-                    value={draft.name}
-                    maxLength={80}
-                    disabled={busy}
-                    onChange={(e) => update('name', e.target.value)}
-                  />
-                </label>
-                <label>
-                  Author
-                  <input
-                    value={draft.author}
-                    maxLength={80}
-                    disabled={busy}
-                    onChange={(e) => update('author', e.target.value)}
-                  />
-                </label>
-                <label className="creator-wide">
-                  Description
-                  <textarea
-                    rows={3}
-                    value={draft.description}
-                    maxLength={2000}
-                    disabled={busy}
-                    onChange={(e) => update('description', e.target.value)}
-                  />
-                </label>
-                <label>
-                  Version
-                  <input
-                    value={draft.version}
-                    disabled={busy}
-                    onChange={(e) => update('version', e.target.value)}
-                  />
-                  <small>Three numbers, for example 1.0.0</small>
-                </label>
-              </div>
-              <details className="creator-advanced">
-                <summary>Advanced identity</summary>
-                <p>
-                  Generated once. IDs and prefixes become fixed after the first build so updates
-                  keep their ownership.
-                </p>
+              <details className="creator-metadata" open={draft.mode === 'custom'}>
+                <summary>Mod metadata</summary>
                 <div className="creator-fields">
                   <label>
-                    Mod ID
+                    Mod name
                     <input
-                      value={draft.modId}
-                      disabled={busy || !!project.builds.length}
-                      onChange={(e) => update('modId', e.target.value)}
+                      value={draft.name}
+                      maxLength={80}
+                      disabled={busy}
+                      onChange={(e) => update('name', e.target.value)}
                     />
                   </label>
                   <label>
-                    Prefix
+                    Author
                     <input
-                      value={draft.prefix}
-                      disabled={busy || !!project.builds.length}
-                      onChange={(e) => update('prefix', e.target.value)}
+                      value={draft.author}
+                      maxLength={80}
+                      disabled={busy}
+                      onChange={(e) => update('author', e.target.value)}
                     />
                   </label>
+                  <label className="creator-wide">
+                    Mod description
+                    <textarea
+                      aria-label="Mod description"
+                      rows={3}
+                      value={draft.description}
+                      maxLength={2000}
+                      disabled={busy}
+                      onChange={(e) => update('description', e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Version
+                    <input
+                      value={draft.version}
+                      disabled={busy}
+                      onChange={(e) => update('version', e.target.value)}
+                    />
+                    <small>Three numbers, for example 1.0.0</small>
+                  </label>
                 </div>
+                <details className="creator-advanced">
+                  <summary>Advanced identity</summary>
+                  <p>
+                    Generated once. IDs and prefixes become fixed after the first build so updates
+                    keep their ownership.
+                  </p>
+                  <div className="creator-fields">
+                    <label>
+                      Mod ID
+                      <input
+                        value={draft.modId}
+                        disabled={busy || !!project.builds.length}
+                        onChange={(e) => update('modId', e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Prefix
+                      <input
+                        value={draft.prefix}
+                        disabled={busy || !!project.builds.length}
+                        onChange={(e) => update('prefix', e.target.value)}
+                      />
+                    </label>
+                  </div>
+                </details>
               </details>
             </section>
             <section className="creator-section">
               <div className="creator-section-heading">
-                <h2>{draft.mode === 'template' ? 'Template' : 'Custom code'}</h2>
-                <button
-                  className="button button-secondary"
-                  disabled={busy}
-                  onClick={() => {
-                    if (draft.mode === 'template')
-                      setDraft({ ...draft, mode: 'custom', lua: code });
-                    else
-                      setConfirm({
-                        title: 'Regenerate from template?',
-                        description:
-                          'Custom code cannot be converted to form controls. The current custom source will be saved in project history before template code replaces it.',
-                        action: () => {
-                          void (async () => {
-                            const saved = await save(false, draft);
-                            if (saved) {
-                              const result = await call(
-                                {
-                                  operation: 'save',
-                                  id: saved.id,
-                                  token: saved.token,
-                                  draft: { ...saved.draft, mode: 'template' },
-                                  regenerate: true,
-                                },
-                                'Regenerating template',
-                              );
-                              if (result?.project) accept(result.project);
-                            }
-                          })();
-                        },
-                      });
-                  }}
-                >
-                  {draft.mode === 'template' ? 'Edit custom Lua' : 'Return to template'}
-                </button>
+                <h2>{draft.mode === 'template' ? 'Guided builder' : 'Custom Lua workspace'}</h2>
+                {draft.content.type !== 'blank' && (
+                  <button
+                    className="button button-secondary"
+                    disabled={busy || !validation?.success}
+                    onClick={() => {
+                      if (draft.mode === 'template')
+                        setDraft({ ...draft, mode: 'custom', lua: code });
+                      else
+                        setConfirm({
+                          title: 'Regenerate from template?',
+                          description:
+                            'Custom code cannot be converted to form controls. The current custom source will be saved in project history before template code replaces it.',
+                          action: () => {
+                            void (async () => {
+                              const saved = await save(false, draft);
+                              if (saved) {
+                                const result = await call(
+                                  {
+                                    operation: 'save',
+                                    id: saved.id,
+                                    token: saved.token,
+                                    draft: { ...saved.draft, mode: 'template' },
+                                    regenerate: true,
+                                  },
+                                  'Regenerating template',
+                                );
+                                if (result?.project) accept(result.project);
+                              }
+                            })();
+                          },
+                        });
+                    }}
+                  >
+                    {draft.mode === 'template' ? 'Use Custom Lua' : 'Return to guided builder'}
+                  </button>
+                )}
               </div>
               {draft.mode === 'template' ? (
                 <>
-                  <div className="creator-fields">
+                  <fieldset className="creator-builder" disabled={busy}>
+                    <h2>{typeLabel} builder</h2>
+                    <p>One content type per project. Create a new project for a different type.</p>
                     <label>
-                      Recipe
-                      <select
-                        disabled={busy}
-                        value={draft.recipe}
-                        onChange={(e) => update('recipe', e.target.value as CreatorDraft['recipe'])}
-                      >
-                        {recipes.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
-                        ))}
-                      </select>
+                      {typeLabel} name
+                      <input
+                        value={draft.content.name}
+                        maxLength={80}
+                        onChange={(e) =>
+                          update('content', { ...draft.content, name: e.target.value })
+                        }
+                      />
                     </label>
-                    {draft.recipe.startsWith('joker-') && (
-                      <label>
-                        {draft.recipe === 'joker-chips' ? 'Chips' : 'Mult'}
-                        <input
-                          type="number"
-                          min={0}
-                          max={draft.recipe === 'joker-chips' ? 100000 : 1000}
-                          step={1}
-                          value={draft.amount}
-                          disabled={busy}
-                          onChange={(e) => update('amount', Number(e.target.value))}
+                    <>
+                      {draft.content.type === 'joker' && (
+                        <JokerBuilder
+                          value={draft.content}
+                          onChange={(value) => update('content', value)}
                         />
-                      </label>
-                    )}
-                    {draft.recipe === 'joker-suit' && (
-                      <label>
-                        Scored suit
-                        <select
-                          value={draft.suit}
-                          disabled={busy}
-                          onChange={(e) => update('suit', e.target.value as CreatorDraft['suit'])}
-                        >
-                          {['Hearts', 'Diamonds', 'Clubs', 'Spades'].map((suit) => (
-                            <option key={suit}>{suit}</option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
-                    {draft.recipe === 'deck' &&
-                      (['dollars', 'hands', 'discards'] as const).map((key) => (
-                        <label key={key}>
-                          Bonus {key}
-                          <input
-                            type="number"
-                            min={0}
-                            max={key === 'dollars' ? 1000 : 10}
-                            step={1}
-                            value={draft[key]}
-                            disabled={busy}
-                            onChange={(e) => update(key, Number(e.target.value))}
-                          />
-                        </label>
-                      ))}
-                  </div>
-                  <p className="muted-text">{recipeDescription(draft)}</p>
-                  <p className="muted-text">
-                    Whole nonnegative bonuses only. Creator limits: 1,000 Mult, 100,000 Chips,
-                    $1,000 and 10 extra hands/discards. These limits do not guarantee balance or
-                    compatibility.
-                  </p>
+                      )}
+                      {draft.content.type === 'deck' && (
+                        <DeckBuilder
+                          value={draft.content}
+                          onChange={(value) => update('content', value)}
+                        />
+                      )}
+                      {draft.content.type === 'voucher' && (
+                        <VoucherBuilder
+                          value={draft.content}
+                          onChange={(value) => update('content', value)}
+                        />
+                      )}
+                      <ContentDescription
+                        content={draft.content}
+                        onChange={(value) => update('content', value)}
+                      />
+                    </>
+                  </fieldset>
                 </>
               ) : (
                 <p className="muted-text">
-                  Paste only code you trust. A fragment may need surrounding code and additional
-                  dependencies. Modatro parses LuaJIT syntax; it never runs your Lua. Recipe
-                  controls do not rewrite custom code.
+                  Write and edit your own trusted Lua for any Steamodded mod. No guided settings are
+                  applied in this mode. Editing metadata or artwork never regenerates your source.
+                  Modatro checks LuaJIT syntax without executing code. Install any additional
+                  dependencies manually.
                 </p>
               )}
               <LuaEditor
@@ -423,8 +433,62 @@ export function CreatorPage({
                 onChange={(value) => update('lua', value)}
               />
             </section>
-            <section className="creator-section">
-              <h2>{draft.recipe === 'deck' ? 'Deck-back artwork' : 'Card artwork'}</h2>
+            <details className="creator-section" open={draft.mode === 'template'}>
+              <summary>
+                {draft.mode === 'custom' ? 'Optional bundled atlas artwork' : 'Artwork selection'}
+              </summary>
+              <h2>{typeLabel === 'Deck' ? 'Deck back' : typeLabel + ' artwork'}</h2>
+              <div className="creator-artwork-options">
+                <button
+                  className="button button-secondary"
+                  aria-pressed={draft.artwork.source !== 'upload'}
+                  disabled={busy}
+                  onClick={() => update('artwork', { ...draft.artwork, source: 'builtin' })}
+                >
+                  Built-in artwork
+                </button>
+                <button
+                  className="button button-secondary"
+                  aria-pressed={draft.artwork.source === 'upload'}
+                  disabled={busy || (dirty && !project.artwork)}
+                  onClick={() =>
+                    project.artwork
+                      ? update('artwork', { ...draft.artwork, source: 'upload' })
+                      : void artwork('import-art')
+                  }
+                >
+                  Upload your own
+                </button>
+              </div>
+              <div className="creator-art-grid" aria-label={typeLabel + ' built-in artwork'}>
+                {artworkColours.map((colour, index) => {
+                  const id =
+                    (draft.content.type === 'blank' ? 'joker' : draft.content.type) +
+                    '-' +
+                    (index + 1);
+                  return (
+                    <button
+                      key={id}
+                      className="creator-art-choice"
+                      aria-label={colour + ' ' + typeLabel + ' artwork'}
+                      aria-pressed={
+                        draft.artwork.source === 'builtin' && draft.artwork.builtinId === id
+                      }
+                      disabled={busy}
+                      onClick={() => update('artwork', { source: 'builtin', builtinId: id })}
+                    >
+                      <img src={'/creator-art/' + id + '.png'} alt="" width={71} height={95} />
+                      <span>{colour}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {draft.artwork.source === 'legacy' && (
+                <p className="muted-text">
+                  Legacy placeholder preserved. Choose a built-in design or upload to replace it
+                  explicitly.
+                </p>
+              )}
               <div className="creator-artwork">
                 <div className="creator-card-preview">
                   <canvas
@@ -437,7 +501,7 @@ export function CreatorPage({
                 </div>
                 <div className="creator-art-controls">
                   <p>
-                    {project.artwork
+                    {draft.artwork.source === 'upload' && project.artwork
                       ? `Original PNG · ${project.artwork.width} × ${project.artwork.height}. Kept in the project for recropping.`
                       : 'Placeholder artwork—replace whenever you’re ready.'}
                   </p>
@@ -455,10 +519,10 @@ export function CreatorPage({
                     </button>
                     <button
                       className="text-button"
-                      disabled={busy || dirty || !project.artwork}
+                      disabled={busy || dirty}
                       onClick={() => void artwork('reset-art')}
                     >
-                      Reset to placeholder
+                      Reset to built-in artwork
                     </button>
                   </div>
                   {dirty && (
@@ -466,7 +530,8 @@ export function CreatorPage({
                       Save the draft before importing or resetting artwork.
                     </p>
                   )}
-                  {project.artwork &&
+                  {draft.artwork.source === 'upload' &&
+                    project.artwork &&
                     (['zoom', 'x', 'y'] as const).map((key) => (
                       <label className="creator-range" key={key}>
                         {key === 'zoom'
@@ -489,9 +554,23 @@ export function CreatorPage({
                     ))}
                 </div>
               </div>
-            </section>
+            </details>
             <section className="creator-section">
-              <h2>Save, build and test</h2>
+              <h2>{typeLabel} preview and build</h2>
+              <p className="creator-rule-summary">
+                {draft.mode === 'custom' ? draft.name : draft.content.name}
+                {draft.mode === 'template' &&
+                  (draft.content.type === 'joker'
+                    ? ' / ' + draft.content.rarity + ' / $' + draft.content.cost
+                    : draft.content.type === 'voucher'
+                      ? ' / $' + draft.content.cost
+                      : '')}
+              </p>
+              <p className="creator-rule-summary">
+                {draft.mode === 'custom'
+                  ? 'Custom Lua: configuration is not a simulation of your code.'
+                  : contentDescription(draft.content)}
+              </p>
               <p>
                 Saving changes your project only. Install a build explicitly, then launch the game
                 to test it. Close Balatro before installing changes.
@@ -676,15 +755,16 @@ export function CreatorPage({
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              void call({ operation: 'create', name, author, recipe }, 'Creating project').then(
-                (result) => {
-                  if (result?.project) {
-                    accept(result.project);
-                    setNewProject(false);
-                    setMessage('Draft saved. Build it when you’re ready.');
-                  }
-                },
-              );
+              void call(
+                { operation: 'create', name, author, contentType },
+                'Creating project',
+              ).then((result) => {
+                if (result?.project) {
+                  accept(result.project);
+                  setNewProject(false);
+                  setMessage('Draft saved. Build it when you’re ready.');
+                }
+              });
             }}
           >
             <div className="creator-fields">
@@ -709,20 +789,24 @@ export function CreatorPage({
                   onChange={(e) => setAuthor(e.target.value)}
                 />
               </label>
-              <label className="creator-wide">
-                Starting recipe
-                <select
-                  value={recipe}
-                  disabled={busy}
-                  onChange={(e) => setRecipe(e.target.value as CreatorDraft['recipe'])}
-                >
-                  {recipes.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <fieldset className="creator-wide creator-type-choice">
+                <legend>What would you like to create?</legend>
+                {(['joker', 'deck', 'voucher', 'custom'] as const).map((type) => (
+                  <label key={type}>
+                    <input
+                      type="radio"
+                      name="content-type"
+                      checked={contentType === type}
+                      disabled={busy}
+                      onChange={() => setContentType(type)}
+                    />
+                    {type === 'custom'
+                      ? 'Custom Lua'
+                      : 'Create a ' +
+                        (type === 'joker' ? 'Joker' : type === 'deck' ? 'Deck' : 'Voucher')}
+                  </label>
+                ))}
+              </fieldset>
             </div>
             <div className="dialog-footer">
               <button

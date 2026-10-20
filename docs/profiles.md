@@ -7,6 +7,18 @@ and contain 1–60 characters. Up to 100 profiles are supported.
 
 ![Profile management with representative mod selections](images/profiles.png)
 
+**Export** saves a selected profile to a location you choose. **Import profile from
+file** checks its format and checksum, reviews downloads, installs prerequisites
+before dependent mods, then activates a new profile. Existing names gain `(2)`,
+`(3)`, etc. Save or revert unsaved selections before importing.
+
+Exports contain managed selections and source/version references, not mod settings,
+saves or local ZIP contents. Local-only mods need their separate ZIP; missing index
+entries need the sender's index. Conflicting installed versions or unavailable
+releases block import rather than silently substituting versions shared by other
+profiles. Cancel before confirmation to restore the previous selection. A checksum
+detects corruption, not a trusted sender; review whose mods you install.
+
 ## What a profile shares
 
 A profile records enabled or disabled states by stable managed installation identity,

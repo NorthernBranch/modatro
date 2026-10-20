@@ -6,6 +6,7 @@ import type { ProfileOperation, ProfilePlan } from '../shared/features';
 import type { Requests } from '../hooks/useRequests';
 import { Dialog } from './Dialog';
 import { AsyncButton } from './AsyncButton';
+import { ProfileTransfer } from './ProfileTransfer';
 
 export function ProfileControls({
   snapshot,
@@ -25,6 +26,7 @@ export function ProfileControls({
   installed: () => void;
 }) {
   const [plan, setPlan] = useState<ProfilePlan>();
+  const [transfer, setTransfer] = useState<{ exportId?: string }>();
   const [editing, setEditing] = useState<{
     operation: 'create' | 'rename' | 'duplicate' | 'delete';
     id?: string;
@@ -159,6 +161,17 @@ export function ProfileControls({
                   <div className="feature-actions">
                     <button
                       className="text-button"
+                      disabled={busy || !api.profileTransfer || snapshot.preview}
+                      aria-label={`Export ${p.name}`}
+                      onClick={() => {
+                        setOpen(false);
+                        setTransfer({ exportId: p.id });
+                      }}
+                    >
+                      Export
+                    </button>
+                    <button
+                      className="text-button"
                       disabled={busy}
                       onClick={() => void preview(p.id)}
                       aria-label={`Review switch to ${p.name}`}
@@ -202,6 +215,16 @@ export function ProfileControls({
                 Create profile from current selection
               </button>
             )}
+            <button
+              className="button button-secondary"
+              disabled={busy || !api.profileTransfer || snapshot.preview}
+              onClick={() => {
+                setOpen(false);
+                setTransfer({});
+              }}
+            >
+              Import profile from file
+            </button>
             {editing && (
               <form
                 className="profile-form"
@@ -279,6 +302,18 @@ export function ProfileControls({
             )}
           </div>
         </Dialog>
+      )}
+      {transfer && (
+        <ProfileTransfer
+          snapshot={snapshot}
+          requests={requests}
+          changed={changed}
+          exportId={transfer.exportId}
+          onClose={() => {
+            setTransfer(undefined);
+            setOpen(true);
+          }}
+        />
       )}
       {plan && (
         <Dialog

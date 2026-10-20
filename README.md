@@ -62,13 +62,15 @@ and macOS may block opening them. Check the release notes and
   unless a mod requires it.
 - **Your collection:** install, update, enable, disable and uninstall supported mods;
   adopt identified existing mods explicitly.
+- **Profiles:** save managed selections, switch safely, and export/import profiles
+  for backup or sharing with dependency-first installation.
 - **File records:** retain provenance, hashes and original-file backups. Changed
   files require review, and interrupted transactions have recovery records.
 - **Offline browsing:** keep the last validated catalogue and locally manage
   installed mods. New downloads require current source and removal checks.
 - **Application updates:** quietly indicate newer GitHub releases. Downloading and
   installing an update always requires your action.
-- **Mod Creator (experimental, optional):** create a local Joker, deck or blank
+- **Mod Creator (experimental, optional):** use dedicated Joker, Deck and Voucher builders or write Custom Lua for a local
   Steamodded mod; edit Lua, import PNG artwork, save drafts, build/install and export
   ZIPs. Enable it in Settings after acknowledging the disclaimer.
 - **Save guidance:** a dismissible reminder explains how to back up Balatro saves
@@ -107,9 +109,9 @@ then close Modatro and run the new installer. Keep application data and backups.
 Enable **Settings → Experimental features → Mod Creator**, then open **Create mods**.
 Create a project, save the draft, build it and install that build explicitly.
 Editing source never updates installed files until you choose Install changes.
-Templates target Steamodded 26.1002.0 and require Lovely; syntax/package validation
+Generated mods target Steamodded 26.1002.0 and require Lovely; syntax/package validation
 does not prove safety or in-game compatibility. See the [creator guide](docs/mod-creator.md)
-for recipes, artwork, source history, restoration and export.
+for builders, Custom Lua, artwork, source history, restoration and export.
 
 [![Experimental creator with a representative Joker project](docs/images/creator.png)](docs/mod-creator.md)
 
@@ -126,19 +128,19 @@ Open profiles beside **Launch**, and **Troubleshooting** in the sidebar. The fir
 upgrade backs up existing state before creating a Default profile; see the
 [profile migration notes](docs/profiles.md#state-upgrade).
 
-| Guide                                      | Covers                                                                  |
-| ------------------------------------------ | ----------------------------------------------------------------------- |
-| [Troubleshooting](docs/troubleshooting.md) | Setup, dependencies, rate limits, changed files and recovery            |
-| [Mod Creator](docs/mod-creator.md)         | Optional project editor, recipes, artwork, builds and local ZIP exports |
-| [Profiles](docs/profiles.md)               | Named selections, shared files, unsaved changes and safe switching      |
-| [Releases](docs/release.md)                | Downloads, supported formats and release workflow                       |
-| [Linux and Steam Deck](docs/linux.md)      | AppImage / DEB installation and Proton integration                      |
-| [Signing](docs/signing.md)                 | Actual release signing status and maintainer setup                      |
-| [Contributing](CONTRIBUTING.md)            | Development, checks, packaging and screenshot capture                   |
-| [Architecture](docs/architecture.md)       | Services, provider boundaries and transactions                          |
-| [Verification](docs/verification.md)       | Automated coverage and manual testing limits                            |
-| [Catalogue](catalogue/README.md)           | Metadata, permissions, exceptions and removal feeds                     |
-| [Website](docs/website.md)                 | Platform downloads, Cloudflare Pages and domain setup                   |
+| Guide                                      | Covers                                                                |
+| ------------------------------------------ | --------------------------------------------------------------------- |
+| [Troubleshooting](docs/troubleshooting.md) | Setup, dependencies, rate limits, changed files and recovery          |
+| [Mod Creator](docs/mod-creator.md)         | Dedicated builders, Custom Lua, artwork, builds and local ZIP exports |
+| [Profiles](docs/profiles.md)               | Named selections, shared files, unsaved changes and safe switching    |
+| [Releases](docs/release.md)                | Downloads, supported formats and release workflow                     |
+| [Linux and Steam Deck](docs/linux.md)      | AppImage / DEB installation and Proton integration                    |
+| [Signing](docs/signing.md)                 | Actual release signing status and maintainer setup                    |
+| [Contributing](CONTRIBUTING.md)            | Development, checks, packaging and screenshot capture                 |
+| [Architecture](docs/architecture.md)       | Services, provider boundaries and transactions                        |
+| [Verification](docs/verification.md)       | Automated coverage and manual testing limits                          |
+| [Catalogue](catalogue/README.md)           | Metadata, permissions, exceptions and removal feeds                   |
+| [Website](docs/website.md)                 | Platform downloads, Cloudflare Pages and domain setup                 |
 
 Mods are third-party code. Modatro checks metadata, paths and file integrity; it
 does not certify mod safety or guarantee that mods work together. Authors retain

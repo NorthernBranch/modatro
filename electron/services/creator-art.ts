@@ -2,6 +2,13 @@ import { PNG } from 'pngjs';
 import { inflateSync } from 'node:zlib';
 import { cropRectangle, type CreatorDraft } from '../../src/shared/creator';
 import { UserError } from './errors';
+import { builtinPixels } from '../../src/shared/creator-artwork';
+
+export function builtinArtwork(id: string) {
+  const image = new PNG({ width: 71, height: 95 });
+  image.data = Buffer.from(builtinPixels(id));
+  return image;
+}
 
 export function decodeArtwork(bytes: Buffer) {
   if (
