@@ -1,12 +1,7 @@
 import luaparse from 'luaparse';
 import { CREATOR_TARGET, type CreatorDraft } from './creator';
-import {
-  contentDescription,
-  compositionCards,
-  ranks,
-  type RuleCondition,
-  type JokerRule,
-} from './creator-content';
+import { compositionCards, ranks, type RuleCondition, type JokerRule } from './creator-content';
+import { descriptionLines, localizedDescription } from './creator-description';
 
 export function luaString(value: string) {
   return `"${value.replace(/[\\"\x00-\x1f\x7f]/g, (ch) => (ch === '\\' ? '\\\\' : ch === '"' ? '\\"' : `\\${ch.charCodeAt(0).toString().padStart(3, '0')}`))}"`;
@@ -40,16 +35,14 @@ export function generateLua(d: CreatorDraft) {
   const c = d.content;
   if (c.type === 'blank')
     return atlas + '-- This legacy blank mod registers no gameplay objects.\n';
-  const localization = contentDescription(c)
-    .split('\n')
-    .flatMap((line) => line.match(/.{1,48}(?:\s|$)|\S{1,48}/g) ?? [''])
-    .map((line) => luaString(line.trim()))
+  const localization = descriptionLines(localizedDescription(c))
+    .map((line) => luaString(line))
     .join(', ');
   const common = `key = '${c.type === 'deck' ? 'deck' : c.type}', atlas = 'cards', pos = { x = 0, y = 0 },\n  unlocked = true, discovered = true,\n  loc_txt = { name = ${luaString(c.name)}, text = { ${localization} } }`;
   if (c.type === 'joker') {
     return (
       atlas +
-      `SMODS.Joker {\n  ${common},\n  rarity = ${['Common', 'Uncommon', 'Rare', 'Legendary'].indexOf(c.rarity) + 1}, cost = ${c.cost},\n  blueprint_compat = ${c.blueprint}, eternal_compat = ${c.eternal}, perishable_compat = ${c.perishable},\n  calculate = function(self, card, context)\n    -- Each matched rule becomes its own effect, resolved in the displayed order.\n    local first, last\n    local function append(effect)\n      if last then last.extra = effect else first = effect end\n      last = effect\n    end\n${c.rules.map((rule, index) => `    -- Rule ${index + 1}\n    if ${ruleGuard(rule)} then\n      append({ ${rule.effect === 'xmult' ? 'x_mult' : rule.effect} = ${rule.amount} })\n    end`).join('\n')}\n    return first\n  end\n}\n`
+      `SMODS.Joker {\n  ${common},\n  rarity = ${['Common', 'Uncommon', 'Rare', 'Legendary'].indexOf(c.rarity) + 1}, cost = ${c.cost},\n  blueprint_compat = ${c.blueprint}, eternal_compat = ${c.eternal}, perishable_compat = ${c.perishable},\n  calculate = function(self, card, context)\n    -- Each matched rule becomes its own effect, resolved in the displayed order.\n    local first, last\n    local function append(effect)\n      if last then last.extra = effect else first = effect end\n      last = effect\n    end\n${c.rules.map((rule, index) => `    -- Rule ${index + 1}\n    if ${ruleGuard(rule)} then\n      append({ ${rule.effect === 'xmult' ? 'x_mult' : rule.effect} = ${rule.amount}${rule.effect === 'repetitions' ? ', card = card' : ''} })\n    end`).join('\n')}\n    return first\n  end\n}\n`
     );
   }
   if (c.type === 'voucher') {
@@ -101,6 +94,8 @@ function conditionLua(c: RuleCondition) {
   if (c.kind === 'suits')
     return `(${c.values.map((suit) => `context.other_card:is_suit(${luaString(suit)})`).join(' or ')})`;
   if (c.kind === 'face') return 'context.other_card:is_face()';
+  if (c.kind === 'position')
+    return `context.scoring_hand and #context.scoring_hand > 0 and context.other_card == context.scoring_hand[${c.value === 'first' ? '1' : '#context.scoring_hand'}]`;
   if (c.kind === 'hand') return `context.scoring_name == ${luaString(c.value)}`;
   const left =
     c.kind === 'played'
@@ -112,10 +107,12 @@ function conditionLua(c: RuleCondition) {
 }
 export function ruleGuard(r: JokerRule) {
   const guard =
-    r.trigger === 'scored'
-      ? 'context.individual and context.cardarea == G.play and context.other_card and not context.repetition'
-      : r.trigger === 'main'
-        ? 'context.joker_main'
-        : 'context.end_of_round and not context.individual and not context.repetition and not context.game_over';
+    r.effect === 'repetitions'
+      ? 'context.repetition and not context.repetition_only and context.cardarea == G.play and context.other_card'
+      : r.trigger === 'scored'
+        ? 'context.individual and context.cardarea == G.play and context.other_card and not context.repetition'
+        : r.trigger === 'main'
+          ? 'context.joker_main and not context.repetition'
+          : 'context.end_of_round and not context.individual and not context.repetition and not context.game_over';
   return [guard, ...r.conditions.map((c) => `(${conditionLua(c)})`)].join(' and ');
 }

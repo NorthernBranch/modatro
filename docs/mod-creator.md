@@ -21,11 +21,11 @@ Choose rarity, shop cost and artwork. Common/Uncommon/Rare/Legendary map to
 Steamodded rarities 1/2/3/4. Legendary uses The Soul's pool rather than ordinary
 shop rolls; other mods may change acquisition.
 
-| When                    | Optional conditions (ALL)                                          | Then                 |
-| ----------------------- | ------------------------------------------------------------------ | -------------------- |
-| Each played card scores | Ranks, suits, face card, resolved hand, played/scoring card counts | +Chips, +Mult, ×Mult |
-| Main Joker scoring      | Resolved hand, played/scoring card counts                          | +Chips, +Mult, ×Mult |
-| Round ends              | Remaining hands/discards                                           | Earn money           |
+| When                    | Optional conditions (ALL)                                                                              | Then                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------ |
+| Each played card scores | Ranks, suits, face card, first/last scoring card, resolved hand, card counts, remaining hands/discards | +Chips, +Mult, XMult, retrigger card |
+| Main Joker scoring      | Resolved hand, card counts, remaining hands/discards                                                   | +Chips, +Mult, XMult                 |
+| Round ends              | Remaining hands/discards                                                                               | Earn money                           |
 
 Within rank/suit selections, any selected value matches. Suit checks use the game's
 helper for Wild/suitless behaviour; ranks exclude rankless cards and face checks use
@@ -35,6 +35,19 @@ effects resolve top to bottom, so +Mult then ×Mult differs from the reverse ord
 Card retriggers repeat per-card effects; main scoring follows Joker evaluations.
 Round rewards exclude individual held-card, repetition and game-over contexts.
 Advanced compatibility flags describe generated fixed effects, not custom Lua.
+
+**Retrigger scored card** adds 1–10 extra scoring passes per matching card. For
+example, select Jacks under ranks and two additional retriggers. Multiple matching
+rules add together; card scoring and per-card Joker effects repeat, not the entire
+hand. First/last means scoring-card order. Remaining hands is checked after spending
+the played hand, so zero targets the last hand of the round.
+
+Automatic Joker descriptions use standard Chips, Mult, money and keyword highlights,
+including the X Mult badge. The preview approximates this styling; manual descriptions
+accept Balatro formatting codes and are preserved. Existing builds stay unchanged
+until you explicitly save, build and install an updated draft.
+
+![Generated description with standard game highlights](images/creator-description.png)
 
 ### Decks
 
@@ -126,6 +139,7 @@ checks do not prove gameplay compatibility or safety.
 
 References: [Jokers](https://docs.smods.dev/Game%20Objects/SMODS.Center/SMODS.Joker/),
 [contexts](https://docs.smods.dev/API%20Documentation/Calculate-Functions/),
+[text styling](https://docs.smods.dev/Guides/Text-Styling/),
 [Backs](https://docs.smods.dev/Game%20Objects/SMODS.Center/SMODS.Back/),
 [Vouchers](https://docs.smods.dev/Game%20Objects/SMODS.Center/SMODS.Voucher/),
 [atlas source](https://github.com/Steamodded/smods/blob/26.1002.0/src/game_object.lua),

@@ -87,6 +87,72 @@
 .creator-section h2 {
   font-size: 18px;
 }
+.creator-description-preview {
+  justify-self: center;
+  width: min(100%, 400px);
+  padding: 18px 20px;
+  border: 3px solid #b8b4a8;
+  border-radius: 12px;
+  background: #f1eee5;
+  color: #374244;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  box-shadow: 0 3px 0 #777b72;
+}
+.creator-loc-chips,
+.creator-loc-blue {
+  color: #007bbb;
+}
+.creator-loc-mult,
+.creator-loc-red {
+  color: #c93d36;
+}
+.creator-loc-money {
+  color: #926000;
+}
+.creator-loc-attention {
+  color: #b55d00;
+}
+.creator-loc-white {
+  color: #fff;
+}
+.creator-loc-green {
+  color: #177342;
+}
+.creator-loc-inactive {
+  color: #6a716c;
+}
+.creator-description-preview [class*='creator-loc-bg-'] {
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.creator-loc-bg-mult,
+.creator-loc-bg-red {
+  background: #c93d36;
+}
+.creator-loc-bg-chips,
+.creator-loc-bg-blue {
+  background: #007bbb;
+}
+.creator-loc-bg-money {
+  background: #926000;
+}
+.creator-loc-bg-attention {
+  background: #b55d00;
+}
+.creator-loc-bg-green {
+  background: #177342;
+}
+.creator-loc-bg-inactive {
+  background: #6a716c;
+}
+.creator-loc-bg-white {
+  background: #fff;
+}
 .creator-section p {
   font-size: 13px;
   line-height: 1.8;
