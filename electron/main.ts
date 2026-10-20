@@ -15,6 +15,7 @@ import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { ModId, RelativePath, RootSchema, SettingsUpdateSchema } from '../src/shared/model';
 import { CreatorRequestSchema } from '../src/shared/creator';
+import { ProfileTransferRequestSchema } from '../src/shared/profile-transfer';
 import { ModatroApplication } from './application';
 import { errorReply, UserError } from './services/errors';
 import { contained, exists, safeDestination } from './services/files';
@@ -174,6 +175,29 @@ void app
       (snapshot) => window?.webContents.send('modatro:changed', snapshot),
     );
     await application.initialize();
+    application.profileTransfer.native = {
+      open: async () => {
+        const result = await dialog.showOpenDialog(window!, {
+          title: 'Import Modatro profile',
+          properties: ['openFile'],
+          filters: [{ name: 'Modatro profile', extensions: ['json'] }],
+        });
+        return result.canceled ? undefined : result.filePaths[0];
+      },
+      save: async (name) => {
+        const result = await dialog.showSaveDialog(window!, {
+          title: 'Export Modatro profile',
+          defaultPath: name,
+          filters: [{ name: 'Modatro profile', extensions: ['json'] }],
+        });
+        return result.canceled ? undefined : result.filePath;
+      },
+    };
+    handle('profileTransfer', ProfileTransferRequestSchema, async (request) => {
+      const result = await application.profileTransfer.perform(request);
+      await application.publish();
+      return result;
+    });
     application.creator.native = {
       artwork: async () => {
         const result = await dialog.showOpenDialog(window!, {

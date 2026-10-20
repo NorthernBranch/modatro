@@ -58,7 +58,7 @@ export function CreatorSettings({
           </AsyncButton>
         </SettingsRow>
       </section>
-      <section className="settings-section">
+      <section className="settings-section" id="experimental-features" tabIndex={-1}>
         <h2>Experimental features</h2>
         <SettingsRow
           title="Mod Creator"

@@ -17,6 +17,8 @@ import {
   type CreatorProject,
 } from '../src/shared/creator';
 import { generateLua, luaDiagnostics } from '../src/shared/creator-lua';
+import { defaultContent, type JokerContent } from '../src/shared/creator-content';
+import { builtinPixels } from '../src/shared/creator-artwork';
 import { type LocalMod, type ModDefinition } from '../src/shared/model';
 import { setup, put } from './helpers';
 
@@ -24,7 +26,10 @@ const roots: string[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await fs.rm(root, { recursive: true, force: true });
 });
-async function fixture(checkpoint?: (phase: string, index?: number) => Promise<void>) {
+async function fixture(
+  checkpoint?: (phase: string, index?: number) => Promise<void>,
+  recipe: 'blank' | 'joker-mult' | 'joker-chips' | 'joker-suit' | 'deck' = 'joker-mult',
+) {
   const f = await setup(checkpoint);
   roots.push(f.root);
   await f.storage.save({
@@ -46,7 +51,7 @@ async function fixture(checkpoint?: (phase: string, index?: number) => Promise<v
       operation: 'create',
       name: 'A "quoted" Joker',
       author: 'Test author',
-      recipe: 'joker-mult',
+      recipe,
     })
   ).project!;
   return { ...f, creator, project, definitions, local };
@@ -87,12 +92,141 @@ function prerequisites(f: Awaited<ReturnType<typeof fixture>>) {
     });
 }
 describe('local Mod Creator', () => {
+  it('starts Custom Lua as a separate blank source workspace and preserves pasted code through build/export', async () => {
+    const f = await fixture();
+    let p = (
+      await f.creator.perform({
+        operation: 'create',
+        name: 'My custom mod',
+        author: 'Author',
+        contentType: 'custom',
+      })
+    ).project!;
+    expect(p.draft.mode).toBe('custom');
+    expect(p.draft.content.type).toBe('blank');
+    expect(p.draft.lua).not.toMatch(/SMODS.Joker|SMODS.Back|SMODS.Voucher/);
+    const source = '-- pasted own mod\nlocal value = 1\nreturn value';
+    p = await save(f, p, { lua: source, description: 'My pasted source' });
+    const b = await build(f, p);
+    const files = unzipSync(await fs.readFile(b.zip));
+    expect(strFromU8(files[`${p.draft.modId}/main.lua`]!)).toBe(source);
+  });
+  it.each(['joker', 'deck', 'voucher'] as const)(
+    'exports the selected %s artwork at both resolutions and preserves uploaded originals',
+    async (contentType) => {
+      const f = await fixture();
+      let p = (
+        await f.creator.perform({
+          operation: 'create',
+          name: 'Art test',
+          author: 'Author',
+          contentType,
+        })
+      ).project!;
+      expect(p.draft.artwork).toMatchObject({ source: 'builtin', builtinId: contentType + '-1' });
+      p = await save(f, p, { artwork: { source: 'builtin', builtinId: contentType + '-5' } });
+      const b = await build(f, p),
+        files = unzipSync(await fs.readFile(b.zip));
+      const image = PNG.sync.read(Buffer.from(files[`${p.draft.modId}/assets/1x/card.png`]!));
+      expect(image.data).toEqual(Buffer.from(builtinPixels(contentType + '-5')));
+      expect(
+        PNG.sync.read(Buffer.from(files[`${p.draft.modId}/assets/2x/card.png`]!)),
+      ).toMatchObject({ width: 142, height: 190 });
+      expect(strFromU8(files[`${p.draft.modId}/main.lua`]!)).toContain(
+        contentType === 'deck'
+          ? 'SMODS.Back'
+          : contentType === 'joker'
+            ? 'SMODS.Joker'
+            : 'SMODS.Voucher',
+      );
+    },
+  );
+  it('backs up old project metadata, source and uploaded artwork before migration, then preserves custom edits', async () => {
+    const f = await fixture(),
+      location = `creator/projects/${f.project.id}`;
+    const image = PNG.sync.write(placeholderArtwork(false)),
+      artHash = createHash('sha256').update(image).digest('hex');
+    await fs.mkdir(f.storage.file(`${location}/art`), { recursive: true });
+    await fs.writeFile(f.storage.file(`${location}/art/${artHash}.png`), image);
+    const original = {
+      schemaVersion: 1,
+      id: f.project.id,
+      createdAt: f.project.createdAt,
+      updatedAt: f.project.updatedAt,
+      builds: f.project.builds,
+      artHash,
+      draft: {
+        name: 'Old Deck',
+        author: 'Author',
+        description: 'Old description',
+        version: '1.0.0',
+        modId: f.project.draft.modId,
+        prefix: f.project.draft.prefix,
+        recipe: 'deck',
+        amount: 4,
+        suit: 'Hearts',
+        dollars: 10,
+        hands: 1,
+        discards: 0,
+        mode: 'custom',
+        lua: '-- custom source preserved\nreturn 77',
+        crop: { x: 0.2, y: 0.7, zoom: 2 },
+      },
+    };
+    const raw = JSON.stringify(original);
+    await put(f.storage.file(`${location}/project.json`), raw);
+    await put(f.storage.file(`${location}/main.lua`), original.draft.lua);
+    let p = (await f.creator.perform({ operation: 'load', id: f.project.id })).project!;
+    expect(p.schemaVersion).toBe(2);
+    expect(p.draft.mode).toBe('custom');
+    expect(p.draft.lua).toBe(original.draft.lua);
+    expect(p.draft.crop).toEqual(original.draft.crop);
+    expect(p.artHash).toBe(artHash);
+    expect(p.artwork).toBeDefined();
+    expect(
+      await fs.readFile(f.storage.file(`${location}/history/migration-v1/project.json`), 'utf8'),
+    ).toBe(raw);
+    expect(
+      await fs.readFile(f.storage.file(`${location}/history/migration-v1/main.lua`), 'utf8'),
+    ).toBe(original.draft.lua);
+    expect(
+      await fs.readFile(f.storage.file(`${location}/history/migration-v1/${artHash}.png`)),
+    ).toEqual(image);
+    p = await save(f, p, {
+      content: { ...p.draft.content, name: 'Renamed content' },
+      artwork: { source: 'builtin', builtinId: 'deck-2' },
+    });
+    expect(p.draft.lua).toBe(original.draft.lua);
+    expect(p.artHash).toBe(artHash);
+    expect(p.artwork).toBeDefined();
+    const reset = (await f.creator.perform({ operation: 'reset-art', id: p.id, token: p.token }))
+      .project!;
+    expect(reset.artHash).toBe(artHash);
+    expect(await fs.readFile(f.storage.file(`${location}/art/${artHash}.png`))).toEqual(image);
+    const b = await build(f, reset);
+    expect(Object.keys(unzipSync(await fs.readFile(b.zip))).join(' ')).not.toMatch(
+      /history|project.json|migration|original/,
+    );
+  });
+  it('keeps a project type fixed and form changes never overwrite custom source', async () => {
+    const f = await fixture();
+    await expect(
+      save(f, f.project, {
+        content: defaultContent('deck', 'Other type'),
+        artwork: { source: 'builtin', builtinId: 'deck-1' },
+      }),
+    ).rejects.toThrow('different content type');
+    let p = await save(f, f.project, { mode: 'custom', lua: '-- authored source\nreturn 99' });
+    p = await save(f, p, {
+      content: { ...p.draft.content, name: 'Changed form', rarity: 'Rare' } as JokerContent,
+    });
+    expect(p.draft.lua).toBe('-- authored source\nreturn 99');
+  });
   it.each(recipes)(
     'builds a complete, deterministic $name package with escaped metadata',
     async (recipe) => {
-      const f = await fixture();
+      const f = await fixture(undefined, recipe.id);
       const p = await save(f, f.project, {
-        recipe: recipe.id,
         name: 'Quotes " \\ \n ☃',
         description: '<script> is plain text',
       });
@@ -124,9 +258,11 @@ describe('local Mod Creator', () => {
       expect(lua).not.toContain('starting_params');
       if (recipe.id === 'joker-suit')
         expect(lua).toContain('context.individual and context.cardarea == G.play');
-      if (recipe.id === 'joker-chips') expect(lua).toContain('chips = card.ability.extra.chips');
+      if (recipe.id === 'joker-chips') expect(lua).toContain('append({ chips = 30 })');
       if (recipe.id === 'deck')
-        expect(lua).toContain('config = { dollars = 10, hands = 1, discards = 0 }');
+        expect(lua).toContain(
+          'config = { dollars = 0, hands = 0, discards = 0, hand_size = 0, joker_slot = 0, consumable_slot = 0 }',
+        );
       expect(
         PNG.sync.read(Buffer.from(entries[`${p.draft.modId}/assets/1x/card.png`]!)),
       ).toMatchObject({ width: 71, height: 95 });

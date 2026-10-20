@@ -7,7 +7,267 @@ import type {
   UnverifiedPrerequisite,
 } from '../src/shared/model';
 
+import { creatorIdentities, type CreatorProject } from '../src/shared/creator';
+import { defaultContent, type ContentType } from '../src/shared/creator-content';
+import { generateLua } from '../src/shared/creator-lua';
+
 type Behavior = 'success' | 'hold' | 'reject' | 'error';
+test('profile sharing reviews downloads, shows progress, blocks dismissal during install and exports through its own flow', async ({
+  page,
+}) => {
+  const state = fixture();
+  const id = '11111111-1111-4111-8111-111111111111';
+  state.profiles = {
+    schemaVersion: 1,
+    activeId: id,
+    items: [{ id, name: 'Default', selection: [] }],
+    unsaved: false,
+    differences: [],
+    unmanagedCount: 0,
+  };
+  await mockDesktop(page, state, { 'profileTransfer:install': 'hold' });
+  await page.getByRole('button', { name: 'Manage profiles', exact: true }).click();
+  await page.getByRole('button', { name: 'Import profile from file' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('Import as Shared run');
+  await expect(dialog).toContainText('Download required');
+  await page.getByRole('button', { name: 'Install required mods and import' }).click();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Close dialog', exact: true })).toBeDisabled();
+  await page.evaluate(() =>
+    window.requestsTest.progress({ modId: 'fixture', phase: 'downloading', percent: 50 }),
+  );
+  await expect(dialog).toContainText('Downloading');
+  await expect(dialog).toContainText('50%');
+  await page.evaluate(() => window.requestsTest.finish('profileTransfer:install'));
+  await expect(dialog).toContainText('Shared run is ready');
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('button', { name: 'Export Default', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText(
+    'Default was exported to your chosen location.',
+  );
+});
+test('Custom Lua is a metadata-and-source workspace without guided controls or code decoding', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.settings.creatorEnabled = true;
+  state.settings.creatorAcknowledged = true;
+  const project = editorProject('joker');
+  project.draft.mode = 'custom';
+  project.draft.content = { type: 'blank', name: 'Custom source' };
+  project.draft.lua = '-- authored mod\nreturn 77';
+  await mockDesktop(page, state, {}, project);
+  await page.getByRole('button', { name: 'Create mods', exact: true }).click();
+  await page.getByRole('button', { name: 'UI mod 0 builds', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Custom Lua workspace' })).toBeVisible();
+  for (const name of ['Joker rarity', 'Starting-card mode', 'Redemption effect', 'Joker name'])
+    await expect(page.getByLabel(name, { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Return to guided builder' })).toHaveCount(0);
+  await page.getByLabel('main.lua source', { exact: true }).fill('-- pasted code\nreturn 99');
+  await page.getByLabel('Mod name', { exact: true }).fill('My own mod');
+  await page.getByLabel('Mod description', { exact: true }).fill('My own behaviour');
+  await expect(page.getByLabel('main.lua source', { exact: true })).toHaveValue(
+    '-- pasted code\nreturn 99',
+  );
+  await page.getByRole('button', { name: 'New project', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(page.getByRole('radio', { name: 'Custom Lua', exact: true })).toBeVisible();
+});
+for (const action of [
+  'Got it',
+  'Close dialog',
+  'Escape',
+  'outside',
+  'Open experimental settings',
+]) {
+  test(`creator announcement persists ${action} dismissal without enabling the feature`, async ({
+    page,
+  }) => {
+    const state = fixture();
+    state.settings.dismissedAnnouncements = undefined;
+    await mockDesktop(page, state);
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('New: Experimental Mod Creator');
+    await expect(dialog).toContainText('dedicated Joker, Deck and Voucher builders');
+    if (action === 'Escape') await page.keyboard.press('Escape');
+    else if (action === 'outside') await page.mouse.click(3, 3);
+    else await dialog.getByRole('button', { name: action, exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(
+      await page.evaluate(() => window.requestsTest.state.settings.dismissedAnnouncements),
+    ).toContain('mod-creator-introduction');
+    expect(await page.evaluate(() => window.requestsTest.state.settings.creatorEnabled)).not.toBe(
+      true,
+    );
+    if (action === 'Open experimental settings')
+      await expect(
+        page.getByRole('heading', { name: 'Experimental features', exact: true }),
+      ).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Make the game your own.' })).toBeVisible();
+    await expect(dialog).toHaveCount(0);
+  });
+}
+test('creator announcement waits for loaded settings and onboarding and remains dismissed after version changes', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.settings.dismissedAnnouncements = undefined;
+  await mockDesktop(page, state, { snapshot: 'hold' });
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const changed = {
+    ...state,
+    appVersion: '99.0.0',
+    settings: { ...state.settings, dismissedAnnouncements: ['mod-creator-introduction'] },
+  };
+  await page.evaluate(
+    (value) => window.requestsTest.finish('snapshot', { ok: true, value }),
+    changed,
+  );
+  await expect(page.getByRole('heading', { name: 'Make the game your own.' })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+test('creator announcement does not stack over onboarding or recovery', async ({ page }) => {
+  const state = fixture(false);
+  state.settings.dismissedAnnouncements = undefined;
+  await mockDesktop(page, state);
+  await expect(page.getByRole('dialog')).toHaveCount(1);
+  await expect(page.getByRole('dialog')).toContainText('Welcome to Modatro.');
+  await expect(page.getByRole('heading', { name: 'New: Experimental Mod Creator' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Browse for now', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'New: Experimental Mod Creator' })).toBeVisible();
+});
+function editorProject(type: ContentType): CreatorProject {
+  const id = '11111111-1111-4111-8111-111111111111';
+  const draft = {
+    configVersion: 2 as const,
+    name: 'UI mod',
+    author: 'Author',
+    description: 'Local test',
+    version: '1.0.0',
+    ...creatorIdentities(id),
+    content: defaultContent(type, 'Example ' + type),
+    artwork: { source: 'builtin' as const, builtinId: type + '-1' },
+    mode: 'template' as const,
+    lua: '',
+    crop: { x: 0.5, y: 0.5, zoom: 1 },
+  };
+  draft.lua = generateLua(draft);
+  return {
+    schemaVersion: 2,
+    id,
+    draft,
+    createdAt: '2026-10-20T00:00:00Z',
+    updatedAt: '2026-10-20T00:00:00Z',
+    builds: [],
+    token: 'a'.repeat(64),
+    previewUrl: '',
+  };
+}
+for (const type of ['joker', 'deck', 'voucher'] as const) {
+  test(`${type} has dedicated controls, descriptions, artwork selection and responsive layout`, async ({
+    page,
+  }) => {
+    const state = fixture();
+    state.settings.creatorEnabled = true;
+    state.settings.creatorAcknowledged = true;
+    await mockDesktop(page, state, {}, editorProject(type));
+    await page.getByRole('button', { name: 'Create mods', exact: true }).click();
+    await page.getByRole('button', { name: 'UI mod 0 builds', exact: true }).click();
+    const title = type === 'joker' ? 'Joker' : type === 'deck' ? 'Deck' : 'Voucher';
+    await expect(
+      page.getByRole('heading', { name: title + ' builder', exact: true }),
+    ).toBeVisible();
+    await expect(page.getByLabel(title + ' name', { exact: true })).toHaveValue('Example ' + type);
+    await expect(
+      page.getByRole('button', { name: 'Amethyst ' + title + ' artwork', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: 'Ocean ' + title + ' artwork', exact: true }).click();
+    await expect(
+      page.getByRole('button', { name: 'Ocean ' + title + ' artwork', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    if (type === 'joker') {
+      await expect(page.getByLabel('Purchase cost', { exact: true })).toHaveCount(0);
+      await expect(page.getByLabel('Starting-card mode')).toHaveCount(0);
+      await page.getByLabel('Joker rarity').selectOption('Legendary');
+      await expect(page.getByText(/acquired through The Soul/)).toBeVisible();
+      await page.getByRole('button', { name: 'Add rule', exact: true }).click();
+      await expect(page.locator('.creator-rule')).toHaveCount(2);
+      await page.getByRole('button', { name: 'Move rule 2 up', exact: true }).click();
+      await page
+        .locator('.creator-rule')
+        .first()
+        .getByLabel('When', { exact: true })
+        .selectOption('round');
+      await expect(
+        page.locator('.creator-rule').first().getByLabel('Then', { exact: true }),
+      ).toHaveValue('dollars');
+    } else if (type === 'deck') {
+      await expect(page.getByLabel('Joker rarity')).toHaveCount(0);
+      await expect(page.getByLabel('When', { exact: true })).toHaveCount(0);
+      await page.getByLabel('Starting-card mode').selectOption('modified');
+      await page
+        .getByLabel('Remove all face cards (Jacks, Queens and Kings)', { exact: true })
+        .check();
+      await expect(page.getByLabel('Starting composition preview')).toContainText(
+        'Total cards: 40',
+      );
+      await expect(page.getByRole('checkbox', { name: 'King', exact: true })).not.toBeChecked();
+      await page.getByRole('checkbox', { name: 'King', exact: true }).check();
+      await expect(
+        page.getByLabel('Remove all face cards (Jacks, Queens and Kings)', { exact: true }),
+      ).not.toBeChecked();
+      await page.getByLabel('Starting-card mode').selectOption('rank');
+      await page.getByLabel('Total starting deck size').fill('41');
+      await expect(page.getByLabel('Starting composition preview')).toContainText(
+        '11 Hearts, 10 Diamonds, 10 Clubs, 10 Spades',
+      );
+      await page.getByLabel('Starting-card mode').selectOption('standard');
+      await expect(page.getByLabel('Total starting deck size')).toHaveCount(0);
+      await page.getByLabel('Starting-card mode').selectOption('rank');
+      await expect(page.getByLabel('Total starting deck size')).toHaveValue('41');
+    } else {
+      await expect(page.getByLabel('Joker rarity')).toHaveCount(0);
+      await expect(page.getByLabel('When', { exact: true })).toHaveCount(0);
+      await expect(page.getByLabel('Starting-card mode')).toHaveCount(0);
+      await page.getByLabel('Redemption effect').selectOption('hands');
+      await expect(
+        page.getByText(
+          'Increases the allowance for future rounds. Does not immediately grant additional remaining hands or discards.',
+        ),
+      ).toBeVisible();
+      await page.getByRole('button', { name: 'Add redemption effect' }).click();
+      await expect(page.locator('.creator-redemption')).toHaveCount(2);
+    }
+    await page.getByRole('button', { name: 'Write a manual description' }).click();
+    await page.getByLabel(title + ' description', { exact: true }).fill('My manual description');
+    await page.getByLabel(title + ' name', { exact: true }).fill('Renamed');
+    await expect(page.getByLabel(title + ' description', { exact: true })).toHaveValue(
+      'My manual description',
+    );
+    await page.getByRole('button', { name: 'Restore automatic description' }).click();
+    await expect(page.getByLabel(title + ' description', { exact: true })).not.toHaveValue(
+      'My manual description',
+    );
+    for (const width of [1440, 1024, 768, 375]) {
+      await page.setViewportSize({ width, height: 1000 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+    }
+    await page.getByRole('button', { name: 'Use Custom Lua' }).click();
+    await page
+      .getByLabel('main.lua source', { exact: true })
+      .fill('-- preserved custom\nreturn 77');
+    await expect(page.getByLabel(title + ' name', { exact: true })).toHaveCount(0);
+    await page.getByLabel('Mod name', { exact: true }).fill('Custom title');
+    await expect(page.getByLabel('main.lua source', { exact: true })).toHaveValue(
+      '-- preserved custom\nreturn 77',
+    );
+  });
+}
 test('application updates stay quiet and open the installer only after a user click', async ({
   page,
 }) => {
@@ -58,6 +318,7 @@ function fixture(ready = true): Snapshot {
   return {
     settings: {
       theme: 'dark',
+      dismissedAnnouncements: ['mod-creator-introduction'],
       setupComplete: ready,
       gamePath: ready ? '/game/Balatro' : undefined,
       modsPath: ready ? '/game-data/Mods' : undefined,
@@ -97,9 +358,16 @@ function fixture(ready = true): Snapshot {
     electronVersion: 'test',
   };
 }
-async function mockDesktop(page: Page, state = fixture(), behavior: Record<string, Behavior> = {}) {
+async function mockDesktop(
+  page: Page,
+  state = fixture(),
+  behavior: Record<string, Behavior> = {},
+  project?: CreatorProject,
+) {
   await page.addInitScript(
-    ({ state, behavior }) => {
+    ({ state, behavior, project }) => {
+      const remembered = localStorage.getItem('announcement-test-dismissals');
+      if (remembered) state.settings.dismissedAnnouncements = JSON.parse(remembered);
       const progressListeners = new Set<(value: Progress) => void>();
       const pending = new Map<
         string,
@@ -154,6 +422,49 @@ async function mockDesktop(page: Page, state = fixture(), behavior: Record<strin
         }
       };
       const api: ModatroApi = {
+        profileTransfer: (request) =>
+          call(
+            'profileTransfer:' + request.operation,
+            request.operation === 'choose-import'
+              ? {
+                  status: 'review',
+                  token: '22222222-2222-4222-8222-222222222222',
+                  name: 'Shared run',
+                  mods: [
+                    { title: 'Test mod', version: '1.0.0', enabled: true, status: 'download' },
+                  ],
+                  blockers: [],
+                  warnings: [],
+                }
+              : request.operation === 'install'
+                ? {
+                    status: 'complete',
+                    name: 'Shared run',
+                    profileId: '22222222-2222-4222-8222-222222222222',
+                    snapshot: control.state,
+                  }
+                : request.operation === 'export'
+                  ? { status: 'exported', name: 'Default' }
+                  : { status: 'cancelled', snapshot: control.state },
+          ),
+        creator: async (request) => {
+          if (!project) throw new Error('No project fixture');
+          if (request.operation === 'save') project = { ...project, draft: request.draft };
+          return {
+            ok: true,
+            value: {
+              projects: [
+                {
+                  id: project.id,
+                  name: project.draft.name,
+                  updatedAt: project.updatedAt,
+                  builds: 0,
+                },
+              ],
+              project: request.operation === 'list' ? undefined : project,
+            },
+          };
+        },
         checkAppUpdates: () => call('checkAppUpdates', control.state),
         githubStars: async () => ({ ok: true, value: { fixture: 42, popular: 1200, zero: 0 } }),
         snapshot: () => call('snapshot', control.state),
@@ -204,7 +515,13 @@ async function mockDesktop(page: Page, state = fixture(), behavior: Record<strin
             ...control.state,
             settings: { ...control.state.settings, ...settings },
           });
-          if (reply.ok) control.state = reply.value;
+          if (reply.ok) {
+            control.state = reply.value;
+            localStorage.setItem(
+              'announcement-test-dismissals',
+              JSON.stringify(reply.value.settings.dismissedAnnouncements ?? []),
+            );
+          }
           return reply;
         },
         action: (id, action, _decisions, token, acceptedUnverified) => {
@@ -228,7 +545,7 @@ async function mockDesktop(page: Page, state = fixture(), behavior: Record<strin
       };
       window.modatro = api;
     },
-    { state, behavior },
+    { state, behavior, project },
   );
   await page.goto('/');
 }

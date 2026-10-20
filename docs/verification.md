@@ -117,8 +117,10 @@ excerpts, honest unknown states, redaction and reviewed export. Actual desktop I
 is tested with disposable fixtures beneath the real home so production path rules
 still apply. Real personal logs, games and saves remain excluded.
 
-Creator tests build all five recipes against conventions checked in Steamodded
-26.1002.0 documentation and tagged source. They verify JSON/Lua escaping, atlas
+Creator tests cover the three guided builders and separate Custom Lua workspace
+against Steamodded 26.1002.0 documentation and tagged source. A test-only Lua VM
+checks ordered effects, context guards, setup and redemption contracts. Tests also
+verify migration backups, all fifteen artwork choices, JSON/Lua escaping, atlas
 sizes, alpha, deterministic hashes, private-file exclusion and optimistic save
 conflicts. The real installer stages two revisions, restores an older build and
 rolls back an injected replacement failure while preserving drafts and both ZIPs.
@@ -135,7 +137,12 @@ use controlled responses. Screenshot capture checks all seven main pages at 1440
 does not prove game behaviour, code safety or compatibility with other mods.
 Before release, test each recipe with backed-up saves and the declared loader
 versions, recording exact versions and actual outcomes. See [Mod Creator](mod-creator.md)
-for recipe semantics, resource limits, custom-code restrictions and restoration.
+for builder semantics, resource limits, custom-code restrictions and restoration.
+
+Profile sharing tests cover corruption, constrained source references, unique names,
+native-picker cancellation, dependency-first downloads, confirmation and restoration
+after cancellation or invalid archives. Announcement tests cover every dismissal route,
+durable settings, version changes, onboarding and navigation without feature enablement.
 
 Version tests cover semantic ordering, PR title prefixes, merged PR lookup,
 published-history gaps, draft exclusion and retries. A child-process regression

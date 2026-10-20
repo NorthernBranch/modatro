@@ -1,141 +1,132 @@
 # Experimental Mod Creator
 
-Mod Creator is a small, local Steamodded project editor. Enable it under
-**Settings → Experimental features → Mod Creator**, acknowledge the disclaimer,
-then open **Create mods** in the sidebar. It is off by default. Disabling it keeps
-projects and installed mods; normal Installed actions remain available.
+Enable **Settings → Experimental features → Mod Creator**, acknowledge the risks,
+then open **Create mods**. It is off by default. Disabling it preserves projects,
+installed copies and builds. The one-time introduction never enables it for you.
 
-![Experimental creator with a representative local Joker project](images/creator.png)
+![The dedicated Joker builder](images/creator.png)
 
-## Before testing
+## Choose a workspace
 
-Mods can cause crashes or affect your saves. Back up your Balatro saves before
-installing or updating mods. Close Balatro and copy the entire save-data folder,
-including numbered profile folders, to a separate location:
+**New project** offers **Joker**, **Deck**, **Voucher** and **Custom Lua** workspaces.
+A project keeps its content type; create another project for a different type.
+Mod name, author, version, ID and description are separate from content settings.
+IDs and prefixes become fixed after building. Guided descriptions update with
+configuration; manual overrides remain until **Restore automatic description**.
+Previews describe configuration, not a simulation proving compatibility.
 
-| Setup          | Usual save-data folder                                                  |
-| -------------- | ----------------------------------------------------------------------- |
-| Windows        | `%APPDATA%/Balatro`                                                     |
-| macOS          | `~/Library/Application Support/Balatro`                                 |
-| Steam / Proton | The selected prefix's `drive_c/users/steamuser/AppData/Roaming/Balatro` |
+### Jokers
 
-Custom setups can differ. Modatro's file backups cover managed mod/game-file changes,
-**not Balatro saves**. The main reminder is dismissible; restore it under
-**Settings → Balatro saves → Show reminder again**. No automatic save backup exists.
+Choose rarity, shop cost and artwork. Common/Uncommon/Rare/Legendary map to
+Steamodded rarities 1/2/3/4. Legendary uses The Soul's pool rather than ordinary
+shop rolls; other mods may change acquisition.
 
-Custom Lua runs as code in the game. Use only code you trust. Syntax validation
-cannot establish safety, compatibility or correct gameplay. The full disclaimer
-remains under **Before testing your mod** in the creator.
+| When                    | Optional conditions (ALL)                                          | Then                 |
+| ----------------------- | ------------------------------------------------------------------ | -------------------- |
+| Each played card scores | Ranks, suits, face card, resolved hand, played/scoring card counts | +Chips, +Mult, ×Mult |
+| Main Joker scoring      | Resolved hand, played/scoring card counts                          | +Chips, +Mult, ×Mult |
+| Round ends              | Remaining hands/discards                                           | Earn money           |
 
-## Create, save, build and install
+Within rank/suit selections, any selected value matches. Suit checks use the game's
+helper for Wild/suitless behaviour; ranks exclude rankless cards and face checks use
+the face-card helper. Resolved hand matching is exact: Flush does not mean Straight
+Flush or “contains a Flush”. Add, duplicate, delete and reorder rules; matching
+effects resolve top to bottom, so +Mult then ×Mult differs from the reverse order.
+Card retriggers repeat per-card effects; main scoring follows Joker evaluations.
+Round rewards exclude individual held-card, repetition and game-over contexts.
+Advanced compatibility flags describe generated fixed effects, not custom Lua.
 
-1. Choose **New project**, enter a name and author, and select a recipe.
-2. Edit the description, three-part version and template options. **Advanced identity**
-   exposes the generated mod ID and prefix. Collisions with active projects and
-   detected installed mod metadata are rejected. Identities are fixed after the
-   first build; create a new project for a different identity.
-3. **Save draft** stores source and project settings, without touching installed files.
-4. **Build mod** checks the saved metadata and Lua syntax and creates a ZIP. Unsaved
-   edits must be saved first. Validation and build messages do not mean tested in-game.
-5. **Install build** or **Install changes** uses Modatro's existing dependency, file
-   ownership, game-closed, backup and transaction checks. Resolve missing prerequisites
-   using the normal prerequisite actions, then retry. Known incompatible versions block
-   installation; unknown installed loader versions use the existing explicit consent flow.
-6. **Launch Balatro**, test the mod yourself, close the game, then edit, save, build
-   and install changes explicitly. There is no hot reload.
+### Decks
 
-Installed mods show **Locally created · Experimental**, the project ID and the exact
-build hash in their source record. A catalogue release cannot overwrite that managed
-project. Profiles share its installed version, just as they share other mod versions.
+![Deck composition and starting setup](images/creator-deck.png)
 
-## Supported recipes
+Decks use starting-setup controls, without scoring rules:
 
-Templates target **Steamodded 26.1002.0** and require Lovely. The metadata, atlas
-registration and calculation contexts were checked against upstream documentation
-and the tagged Steamodded source. They have **not been tested in a running game**
-as part of this change; try them with backed-up saves and report actual results.
+- **Standard:** no composition override; 52 base-game cards.
+- **Modify standard:** included ranks × suits × copies determines size. Removing
+  face cards synchronises Jacks, Queens and Kings with the rank selection; it does
+  not interpret other mods' face-card effects.
+- **All one rank:** editable total spread across selected suits in displayed order;
+  remainders go to the first suits. Exact counts are shown.
+- **All one specific card:** editable copies of one rank and one suit.
 
-| Recipe                   | Effect and creator limits                                                                   |
-| ------------------------ | ------------------------------------------------------------------------------------------- |
-| Blank                    | Registers the card atlas, without gameplay objects; a starting point for trusted custom Lua |
-| Joker · fixed Mult       | Adds 0–1,000 Mult during Joker scoring for each played hand                                 |
-| Joker · fixed Chips      | Adds 0–100,000 Chips during Joker scoring for each played hand                              |
-| Joker · scored suit Mult | Adds 0–1,000 Mult for each scored card matching the selected suit, including retriggers     |
-| Deck · starting bonuses  | Adds $0–1,000 starting money and 0–10 hands/discards per round when starting a new run      |
+The summary includes total, rank/suit counts and an expandable card list. Empty,
+fractional and over-260-card setups are rejected. Small decks receive a warning;
+editable presets are examples, not balanced designs.
 
-Only whole, nonnegative bonuses are supported. These are conservative creator
-limits, not Steamodded guarantees of balance or compatibility. Decks use the normal
-`SMODS.Back.config` bonuses, rather than patching game source or replacing run totals.
-Joker descriptions are generated from the selected effect values.
+Starting money changes the initial balance once. Hands/discards adjust each round's
+allowance; hand size and slots remain adjusted for the run. Values are relative,
+with a base-game preview; stakes and other mods can change results. Reset restores
+resource/capacity defaults. Advanced starting items offer six vanilla Jokers and nine
+Tarot/Planet consumables with search and quantity/capacity checks. Overflow is rejected,
+never discarded or made Negative. Third-party starting items are not discovered.
 
-References: [mod metadata](https://docs.smods.dev/API%20Documentation/Mod-Metadata/),
-[Jokers](https://docs.smods.dev/Game%20Objects/SMODS.Center/SMODS.Joker/),
-[calculation contexts](https://docs.smods.dev/API%20Documentation/Calculate-Functions/),
-[decks](https://docs.smods.dev/Game%20Objects/SMODS.Center/SMODS.Back/),
-[atlases](https://docs.smods.dev/Game%20Objects/SMODS.Atlas/) and
-[tagged deck integration](https://github.com/Steamodded/smods/blob/26.1002.0/lovely/back.toml).
+Native new-run setup creates composition and items once. Continuing a save keeps
+its cards and modifiers. Custom composition uses explicit base-game card prototypes;
+other mods that change starting cards or resources can conflict.
 
-## Lua and external editors
+### Vouchers
 
-Template mode owns the generated `main.lua`; the editor highlights it but keeps it
-read-only. **Edit custom Lua** preserves that source and allows editing or pasting.
-A pasted fragment may need surrounding code and additional dependencies. Extra
-dependencies for custom code must currently be installed manually; the creator
-declares Steamodded and Lovely only.
+![Voucher redemption effects](images/creator-voucher.png)
 
-The lightweight editor parses LuaJIT syntax with `luaparse` and reports filename,
-line and column. It does not execute Lua inside Modatro or Electron. LuaJIT-specific
-extensions and game APIs can still differ from what the parser accepts, including
-non-ASCII identifiers. Source is limited to 128 KiB of text.
+Set name, purchase cost, artwork and distinct redemption effects: increase hand
+size, hands/discards per round, Joker slots or consumable slots. Whole increases
+from 1–10 are supported. Redemption updates the run once and persists with it;
+loading does not apply it again. Hands/discards change future round allowances,
+**without immediately granting remaining hands/discards**. These are ordinary
+standalone Vouchers, without custom rarity, chains or shop weights.
 
-**Return to template** requires confirmation. The current custom source is saved
-before regeneration and preserved in the project's `history` folder. Arbitrary Lua
-is never converted back into form controls. Navigation and closing the desktop
-window protect unsaved work.
+### Custom Lua
 
-**Open project folder** opens the editable directory. External `main.lua` edits load
-as custom code. Use **Reload from disk** before building, then save the draft.
-A stale save is rejected instead of overwriting changed disk files; the current
-editor buffer remains available to copy elsewhere. Treat `project.json` and `art/`
-as internal state, rather than editing them while Modatro is working.
+This separate workspace shows mod metadata and a source editor,
+without guided content controls. Modatro never decodes Lua into forms or infers
+compatibility. Syntax checking uses `luaparse` without executing code; the limit
+is 128 KiB. Additional dependencies need manual installation. An optional bundled
+atlas is available; other assets are outside this editor.
 
-## Artwork
+**Use Custom Lua** preserves a guided project's generated source. Returning to its
+guided builder requires confirmation and saves custom source in history first.
+External `main.lua` edits also open as custom code. Reload before saving external
+changes; stale writes and unsaved navigation/window closing are guarded.
 
-Import a static PNG up to **8 MiB**, with dimensions from 1×1 to **2048×2048**.
-The original file stays in the project. Zoom and horizontal/vertical crop controls
-select the 71:95 card area; the preview shows the actual 71×95 size. Save before
-importing, replacing or resetting artwork.
+## Artwork, migration and builds
 
-Builds preserve transparency and use nearest-neighbour resizing for
-`assets/1x/card.png` (71×95) and `assets/2x/card.png` (142×190). Original uploads and
-their ancillary metadata are excluded from exports. Animated PNGs are unsupported.
+Each type has five original CC0 designs: **J**, **D** or **V** in Amethyst, Ocean,
+Forest, Rose and Amber. Choose a built-in or upload a static PNG (8 MiB maximum,
+up to 2048×2048), then crop, pan and zoom. Transparency and originals are preserved,
+including when switching to a built-in. Builds contain 71×95 and 142×190 atlases
+with matching Lua references. Use uploaded artwork you may redistribute.
 
-Without an import, Modatro generates original placeholder artwork: a geometric J
-card or patterned deck back. Placeholders are allowed in installs and exports and
-released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/); each ZIP
-includes that permission. This does not license your code or imported artwork.
-Use artwork you have permission to redistribute.
+Existing projects upgrade to schema 2 after backing up metadata, Lua and original
+artwork in `history/migration-v1/`. Joker recipes become equivalent rules; deck
+bonuses, IDs, installed relationships and custom code remain unchanged. Migration
+never regenerates source or replaces installed builds. Legacy placeholders remain
+selected until explicitly replaced, including older deck artwork.
 
-## Builds, restoration and export
+**Save draft → Build mod → Install build → Launch Balatro** remain explicit actions.
+Saving never changes installed copies. Installation reuses dependency, ownership,
+game-closed, backup and rollback checks. Build history can restore previous immutable
+revisions. Uninstall preserves source and builds; archiving moves source into
+`creator/deleted/` without uninstalling. Projects and builds are local files; back up
+application data separately.
 
-**Build history and export** lists retained immutable builds. **Install this build**
-restores an earlier revision through the normal update workflow. Enable a disabled
-installed mod before replacing it. Draft edits do not change retained build ZIPs.
-Failed installations use the existing rollback/recovery journal; source projects
-and previous builds are outside the installation destination. Keep application data
-if recovery is blocked by changed files or missing backups.
+**Export ZIP** prompts for a destination and includes metadata, Lua, two atlases,
+README and artwork permission only. Project state, originals, history, backups and
+machine paths are excluded. Back up Balatro saves separately: Modatro's mod-file
+backups do not include them. Settings contains save locations and the option to
+restore the dismissible backup reminder.
 
-**Export ZIP** writes only `mod.json`, `main.lua`, both atlas PNGs, a short README
-and the artwork permission file under the mod-ID folder. It excludes editor state,
-absolute paths, original artwork, source history and file-operation backups. Save
-outside game, Mods and Modatro data folders. An exported ZIP can be installed through
-**Settings → Advanced → Install from file / Add mod definition**, preserving the
-existing local ZIP workflow. Imported arbitrary Lua does not become a visual project.
+## Verification boundary
 
-Uninstalling an installed mod leaves its editable project and build ZIPs intact.
-**Archive project** moves the editable directory to `creator/deleted/` within
-Modatro's data folder; it does not uninstall anything. Retained build ZIPs live in
-`creator/builds/<project-id>/`. Copy an archived UUID project directory back into
-`creator/projects/<project-id>/` with Modatro closed if you need it again. Projects
-and build history are local, unencrypted files; back up the application-data folder
-separately. Limits are 200 active projects and 1,000 builds per project.
+Hooks were checked against **Steamodded 26.1002.0**, its tagged integration and the
+local game's setup/redemption source. Tests cover generation, a test-only Lua contract
+harness, migrations, artwork, installation, rollback, export and renderer flows.
+**No representative in-game acceptance run has been completed.** Syntax and harness
+checks do not prove gameplay compatibility or safety.
+
+References: [Jokers](https://docs.smods.dev/Game%20Objects/SMODS.Center/SMODS.Joker/),
+[contexts](https://docs.smods.dev/API%20Documentation/Calculate-Functions/),
+[Backs](https://docs.smods.dev/Game%20Objects/SMODS.Center/SMODS.Back/),
+[Vouchers](https://docs.smods.dev/Game%20Objects/SMODS.Center/SMODS.Voucher/),
+[atlas source](https://github.com/Steamodded/smods/blob/26.1002.0/src/game_object.lua),
+[new-run integration](https://github.com/Steamodded/smods/blob/26.1002.0/lovely/playing_card.toml).

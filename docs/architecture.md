@@ -113,7 +113,11 @@ experimental acknowledgement. Projects live in `creator/projects/<uuid>/`, separ
 from installed destinations. Optimistic content tokens reject stale writes after
 external edits. Custom source and prior project JSON are preserved in local history
 before template regeneration. This is recoverable file saving, not a claim of an
-atomic multi-file project transaction.
+atomic multi-file project transaction. Versioned content models in
+`creator-content.ts` separate Joker rules, Deck setup and Voucher redemption;
+Custom Lua is a source workspace, never decoded into guided controls. Schema-1
+projects receive a metadata/source/art backup before schema-2 migration. Built-in
+art IDs and retained uploads are independent of installed builds.
 
 `luaparse` parses LuaJIT syntax without execution. `pngjs` validates PNG CRCs after
 byte/dimension checks; interlaced inflation is explicitly bounded. Originals remain
@@ -248,6 +252,14 @@ The shared `withInstalledMods` state builder saves installed or adopted identiti
 to the active selection and adds new disabled entries to inactive selections.
 Existing inactive choices and unrelated unsaved toggles are preserved. Single and
 dependency-batch installs use this builder inside their file transaction.
+
+`ProfileTransferService` validates a bounded, checksummed portable manifest through
+native open/save pickers. It resolves catalogue identities, constrains pinned GitHub
+artifacts to the declared repository, then uses dependency planning, batch installation
+and reviewed profile transactions. An import gets a new UUID and unique name;
+cancellation restores the prior profile. Source JSON cannot supply installation paths
+or bypass trust policy. Settings retain announcement dismissal IDs independently of
+application versions, profiles and experimental-feature enablement.
 
 `ProfileService` reviews targets under the existing transaction lock and game-closed
 guard. It uses the same dependency evaluator as installation, source-qualified package

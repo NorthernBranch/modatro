@@ -11,6 +11,7 @@ import {
   CreatorProjectSchema,
   CreatorRequestSchema,
   creatorIdentities,
+  migrateCreatorProject,
   type CreatorDraft,
   type CreatorProject,
   type CreatorRequest,
@@ -22,8 +23,9 @@ import { atomicWrite, contained, exists, hashFile, readSmall, safeDestination } 
 import { UserError } from './errors';
 import { type Storage } from './storage';
 import { type TransactionEngine } from './transaction';
-import { cardArtwork, decodeArtwork, placeholderArtwork } from './creator-art';
+import { cardArtwork, decodeArtwork, placeholderArtwork, builtinArtwork } from './creator-art';
 import { parseLuaHeader } from './metadata';
+import { defaultContent } from '../../src/shared/creator-content';
 
 const digest = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
 const buildRecord = z
@@ -73,23 +75,56 @@ export class CreatorService {
   }
   private async read(id: string) {
     const location = this.location(id);
-    const raw = await readSmall(await this.file(`${location}/project.json`));
-    const stored = CreatorProjectSchema.parse(JSON.parse(raw));
+    let raw = await readSmall(await this.file(`${location}/project.json`));
+    const parsed = JSON.parse(raw);
+    const stored = migrateCreatorProject(parsed);
     if (stored.id !== id) throw new UserError('The project identity has changed.');
+    if (parsed.schemaVersion === 1) {
+      const originalLua = await readSmall(await this.file(`${location}/main.lua`), 128 * 1024);
+      // Complete a durable, immutable backup before replacing any project metadata.
+      const backup = `${location}/history/migration-v1`;
+      await this.mkdir(backup);
+      for (const [name, bytes] of [
+        ['project.json', raw],
+        ['main.lua', originalLua],
+      ] as const) {
+        const dest = await this.file(`${backup}/${name}`);
+        if (!(await exists(dest))) await atomicWrite(dest, bytes);
+      }
+      if (stored.artHash) {
+        const bytes = await this.readBytes(
+          await this.file(`${location}/art/${stored.artHash}.png`),
+        );
+        if (digest(bytes) !== stored.artHash)
+          throw new UserError(
+            'Original artwork changed externally. Restore the project copy before migration.',
+          );
+        const dest = await this.file(`${backup}/${stored.artHash}.png`);
+        if (!(await exists(dest))) await atomicWrite(dest, bytes);
+      }
+      if ((await readSmall(await this.file(`${location}/project.json`))) !== raw)
+        throw new UserError('The project changed during migration. Reload it before continuing.');
+      await this.json(`${location}/project.json`, stored);
+      raw = await readSmall(await this.file(`${location}/project.json`));
+    }
     const lua = await readSmall(await this.file(`${location}/main.lua`), 128 * 1024);
     let artwork: CreatorProject['artwork'];
-    let image = placeholderArtwork(stored.draft.recipe === 'deck');
+    let image =
+      stored.draft.artwork.source === 'legacy'
+        ? placeholderArtwork(!!stored.draft.artwork.legacyDeck)
+        : builtinArtwork(stored.draft.artwork.builtinId);
     if (stored.artHash) {
       const bytes = await this.readBytes(await this.file(`${location}/art/${stored.artHash}.png`));
       if (digest(bytes) !== stored.artHash)
         throw new UserError(
           'Original artwork changed externally. Restore the project copy before continuing.',
         );
-      image = decodeArtwork(bytes);
+      const original = decodeArtwork(bytes);
+      if (stored.draft.artwork.source === 'upload') image = original;
       artwork = {
         dataUrl: `data:image/png;base64,${bytes.toString('base64')}`,
-        width: image.width,
-        height: image.height,
+        width: original.width,
+        height: original.height,
       };
     }
     const externalChanges = lua !== stored.draft.lua;
@@ -104,7 +139,7 @@ export class CreatorService {
       artwork,
       externalChanges,
       token: digest(raw + '\0' + lua),
-      previewUrl: `data:image/png;base64,${cardArtwork(image, stored.artHash ? draft.crop : { x: 0.5, y: 0.5, zoom: 1 }, 2).toString('base64')}`,
+      previewUrl: `data:image/png;base64,${cardArtwork(image, draft.artwork.source === 'upload' ? draft.crop : { x: 0.5, y: 0.5, zoom: 1 }, 2).toString('base64')}`,
       installedBuild: this.storage.state.installations.find(
         (r) => r.provenance?.creator?.projectId === id,
       )?.provenance?.creator?.buildId,
@@ -128,7 +163,7 @@ export class CreatorService {
     for (const entry of entries) {
       if (!z.uuid().safeParse(entry.name).success) continue;
       const file = await this.file(`${this.location(entry.name)}/project.json`);
-      const project = CreatorProjectSchema.parse(JSON.parse(await readSmall(file)));
+      const project = migrateCreatorProject(JSON.parse(await readSmall(file)));
       if (project.id !== entry.name)
         throw new UserError('A project has inconsistent identity metadata.');
       projects.push({
@@ -148,7 +183,7 @@ export class CreatorService {
       if (item.id === id) continue;
       // Collision checks need metadata only; decoding every project's artwork
       // here would make ordinary saves increasingly expensive.
-      const stored = CreatorProjectSchema.parse(
+      const stored = migrateCreatorProject(
         JSON.parse(await readSmall(await this.file(`${this.location(item.id)}/project.json`))),
       );
       if (
@@ -223,6 +258,12 @@ export class CreatorService {
       throw new UserError(
         'Mod ID and prefix are fixed after the first build. Create another project to use a new identity.',
       );
+    if (draft.content.type !== current.stored.draft.content.type)
+      throw new UserError(
+        'Create a new project to use a different content type. Existing settings and source are preserved.',
+      );
+    if (draft.artwork.source === 'upload' && !current.stored.artHash)
+      throw new UserError('Import artwork before selecting the uploaded image.');
     await this.collision(id, draft);
     if (draft.mode === 'template' && current.project.draft.mode === 'custom' && !regenerate)
       throw new UserError(
@@ -297,29 +338,44 @@ export class CreatorService {
           throw new UserError('Archive a project before creating another.');
         const id = randomUUID(),
           time = new Date().toISOString();
+        const type = request.contentType ?? (request.recipe === 'deck' ? 'deck' : 'joker');
+        const content =
+          request.recipe === 'blank' || type === 'custom'
+            ? { type: 'blank' as const, name: request.name }
+            : defaultContent(type, request.name);
+        if (content.type === 'joker' && request.recipe)
+          content.rules = [
+            {
+              trigger: request.recipe === 'joker-suit' ? 'scored' : 'main',
+              conditions:
+                request.recipe === 'joker-suit' ? [{ kind: 'suits', values: ['Hearts'] }] : [],
+              effect: request.recipe === 'joker-chips' ? 'chips' : 'mult',
+              amount: request.recipe === 'joker-chips' ? 30 : 4,
+            },
+          ];
         const draft: CreatorDraft = {
+          configVersion: 2,
           name: request.name,
           author: request.author,
           description: 'A locally created experimental mod.',
           version: '1.0.0',
           ...creatorIdentities(id),
-          recipe: request.recipe,
-          amount: request.recipe === 'joker-chips' ? 30 : 4,
-          suit: 'Hearts',
-          dollars: 10,
-          hands: 1,
-          discards: 0,
-          mode: 'template',
+          content,
+          artwork: { source: 'builtin', builtinId: (type === 'custom' ? 'joker' : type) + '-1' },
+          mode: type === 'custom' ? 'custom' : 'template',
           lua: '',
           crop: { x: 0.5, y: 0.5, zoom: 1 },
         };
-        draft.lua = generateLua(draft);
+        draft.lua =
+          type === 'custom'
+            ? '-- Write your trusted Steamodded Lua here.\n-- This file runs inside Balatro, never inside Modatro.\n'
+            : generateLua(draft);
         await this.collision(id, draft);
         const location = this.location(id);
         await this.mkdir(location);
         await atomicWrite(await this.file(`${location}/main.lua`), draft.lua);
         await this.json(`${location}/project.json`, {
-          schemaVersion: 1,
+          schemaVersion: 2,
           id,
           draft,
           createdAt: time,
@@ -352,9 +408,12 @@ export class CreatorService {
           throw new UserError(
             'This project has reached its 1000-build limit. Export and archive it before starting another.',
           );
-        const source = stored.artHash
-          ? decodeArtwork(Buffer.from(current.artwork!.dataUrl.split(',')[1]!, 'base64'))
-          : placeholderArtwork(stored.draft.recipe === 'deck');
+        const source =
+          stored.draft.artwork.source === 'upload'
+            ? decodeArtwork(Buffer.from(current.artwork!.dataUrl.split(',')[1]!, 'base64'))
+            : stored.draft.artwork.source === 'legacy'
+              ? placeholderArtwork(!!stored.draft.artwork.legacyDeck)
+              : builtinArtwork(stored.draft.artwork.builtinId);
         const d = stored.draft;
         const files: Record<string, Uint8Array> = {
           'mod.json': strToU8(
@@ -376,7 +435,7 @@ export class CreatorService {
           'main.lua': strToU8(d.lua),
           'assets/1x/card.png': cardArtwork(
             source,
-            stored.artHash ? d.crop : { x: 0.5, y: 0.5, zoom: 1 },
+            d.artwork.source === 'upload' ? d.crop : { x: 0.5, y: 0.5, zoom: 1 },
             1,
           ),
           'assets/2x/card.png': cardArtwork(
@@ -485,8 +544,18 @@ export class CreatorService {
         }
         await this.json(`${location}/project.json`, {
           ...stored,
-          artHash,
-          draft: { ...stored.draft, crop: { x: 0.5, y: 0.5, zoom: 1 } },
+          artHash: artHash ?? stored.artHash,
+          draft: {
+            ...stored.draft,
+            artwork: {
+              ...stored.draft.artwork,
+              source: request.operation === 'import-art' ? 'upload' : 'builtin',
+              builtinId:
+                (stored.draft.content.type === 'blank' ? 'joker' : stored.draft.content.type) +
+                '-1',
+            },
+            crop: { x: 0.5, y: 0.5, zoom: 1 },
+          },
           updatedAt: new Date().toISOString(),
         });
         project = (await this.read(request.id)).project;

@@ -4,6 +4,39 @@ import { ModatroApplication } from '../electron/application';
 import { tempRoot } from './helpers';
 
 const roots: string[] = [];
+it('persists announcement dismissal across restarts and app versions without enabling creator or clearing older IDs', async () => {
+  const root = await tempRoot();
+  roots.push(root);
+  vi.stubEnv('MODATRO_TEST_DATA', root);
+  const make = (version: string) =>
+    new ModatroApplication(
+      root,
+      version,
+      'test',
+      () => {},
+      () => {},
+    );
+  const app = make('0.5.0');
+  await app.initialize();
+  await app.saveSettings({
+    theme: 'dark',
+    setupComplete: false,
+    dismissedAnnouncements: ['mod-creator-introduction'],
+  });
+  await app.saveSettings({
+    theme: 'light',
+    setupComplete: false,
+    dismissedAnnouncements: ['future-announcement'],
+  });
+  await app.saveSettings({ theme: 'dark', setupComplete: false, dismissedAnnouncements: [] });
+  const upgraded = make('99.0.0');
+  await upgraded.initialize();
+  expect(upgraded.storage.state.settings.dismissedAnnouncements).toEqual([
+    'mod-creator-introduction',
+    'future-announcement',
+  ]);
+  expect(upgraded.storage.state.settings.creatorEnabled).not.toBe(true);
+});
 it('persists creator acknowledgement and save notice preference without deleting projects when disabled', async () => {
   const root = await tempRoot();
   roots.push(root);

@@ -42,6 +42,7 @@ import { TroubleshootingService } from './services/troubleshooting';
 import { profileSummary } from '../src/shared/profile-selection';
 import type { ProfileOperation } from '../src/shared/features';
 import { CreatorService } from './services/creator';
+import { ProfileTransferService } from './services/profile-transfer';
 
 export class ModatroApplication {
   readonly storage: Storage;
@@ -56,6 +57,7 @@ export class ModatroApplication {
   readonly transactions: TransactionEngine;
   readonly installer: ModInstaller;
   readonly profiles: ProfileService;
+  readonly profileTransfer: ProfileTransferService;
   readonly troubleshooting: TroubleshootingService;
   readonly creator: CreatorService;
   readonly localSource = new LocalModSource(() => this.custom);
@@ -113,6 +115,14 @@ export class ModatroApplication {
       },
     );
     this.profiles = new ProfileService(this.storage, this.installer, () => this.snapshot());
+    this.profileTransfer = new ProfileTransferService(
+      this.storage,
+      this.installer,
+      this.profiles,
+      () => this.allMods(),
+      () => this.snapshot(),
+      (roots, staged) => this.dependencyPlan(roots, [], staged),
+    );
     this.troubleshooting = new TroubleshootingService(
       this.storage,
       this.transactions,
@@ -368,19 +378,35 @@ export class ModatroApplication {
         throw new UserError('Find and validate Balatro before completing setup.');
       await this.storage.save({
         ...this.storage.state,
-        settings: { ...this.storage.state.settings, ...settings },
+        settings: {
+          ...this.storage.state.settings,
+          ...settings,
+          ...(settings.dismissedAnnouncements
+            ? {
+                dismissedAnnouncements: [
+                  ...new Set([
+                    ...(this.storage.state.settings.dismissedAnnouncements ?? []),
+                    ...settings.dismissedAnnouncements,
+                  ]),
+                ],
+              }
+            : {}),
+        },
       });
       await this.repository.configureIndex(this.storage.state.settings.modIndexUrl);
       return this.snapshot();
     });
   }
   private async dependencyPlan(
-    root: ModDefinition,
+    root: ModDefinition | ModDefinition[],
     accepted: UnverifiedPrerequisite[],
     staged: ModDefinition[] = [],
   ) {
     const installed = (await this.snapshot()).prerequisites;
-    const candidates = new Map([...this.allMods(), root, ...staged].map((mod) => [mod.id, mod]));
+    const roots = Array.isArray(root) ? root : [root];
+    const candidates = new Map(
+      [...this.allMods(), ...roots, ...staged].map((mod) => [mod.id, mod]),
+    );
     const visited = new Set<string>();
     const visit = async (input: ModDefinition) => {
       if (visited.has(input.id)) return;
@@ -408,9 +434,9 @@ export class ModatroApplication {
       }
     };
     try {
-      await visit(candidates.get(root.id)!);
+      for (const item of roots) await visit(candidates.get(item.id)!);
       return resolveDependencyGraph(
-        [candidates.get(root.id)!],
+        roots.map((item) => candidates.get(item.id)!),
         [...candidates.values()],
         installed,
         accepted,

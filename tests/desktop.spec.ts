@@ -105,6 +105,10 @@ test('desktop has an isolated renderer, working preload and validated IPC', asyn
         'This mod is not in the validated catalogue. Refresh and try again.',
       );
     await page.getByRole('button', { name: 'Browse for now' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'New: Experimental Mod Creator' }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Got it', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Make the game your own.' })).toBeVisible();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Just the way you like it.' })).toBeVisible();
@@ -125,6 +129,7 @@ test('desktop has an isolated renderer, working preload and validated IPC', asyn
     await create.getByLabel('Author', { exact: true }).fill('Fixture author');
     await create.getByRole('button', { name: 'Create project', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Fixture Joker', exact: true })).toBeVisible();
+    await page.getByText('Mod metadata', { exact: true }).click();
     await page.getByLabel('Mod name', { exact: true }).fill('Unsaved fixture');
     await page.getByRole('button', { name: 'Installed', exact: true }).click();
     await expect(
@@ -152,11 +157,11 @@ test('desktop has an isolated renderer, working preload and validated IPC', asyn
     await expect(
       page.getByText('Draft saved. Installed files are unchanged.', { exact: true }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'Edit custom Lua', exact: true }).click();
+    await page.getByRole('button', { name: 'Use Custom Lua', exact: true }).click();
     await page
       .getByLabel('main.lua source', { exact: true })
       .fill('-- retained custom source\nreturn 7');
-    await page.getByRole('button', { name: 'Return to template', exact: true }).click();
+    await page.getByRole('button', { name: 'Return to guided builder', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Continue', exact: true }).click();
     await expect(page.getByLabel('main.lua source', { exact: true })).toBeEditable({
       editable: false,
@@ -258,6 +263,12 @@ test('setup and theme saves preserve selected folders through validated desktop 
     const page = await application.firstWindow();
     await expect(page.getByRole('button', { name: 'Start exploring' })).toBeEnabled();
     await page.getByRole('button', { name: 'Start exploring' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'New: Experimental Mod Creator' }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Got it', exact: true }).click();
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Make the game your own.' })).toBeVisible();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByLabel('Theme', { exact: true }).selectOption('light');
@@ -268,6 +279,7 @@ test('setup and theme saves preserve selected folders through validated desktop 
     if (reply.ok)
       expect(reply.value.settings).toEqual({
         theme: 'light',
+        dismissedAnnouncements: ['mod-creator-introduction'],
         setupComplete: true,
         gamePath,
         modsPath,
@@ -284,7 +296,13 @@ test('setup and theme saves preserve selected folders through validated desktop 
     expect(invalidSettings.ok).toBe(false);
     if (!invalidSettings.ok) expect(invalidSettings.error.details).toContain('gamePath');
     const saved = JSON.parse(await fs.readFile(path.join(data, 'data', 'state.json'), 'utf8'));
-    expect(saved.settings).toEqual({ theme: 'light', setupComplete: true, gamePath, modsPath });
+    expect(saved.settings).toEqual({
+      theme: 'light',
+      setupComplete: true,
+      gamePath,
+      modsPath,
+      dismissedAnnouncements: ['mod-creator-introduction'],
+    });
     expect(saved.schemaVersion).toBe(3);
     const originalId = saved.profiles.activeId;
     await page.getByRole('button', { name: 'Manage profiles', exact: true }).click();
@@ -400,6 +418,57 @@ test('setup and theme saves preserve selected folders through validated desktop 
     await expect(
       page.getByRole('status').filter({ hasText: 'Setup changed since these checks.' }),
     ).toHaveCount(0);
+    const profileBefore = await page.evaluate(() => window.modatro!.snapshot());
+    if (!profileBefore.ok || !profileBefore.value.profiles) throw new Error('Profiles unavailable');
+    const active = profileBefore.value.profiles.items.find(
+      (p) => p.id === profileBefore.value.profiles!.activeId,
+    )!;
+    const profileExport = path.join(root, 'shared-profile.json');
+    await application.evaluate(({ dialog }, file) => {
+      dialog.showSaveDialog = (async () => ({
+        canceled: false,
+        filePath: file,
+      })) as typeof dialog.showSaveDialog;
+      dialog.showOpenDialog = (async () => ({
+        canceled: false,
+        filePaths: [file],
+      })) as typeof dialog.showOpenDialog;
+    }, profileExport);
+    const exportedProfile = await page.evaluate(
+      (id) => window.modatro!.profileTransfer!({ operation: 'export', id }),
+      active.id,
+    );
+    expect(exportedProfile).toMatchObject({ ok: true, value: { status: 'exported' } });
+    const sharedText = await fs.readFile(profileExport, 'utf8');
+    expect(sharedText).not.toContain(root);
+    await fs.writeFile(profileExport, sharedText.replace(active.name, 'Damaged profile'));
+    const damaged = await page.evaluate(() =>
+      window.modatro!.profileTransfer!({ operation: 'choose-import' }),
+    );
+    expect(damaged.ok).toBe(false);
+    if (!damaged.ok) expect(damaged.error.message).toContain('integrity');
+    await fs.writeFile(profileExport, sharedText);
+    const reviewedProfile = await page.evaluate(() =>
+      window.modatro!.profileTransfer!({ operation: 'choose-import' }),
+    );
+    expect(reviewedProfile).toMatchObject({
+      ok: true,
+      value: { status: 'review', name: active.name + ' (2)', blockers: [] },
+    });
+    if (!reviewedProfile.ok) throw new Error('Profile review failed');
+    const imported = await page.evaluate(
+      (token) => window.modatro!.profileTransfer!({ operation: 'install', token }),
+      reviewedProfile.value.token!,
+    );
+    expect(imported).toMatchObject({
+      ok: true,
+      value: { status: 'complete', name: active.name + ' (2)' },
+    });
+    const savedImport = JSON.parse(
+      await fs.readFile(path.join(data, 'data', 'state.json'), 'utf8'),
+    );
+    expect(savedImport.profiles.items.some((p: { id: string }) => p.id === active.id)).toBe(true);
+    expect(savedImport.settings.dismissedAnnouncements).toContain('mod-creator-introduction');
   } finally {
     await application.close();
     await fs.rm(root, { recursive: true, force: true });
