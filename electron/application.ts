@@ -27,13 +27,21 @@ import { Logger, Storage } from './services/storage';
 import { TransactionEngine } from './services/transaction';
 import { CatalogueTrust } from './services/trust';
 import { allowedDescription, automationReason } from '../src/shared/trust';
-import { DependencyGraphError, resolveDependencyGraph } from '../src/shared/dependency-graph';
+import {
+  DependencyGraphError,
+  packageIdentity,
+  resolveDependencyGraph,
+} from '../src/shared/dependency-graph';
 import {
   canAcceptUnverified,
   blockingDependencies,
   evaluateDependency,
 } from '../src/shared/dependencies';
-import { resolveDistribution } from './services/distribution';
+import {
+  developmentDistribution,
+  repositoryPath,
+  resolveDistribution,
+} from './services/distribution';
 import { LocalModSource } from './services/sources/mod-source';
 import { lovelyDistribution } from './services/lovely';
 import { GitHubStars } from './services/github-stars';
@@ -150,6 +158,7 @@ export class ModatroApplication {
   }
   async initialize() {
     await this.storage.initialize();
+    await this.installer.pruneDownloads();
     await this.appUpdates.loadCache();
     await this.trust.initialize();
     if (!this.storage.safetyError) await this.transactions.recover();
@@ -403,6 +412,7 @@ export class ModatroApplication {
     accepted: UnverifiedPrerequisite[],
     staged: ModDefinition[] = [],
     stagedPrerequisites: Prerequisite[] = [],
+    developmentDependencies: string[] = [],
   ) {
     // Downloaded metadata describes the planned files before they are committed.
     const installed = [...stagedPrerequisites, ...(await this.snapshot()).prerequisites];
@@ -421,7 +431,10 @@ export class ModatroApplication {
         throw new UserError('The dependency plan is too large. No files were changed.');
       visited.add(input.id);
       const mod =
-        staged.find((entry) => entry.id === input.id) ?? (await resolveDistribution(input));
+        staged.find((entry) => entry.id === input.id) ??
+        (developmentDependencies.includes(input.id)
+          ? await developmentDistribution(input)
+          : await resolveDistribution(input));
       candidates.set(mod.id, mod);
       for (const requirement of mod.prerequisites.filter((entry) => entry.required)) {
         const status = evaluateDependency(requirement, installed);
@@ -448,6 +461,14 @@ export class ModatroApplication {
         [...candidates.values()],
         installed,
         accepted,
+        [...candidates.values()]
+          .filter(
+            (candidate) =>
+              (developmentDependencies.includes(candidate.id) ||
+                (!!candidate.thunderstore && candidate.downloadProvider !== 'github')) &&
+              !staged.some((mod) => mod.id === candidate.id),
+          )
+          .map(packageIdentity),
       );
     } catch (error) {
       if (error instanceof UserError) throw error;
@@ -458,6 +479,17 @@ export class ModatroApplication {
         error instanceof DependencyGraphError
           ? {
               requirements: error.requirements,
+              developmentDependency:
+                error.candidate &&
+                repositoryPath(error.candidate.repositoryUrl) &&
+                error.candidate.installation.type !== 'lovely-injector' &&
+                !developmentDependencies.includes(error.candidate.id)
+                  ? {
+                      id: error.candidate.id,
+                      title: error.candidate.title,
+                      repositoryUrl: error.candidate.repositoryUrl!,
+                    }
+                  : undefined,
               unverifiedPrerequisites: error.requirements.every(canAcceptUnverified)
                 ? error.requirements
                 : undefined,
@@ -472,6 +504,7 @@ export class ModatroApplication {
     decisions: ConflictDecision[] = [],
     confirmationToken?: string,
     acceptedUnverified: UnverifiedPrerequisite[] = [],
+    developmentDependencies: string[] = [],
   ) {
     this.operationReport = undefined;
     const mods = this.allMods();
@@ -518,7 +551,13 @@ export class ModatroApplication {
       try {
         if (mod.source?.provider !== 'local') {
           const target = mod;
-          const graph = await this.dependencyPlan(target, acceptedUnverified);
+          const graph = await this.dependencyPlan(
+            target,
+            acceptedUnverified,
+            [],
+            [],
+            developmentDependencies,
+          );
           await this.logger.log('dependencies.resolved', { ids: graph.map((entry) => entry.id) });
           await this.installer.installMany(
             graph,
@@ -526,7 +565,13 @@ export class ModatroApplication {
             acceptedUnverified,
             false,
             (staged, prerequisites) =>
-              this.dependencyPlan(target, acceptedUnverified, staged, prerequisites),
+              this.dependencyPlan(
+                target,
+                acceptedUnverified,
+                staged,
+                prerequisites,
+                developmentDependencies,
+              ),
           );
         } else {
           const archive = mod.creator

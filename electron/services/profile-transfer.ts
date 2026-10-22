@@ -343,6 +343,7 @@ export class ProfileTransferService {
         return { status: 'cancelled', snapshot: await this.snapshot() };
       if (!pending) throw new UserError('Choose the profile export again.');
       if (request.operation === 'cancel') {
+        await this.installer.cancel();
         await this.restore(pending);
         this.pending.delete(request.token);
         return { status: 'cancelled', snapshot: await this.snapshot() };

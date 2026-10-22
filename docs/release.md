@@ -15,8 +15,10 @@ Intel macOS and Linux builds pass their checks. A release includes every platfor
 If any platform build or upload fails, the release remains unpublished.
 
 Formatting, catalogue validation, type checks, unit tests and the full browser and
-source desktop test suite run once in a shared job. That job compiles the application
-and shares its output and assigned version with all four packaging jobs. Each platform
+source desktop test suite run once in a shared job on every PR and push to main.
+PRs compile the production app but skip installer packaging, version assignment and
+build-artifact upload. Release runs share the compiled output and assigned version
+with all four packaging jobs. Each platform
 installs its own build dependencies, creates its installers and verifies packaged
 desktop startup before uploading. Publishing waits for every platform to pass and
 uses the same tested version.
@@ -32,6 +34,10 @@ files, shipped assets and packaging configuration are release inputs, as defined
 in `scripts/release-scope.mjs`. Git deletions and renames are included. Version tags
 and manual runs explicitly request packaging; manual runs do not publish releases.
 
+For test installers before merging, open **Actions → Test, build and release → Run
+workflow**, select the PR branch, and run it. Download the platform installers from
+that run's artifacts. Routine PR updates continue to run checks only.
+
 Each packaging-enabled workflow run assigns the next app version automatically, for example
 `0.4.0`, followed by `0.4.1`. Merging into `main` triggers the same process as a
 push. The renderer, Electron app, platform installers and release notes all use
@@ -39,7 +45,8 @@ that version. Retrying a published workflow retains its original version. There 
 version-bump commits and no need to edit `package.json` for normal releases.
 
 The checked-in `package.json` version is `0.0.0`, a placeholder used by local builds.
-CI replaces it with the assigned release version before compiling or packaging.
+Packaging-enabled runs replace it with the assigned version before compiling.
+Routine PR checks keep the placeholder.
 
 Version assignment reads published GitHub Releases, including betas, using the CI
 token. The merged PR title selects how the highest published semantic version advances:
@@ -53,7 +60,7 @@ token. The merged PR title selects how the highest published semantic version ad
 
 Prefixes are case-insensitive and must start the title. The merge method and commit
 message do not select the bump: CI reads the merged PR associated with the main
-commit. Direct pushes default to a patch. PR builds use their event's title; the
+commit. Direct pushes and manual installer builds default to a patch; the
 final merged title controls publication. The selected bump is passed from validation
 to publishing so every installer uses the same tested version.
 
@@ -86,7 +93,7 @@ the existing application data directory and mod backups.
 
 An optional tag such as `v1.0.0` can publish a
 named release; CI takes the version from the tag without a package-file edit.
-Pull requests and manual workflow runs provide build artifacts without publishing.
+Manual workflow runs provide installer artifacts without publishing.
 
 ## Application scope
 
@@ -180,6 +187,11 @@ the uncertainty and offers **Proceed at my own risk** for that operation. The ch
 does not persist to other installations or updates. Missing prerequisites, known
 incompatible versions and unknown versions of other dependencies still block the
 operation. An unknown version is never reported as verified.
+
+When a published dependency is too old, **Try development build** can check its
+upstream repository's unreleased code. This is optional: Modatro pins a commit,
+verifies its runtime requirements and shows the source and changes for confirmation.
+Development builds may be unstable; incompatible builds remain blocked.
 
 ## Beta limitations
 

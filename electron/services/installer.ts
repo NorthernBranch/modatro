@@ -56,7 +56,7 @@ import { resolveDistribution, validateDistribution } from './distribution';
 import { validateThunderstoreArchive } from './thunderstore';
 import { thunderstoreId } from '../../src/shared/thunderstore';
 import { AuthorManifestSchema } from '../../src/shared/catalogue-schema';
-import { projectedPrerequisites } from '../../src/shared/dependency-graph';
+import { packageIdentity, projectedPrerequisites } from '../../src/shared/dependency-graph';
 import { inspectLovelyLibrary } from './lovely';
 import { extractLovelyTar } from './lovely-archive';
 
@@ -75,6 +75,11 @@ export interface PreparedInstallation {
 export class ModInstaller {
   private abort?: AbortController;
   private confirmation?: { token: string; fingerprint: string; expires: number };
+  private reviewDownloads = new Map<
+    string,
+    { file: string; sha256: string; finalUrl?: string; size: number }
+  >();
+  private reviewExpiry?: ReturnType<typeof setTimeout>;
   constructor(
     private storage: Storage,
     readonly transactions: TransactionEngine,
@@ -87,6 +92,45 @@ export class ModInstaller {
   ) {}
   cancel() {
     this.abort?.abort();
+    return this.clearReviewDownloads();
+  }
+  private async clearReviewDownloads() {
+    clearTimeout(this.reviewExpiry);
+    const files = [...this.reviewDownloads.values()];
+    this.reviewDownloads.clear();
+    await Promise.all(files.map(({ file }) => fs.rm(file, { force: true })));
+  }
+  async pruneDownloads() {
+    for (const entry of await fs.readdir(this.storage.file('downloads'), { withFileTypes: true })) {
+      if (!entry.isFile() || !/^[a-f0-9-]{36}\.(?:download|part)$/.test(entry.name)) continue;
+      const file = await safeDestination(this.storage.root, `downloads/${entry.name}`);
+      if ((await fs.stat(file)).mtimeMs < Date.now() - 24 * 60 * 60 * 1000)
+        await fs.rm(file, { force: true });
+    }
+  }
+  private assertInstalledDependants(
+    prepared: PreparedInstallation[],
+    prerequisites: Prerequisite[],
+    accepted: UnverifiedPrerequisite[],
+  ) {
+    // A shared dependency change must also satisfy every enabled installed mod.
+    for (const record of this.storage.state.installations.filter(
+      (record) => !record.disabled && !prepared.some((item) => item.mod.id === record.modId),
+    )) {
+      const affected = record.dependencies.filter((requirement) =>
+        prepared.some((item) =>
+          requirement.packageId
+            ? packageIdentity(item.mod).toLowerCase() === requirement.packageId.toLowerCase()
+            : (item.metadataId ?? item.mod.metadataId ?? item.mod.id).toLowerCase() ===
+              requirement.id.toLowerCase(),
+        ),
+      );
+      const blocked = blockingDependencies(evaluateDependencies(affected, prerequisites), accepted);
+      if (blocked.length)
+        throw new UserError(
+          `${record.title}: ${blocked.map((entry) => entry.reason).join(' ')} No installed files were changed.`,
+        );
+    }
   }
   roots(): Record<FileRoot, string> {
     return {
@@ -655,6 +699,14 @@ export class ModInstaller {
   ) {
     return this.transactions.locked(async () => {
       await this.guard();
+      clearTimeout(this.reviewExpiry);
+      if (
+        !confirmationToken ||
+        confirmationToken !== this.confirmation?.token ||
+        Date.now() > this.confirmation.expires
+      )
+        await this.clearReviewDownloads();
+      let keepDownloads = false;
       if (!inputs.length || new Set(inputs.map((mod) => mod.id)).size !== inputs.length)
         throw new UserError('Invalid dependency installation plan.');
       const staging = await fs.mkdtemp(this.storage.file('staging/batch-'));
@@ -678,20 +730,56 @@ export class ModInstaller {
           if (reason) throw new UserError(reason);
           const stage = path.join(staging, String(index));
           await fs.mkdir(stage);
-          this.progress({ modId: mod.id, phase: 'downloading', percent: 0 });
+          const downloadKey = `${mod.downloadProvider ?? mod.source?.provider}:${mod.downloadUrl}`;
+          let cached = this.reviewDownloads.get(downloadKey);
+          if (cached) {
+            try {
+              if (
+                !(await fs.lstat(cached.file)).isFile() ||
+                (await hashFile(cached.file)) !== cached.sha256
+              )
+                throw new Error('The reviewed archive changed.');
+            } catch {
+              await fs.rm(cached.file, { force: true });
+              this.reviewDownloads.delete(downloadKey);
+              cached = undefined;
+            }
+          }
+          this.progress({
+            modId: mod.id,
+            phase: cached ? 'validating' : 'downloading',
+            percent: cached ? undefined : 0,
+          });
           const downloader = new DownloadService(this.storage.file('downloads'));
-          const download = await downloader.download(
-            mod.downloadUrl,
-            abort.signal,
-            (percent) => this.progress({ modId: mod.id, phase: 'downloading', percent }),
-            mod.thunderstore && mod.downloadProvider !== 'github' ? 'thunderstore' : 'github',
-          );
+          const download =
+            cached?.file ??
+            (await downloader.download(
+              mod.downloadUrl,
+              abort.signal,
+              (percent) => this.progress({ modId: mod.id, phase: 'downloading', percent }),
+              mod.thunderstore && mod.downloadProvider !== 'github' ? 'thunderstore' : 'github',
+            ));
           try {
+            this.progress({ modId: mod.id, phase: 'validating' });
+            const sha256 = await hashFile(download);
+            if (!cached) {
+              const size = (await fs.stat(download)).size;
+              if (
+                [...this.reviewDownloads.values()].reduce((sum, item) => sum + item.size, size) <=
+                512 * 1024 * 1024
+              )
+                this.reviewDownloads.set(downloadKey, {
+                  file: download,
+                  sha256,
+                  size,
+                  finalUrl: downloader.finalUrl,
+                });
+            }
             const provenance = await new ArtifactHistory(this.storage, this.logger).verify(
               mod,
-              await hashFile(download),
+              sha256,
             );
-            provenance.finalUrl = downloader.finalUrl ?? mod.downloadUrl;
+            provenance.finalUrl = cached?.finalUrl ?? downloader.finalUrl ?? mod.downloadUrl;
             const directFile = new URL(mod.downloadUrl).pathname.endsWith('.lua');
             if (directFile) await atomicCopy(download, path.join(stage, 'mod.lua'));
             else if (
@@ -706,7 +794,7 @@ export class ModInstaller {
             item.provenance = provenance;
             prepared.push(item);
           } finally {
-            await fs.rm(download, { force: true });
+            if (!this.reviewDownloads.has(downloadKey)) await fs.rm(download, { force: true });
           }
           abort.signal.throwIfAborted();
           if (resolveDependencies && index === queue.length - 1) {
@@ -766,6 +854,7 @@ export class ModInstaller {
               item.plan.conflicts,
             );
         }
+        this.assertInstalledDependants(prepared, future, accepted);
         const changes = prepared.flatMap((item) => item.changes);
         if (
           new Set(changes.map((change) => `${change.root}:${change.path.toLowerCase()}`)).size !==
@@ -785,11 +874,14 @@ export class ModInstaller {
           conflicts: [],
           packages: prepared.map((item) => ({
             source:
-              item.mod.source?.provider === 'mod-index'
-                ? `Additional index: ${new URL(item.mod.source.url!).pathname.slice(1)}`
-                : item.mod.source?.provider === 'thunderstore'
-                  ? 'Thunderstore'
-                  : item.mod.source?.provider,
+              item.mod.downloadProvider === 'github' &&
+              item.mod.releaseSource?.sourceType === 'commit'
+                ? `GitHub commit ${item.mod.releaseSource.commitSha?.slice(0, 7)}`
+                : item.mod.source?.provider === 'mod-index'
+                  ? `Additional index: ${new URL(item.mod.source.url!).pathname.slice(1)}`
+                  : item.mod.source?.provider === 'thunderstore'
+                    ? 'Thunderstore'
+                    : item.mod.source?.provider,
             id: item.mod.id,
             title: item.mod.title,
             version:
@@ -800,7 +892,15 @@ export class ModInstaller {
           })),
         });
         if (inspect) return visible;
-        if (prepared.length > 1 || changes.some((change) => change.root === 'game')) {
+        if (
+          prepared.length > 1 ||
+          changes.some((change) => change.root === 'game') ||
+          prepared.some(
+            (item) =>
+              item.mod.downloadProvider === 'github' &&
+              item.mod.releaseSource?.sourceType === 'commit',
+          )
+        ) {
           const fingerprint = createHash('sha256').update(JSON.stringify(visible)).digest('hex');
           if (
             !confirmationToken ||
@@ -810,6 +910,16 @@ export class ModInstaller {
           ) {
             const token = randomUUID();
             this.confirmation = { token, fingerprint, expires: Date.now() + 10 * 60 * 1000 };
+            keepDownloads = true;
+            this.reviewExpiry = setTimeout(
+              () => {
+                void this.clearReviewDownloads().catch((error) =>
+                  this.logger.log('downloads.cleanup.failed', String(error)),
+                );
+              },
+              10 * 60 * 1000,
+            );
+            this.reviewExpiry.unref();
             throw new UserError(
               'Review the required packages and file changes before continuing.',
               undefined,
@@ -836,8 +946,10 @@ export class ModInstaller {
           });
         for (const item of prepared)
           this.assertDependencies(evaluateDependencies(item.dependencies, rechecked), accepted);
+        this.assertInstalledDependants(prepared, rechecked, accepted);
         abort.signal.throwIfAborted();
         this.abort = undefined;
+        this.progress({ modId: last.id, phase: 'installing' });
         await this.transactions.execute(this.roots(), changes, (journal) =>
           withInstalledMods(
             this.storage.state,
@@ -863,6 +975,7 @@ export class ModInstaller {
       } finally {
         this.abort = undefined;
         await fs.rm(staging, { recursive: true, force: true });
+        if (!keepDownloads) await this.clearReviewDownloads();
       }
     });
   }
@@ -987,6 +1100,13 @@ export class ModInstaller {
       await this.transactions.execute(roots, changes, () => ({
         ...this.storage.state,
         installations: this.storage.state.installations.filter((r) => r.modId !== id),
+        profiles: this.storage.state.profiles && {
+          ...this.storage.state.profiles,
+          items: this.storage.state.profiles.items.map((profile) => ({
+            ...profile,
+            selection: profile.selection.filter((entry) => entry.id !== id),
+          })),
+        },
       }));
       const cleanupProblems = await this.cleanupEmptyDirectories(record.files);
       for (const change of changes) {
@@ -1005,6 +1125,15 @@ export class ModInstaller {
         preserved: decisions.filter((d) => d.action === 'keep').map((d) => d.path),
       });
       const retainedFiles = new Set<string>();
+      const managedFiles = new Set(
+        this.storage.state.installations.flatMap((installed) =>
+          installed.files.map((file) => `${file.root}/${file.path}`.toLowerCase()),
+        ),
+      );
+      const retain = (root: FileRoot, relative: string) => {
+        const file = `${root}/${relative}`;
+        if (!managedFiles.has(file.toLowerCase())) retainedFiles.add(file);
+      };
       for (const file of record.files) {
         if (
           decisions.some(
@@ -1015,20 +1144,22 @@ export class ModInstaller {
           ) &&
           (await exists(await safeDestination(roots[file.root], file.path)))
         )
-          retainedFiles.add(`${file.root}/${file.path}`);
+          retain(file.root, file.path);
       }
       const modFolders = new Set(
         record.files
           .filter((file) => file.root !== 'game' && file.path.includes('/'))
-          .map((file) => `${file.root}:${file.path.split('/')[0]}`),
+          .map(
+            (file) =>
+              `${file.root}:${file.root === 'disabled' ? record.modId : file.path.split('/')[0]}`,
+          ),
       );
       for (const key of modFolders) {
         const [root, folder] = key.split(':') as [FileRoot, string];
         try {
           const directory = await safeDestination(roots[root], folder);
           if (await exists(directory))
-            for (const file of await walkFiles(directory))
-              retainedFiles.add(`${root}/${folder}/${file}`);
+            for (const file of await walkFiles(directory)) retain(root, `${folder}/${file}`);
         } catch (error) {
           cleanupProblems.push(
             `${root}/${folder}: remaining files could not be inspected (${String(error)}).`,

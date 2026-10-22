@@ -140,6 +140,14 @@ mods or patch-only roots remain ambiguous. Explicit source roots still undergo
 metadata validation. Runtime versions come from staged loader metadata, not arbitrary
 index timestamps or release labels.
 
+Confirmation retains up to 512 MiB of downloaded archives for ten minutes. Reuse
+checks their hashes and repeats extraction, file planning and prerequisite checks;
+it never commits a stale file plan. Completion, cancellation and failure clear the
+cache; startup also prunes abandoned downloads older than a day.
+An explicit development-dependency choice resolves the author repository's default
+branch to one commit. Its archive metadata must satisfy the original requirements
+before confirmation, and shared updates must also satisfy enabled installed mods.
+
 Game launch, settings changes and the installer share an operation lock. The installer
 holds it while it prepares and commits a change:
 

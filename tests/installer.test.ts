@@ -93,6 +93,30 @@ describe('manifest-based installation and removal', () => {
     );
     expect(f.storage.state.installations).toHaveLength(0);
   });
+  it('limits disabled uninstall reports to that mod and keeps neighbouring mods managed', async () => {
+    const f = await fixture();
+    const removed = 'thunderstore/Author-First';
+    const neighbour = 'thunderstore/Author-Second';
+    for (const id of [removed, neighbour]) {
+      await standard(f, mod({ id }));
+      await f.installer.toggle(id, true);
+    }
+    const preserved = structuredClone(
+      f.storage.state.installations.find((r) => r.modId === neighbour)!,
+    );
+    const neighbourFile = f.storage.file(`disabled/${preserved.files[0]!.path}`);
+    const original = await fs.readFile(neighbourFile, 'utf8');
+    const note = `${removed}/user-notes.txt`;
+    await put(f.storage.file(`disabled/${note}`), 'keep my notes');
+    const report = await f.installer.uninstall(removed);
+    expect(report.retainedFiles).toEqual([`disabled/${note}`]);
+    expect(report.cleanupProblems).toEqual([]);
+    expect(f.storage.state.installations).toEqual([preserved]);
+    expect(await fs.readFile(neighbourFile, 'utf8')).toBe(original);
+    expect(await fs.readFile(f.storage.file(`disabled/${note}`), 'utf8')).toBe('keep my notes');
+    const clean = await f.installer.uninstall(neighbour);
+    expect(clean.retainedFiles).toEqual([]);
+  });
   it('backs up an existing game file before replacement and restores it on uninstall', async () => {
     const f = await fixture();
     await put(path.join(f.game, 'foo.lua'), 'original');

@@ -77,7 +77,7 @@ pruned automatically; originals still needed for uninstall or recovery are retai
 
 ## Unsaved selections
 
-Manual uninstalls, enables and disables show **Unsaved changes** when the
+Manual enables and disables show **Unsaved changes** when the
 actual managed selection differs from the active profile. This persists across restarts.
 Version-only updates do not count as selection changes.
 
@@ -85,9 +85,9 @@ Version-only updates do not count as selection changes.
 - **Save as new profile** captures the current selection under a new active name.
 - **Revert to saved selection** opens the same reviewed, transactional switch.
 
-An uninstalled mod saved as enabled in a profile is explained as missing; it is not
-automatically reinstalled. Saving the current selection removes that stale reference.
-An uninstalled mod saved as disabled does not block switching into that profile.
+Uninstalling a mod removes it from every profile, whether saved as enabled or disabled.
+Profile selections and file removal commit together; a failed uninstall preserves both.
+Unrelated unsaved selections remain unsaved.
 Deleting a profile never uninstalls anything. Deleting the active profile requires
 explicit confirmation to preserve the current selection as a newly named Default
 profile; it does not silently apply another profile's files.

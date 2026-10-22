@@ -6,7 +6,11 @@ export class UserError extends Error {
     public readonly details?: string,
     public readonly context?: Pick<
       AppError,
-      'requirements' | 'retryable' | 'confirmation' | 'unverifiedPrerequisites'
+      | 'requirements'
+      | 'retryable'
+      | 'confirmation'
+      | 'unverifiedPrerequisites'
+      | 'developmentDependency'
     >,
     public readonly statusCode?: number,
   ) {

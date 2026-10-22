@@ -52,6 +52,8 @@ it.each([
 it('handles mixed changes, explicit version tags and manual packaging', () => {
   expect(packagingScope('push', 'refs/heads/main', ['README.md', 'electron/main.ts'])).toBe(true);
   expect(packagingScope('pull_request', 'refs/pull/1/merge', ['docs/release.md'])).toBe(false);
+  expect(packagingScope('pull_request', 'refs/pull/1/merge', ['electron/main.ts'])).toBe(false);
+  expect(packagingScope('push', 'refs/heads/feature', ['electron/main.ts'])).toBe(false);
   expect(packagingScope('push', 'refs/tags/v1.0.0', [])).toBe(true);
   expect(packagingScope('workflow_dispatch', 'refs/heads/main', [])).toBe(true);
 });
@@ -86,15 +88,29 @@ it('checks every pushed commit, including removals and renames, and exposes a jo
   ]);
   expect(await fs.readFile(f.output, 'utf8')).toBe('package_desktop=true\n');
 });
-it('uses the PR merge base and skips packaging for documentation changes', async () => {
-  const f = await fixture(
-    { pull_request: { base: { sha: 'c'.repeat(40) }, head: { sha: 'd'.repeat(40) } } },
-    'README.md\0',
-  );
-  f.env.GITHUB_EVENT_NAME = 'pull_request';
-  expect(await determinePackaging(f.env, f.git)).toBe(false);
-  expect(f.git.mock.calls[0][1].at(-1)).toBe(`${'c'.repeat(40)}...${'d'.repeat(40)}`);
-  expect(await fs.readFile(f.output, 'utf8')).toBe('package_desktop=false\n');
+it.each(['README.md', 'electron/main.ts', '.github/workflows/build.yml'])(
+  'runs PR checks without packaging or reading a diff for %s',
+  async (file) => {
+    const f = await fixture(
+      { pull_request: { base: { sha: 'c'.repeat(40) }, head: { sha: 'd'.repeat(40) } } },
+      `${file}\0`,
+    );
+    f.env.GITHUB_EVENT_NAME = 'pull_request';
+    expect(await determinePackaging(f.env, f.git)).toBe(false);
+    expect(f.git).not.toHaveBeenCalled();
+    expect(await fs.readFile(f.output, 'utf8')).toBe('package_desktop=false\n');
+  },
+);
+it.each([
+  ['workflow_dispatch', 'refs/heads/feature'],
+  ['push', 'refs/tags/v1.0.0'],
+])('packages explicit %s requests without requiring changed desktop files', async (event, ref) => {
+  const f = await fixture({});
+  f.env.GITHUB_EVENT_NAME = event;
+  f.env.GITHUB_REF = ref;
+  expect(await determinePackaging(f.env, f.git)).toBe(true);
+  expect(f.git).not.toHaveBeenCalled();
+  expect(await fs.readFile(f.output, 'utf8')).toBe('package_desktop=true\n');
 });
 it.each(['push', 'pull_request'])(
   'keeps a complete website-only %s change in checks-only mode',

@@ -1,7 +1,19 @@
 import { canAcceptUnverified, evaluateDependencies, hasUpdate } from './dependencies';
-import type { DependencyStatus, ModDefinition, Snapshot } from './model';
+import type { DependencyStatus, ModDefinition, Progress, Snapshot } from './model';
 import { automationReason } from './trust';
 import { resolveDependencyGraph } from './dependency-graph';
+export function installationProgressLabel(progress: Progress): string {
+  const labels: Record<Progress['phase'], string> = {
+    downloading: 'Downloading files',
+    validating: 'Checking downloaded files',
+    planning: 'Checking install plan',
+    'backing-up': 'Backing up existing files',
+    installing: 'Installing files',
+    'rolling-back': 'Restoring files',
+    complete: 'Finishing up',
+  };
+  return `${labels[progress.phase]}${progress.phase === 'downloading' && progress.percent !== undefined ? ` ${progress.percent}%` : '…'}`;
+}
 export function plainText(markdown = ''): string {
   return markdown
     .replace(/<[^>]*>/g, '')
