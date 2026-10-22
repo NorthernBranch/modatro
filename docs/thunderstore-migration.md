@@ -17,8 +17,9 @@ and shared dependencies, multiple update roots, dependency version changes, name
 cycles, unsupported layouts, confirmation plans, atomic multi-package commit and full
 rollback. Local ZIPs use the same staging/plan/transaction path without remote lookup.
 Lovely tests cover binary evidence, unknown external versions, supported library layouts
-and safe refusal of unfamiliar payloads. Active prerequisite lookup ignores deprecated
-packages with the same name without merging their identities.
+and safe refusal of unfamiliar payloads. Name-based dependency lookup ignores deprecated
+packages with the same name without merging their identities. Batch planning uses
+downloaded runtime metadata so dependencies do not need to be installed separately.
 
 `tests/thunderstore.test.ts` continues to verify immutable archive hashes, package
 manifest agreement, managed update detection, runtime/package version separation and

@@ -11,6 +11,7 @@ import {
   type ModDefinition,
   type OperationReport,
   type Progress,
+  type Prerequisite,
   type Snapshot,
   type UnverifiedPrerequisite,
   type SettingsUpdate,
@@ -121,7 +122,7 @@ export class ModatroApplication {
       this.profiles,
       () => this.allMods(),
       () => this.snapshot(),
-      (roots, staged) => this.dependencyPlan(roots, [], staged),
+      (roots, staged, prerequisites) => this.dependencyPlan(roots, [], staged, prerequisites),
     );
     this.troubleshooting = new TroubleshootingService(
       this.storage,
@@ -401,9 +402,15 @@ export class ModatroApplication {
     root: ModDefinition | ModDefinition[],
     accepted: UnverifiedPrerequisite[],
     staged: ModDefinition[] = [],
+    stagedPrerequisites: Prerequisite[] = [],
   ) {
-    const installed = (await this.snapshot()).prerequisites;
-    const roots = Array.isArray(root) ? root : [root];
+    // Downloaded metadata describes the planned files before they are committed.
+    const installed = [...stagedPrerequisites, ...(await this.snapshot()).prerequisites];
+    const roots = [
+      ...new Map(
+        [...(Array.isArray(root) ? root : [root]), ...staged].map((mod) => [mod.id, mod]),
+      ).values(),
+    ];
     const candidates = new Map(
       [...this.allMods(), ...roots, ...staged].map((mod) => [mod.id, mod]),
     );
@@ -423,7 +430,8 @@ export class ModatroApplication {
         let matches = [...candidates.values()].filter((candidate) =>
           requirement.packageId
             ? candidate.source?.externalId.toLowerCase() === requirement.packageId.toLowerCase()
-            : (candidate.metadataId ?? candidate.id).toLowerCase() === requirement.id.toLowerCase(),
+            : !candidate.deprecated &&
+              (candidate.metadataId ?? candidate.id).toLowerCase() === requirement.id.toLowerCase(),
         );
         if (!matches.length && requirement.id === 'Lovely' && !requirement.packageId) {
           const lovely = await lovelyDistribution();
@@ -517,7 +525,8 @@ export class ModatroApplication {
             confirmationToken,
             acceptedUnverified,
             false,
-            (staged) => this.dependencyPlan(target, acceptedUnverified, staged),
+            (staged, prerequisites) =>
+              this.dependencyPlan(target, acceptedUnverified, staged, prerequisites),
           );
         } else {
           const archive = mod.creator
@@ -583,8 +592,8 @@ export class ModatroApplication {
     if (!mod) throw new UserError('This mod has no current catalogue definition.');
     if (mod.source?.provider !== 'local') {
       const graph = await this.dependencyPlan(mod, []);
-      return this.installer.installMany(graph, undefined, [], true, (staged) =>
-        this.dependencyPlan(mod, [], staged),
+      return this.installer.installMany(graph, undefined, [], true, (staged, prerequisites) =>
+        this.dependencyPlan(mod, [], staged, prerequisites),
       );
     }
     const plan = await this.installer.install(

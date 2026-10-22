@@ -648,7 +648,10 @@ export class ModInstaller {
     confirmationToken?: string,
     accepted: UnverifiedPrerequisite[] = [],
     inspect = false,
-    resolveDependencies?: (staged: ModDefinition[]) => Promise<ModDefinition[]>,
+    resolveDependencies?: (
+      staged: ModDefinition[],
+      prerequisites: Prerequisite[],
+    ) => Promise<ModDefinition[]>,
   ) {
     return this.transactions.locked(async () => {
       await this.guard();
@@ -709,8 +712,19 @@ export class ModInstaller {
           if (resolveDependencies && index === queue.length - 1) {
             const graph = await resolveDependencies(
               prepared.map((item) =>
-                ModSchema.parse({ ...item.mod, prerequisites: item.dependencies }),
+                ModSchema.parse({
+                  ...item.mod,
+                  metadataId: item.metadataId ?? item.mod.metadataId,
+                  prerequisites: item.dependencies,
+                }),
               ),
+              prepared.map((item) => ({
+                id: item.metadataId ?? item.mod.metadataId ?? item.mod.id,
+                displayName: item.mod.title,
+                installed: true,
+                installedVersion: item.runtimeVersion,
+                sourceUrl: item.mod.downloadUrl,
+              })),
             );
             queue.push(...graph.filter((mod) => !prepared.some((item) => item.mod.id === mod.id)));
             if (index === queue.length - 1) {
