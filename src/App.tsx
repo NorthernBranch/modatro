@@ -52,7 +52,12 @@ import type {
   Snapshot,
   UnverifiedPrerequisite,
 } from './shared/model';
-import { eligibility, plainText, requirements } from './shared/presentation';
+import {
+  eligibility,
+  installationProgressLabel,
+  plainText,
+  requirements,
+} from './shared/presentation';
 import {
   allowedDescription,
   approvalLabel,
@@ -145,6 +150,10 @@ export function App() {
   const requests = useRequests(reportError);
   const { run } = requests;
   const working = requests.isPending('mod-action');
+  const operationLabel =
+    working && progress
+      ? installationProgressLabel(progress)
+      : requests.pending['mod-action']?.label;
   const configuring = requests.isBusy('configuration');
   const refreshing = requests.isPending('refresh') || !!snapshot?.catalogue.refreshing;
   const callSnapshot = useCallback(
@@ -269,8 +278,8 @@ export function App() {
     const reply = await run(
       'mod-action',
       {
-        install: 'Installing mod',
-        update: 'Updating mod',
+        install: token ? 'Checking reviewed files' : 'Preparing installation',
+        update: token ? 'Checking reviewed files' : 'Preparing update',
         uninstall: 'Uninstalling mod',
         disable: 'Disabling mod',
         enable: 'Enabling mod',
@@ -360,9 +369,7 @@ export function App() {
       return (
         <button className="button button-progress" disabled>
           <LoaderCircle className="spin" size={14} />
-          {progress?.phase === 'downloading'
-            ? `Downloading${progress.percent === undefined ? '…' : ` ${progress.percent}%`}`
-            : 'Installing…'}
+          {installationProgressLabel(progress!)}
         </button>
       );
     if (local?.state === 'installed')
@@ -1048,7 +1055,7 @@ export function App() {
           {working && (
             <p className="request-status" role="status">
               <LoaderCircle size={15} className="spin" aria-hidden="true" />
-              {requests.pending['mod-action']?.label}…
+              {operationLabel}
             </p>
           )}
         </Dialog>
@@ -1211,6 +1218,12 @@ export function App() {
                       )}. These dependencies will be installed or updated first, followed by ${confirmation.title}. Do you want to proceed?`
                   : 'Review the packages and file changes below. Modatro will back up existing files before replacing them.'}
           </p>
+          {confirmation.plan && (
+            <p className="muted-text">
+              Packages were downloaded for inspection. Continuing rechecks the downloaded files
+              before installing them. Nothing has been installed yet.
+            </p>
+          )}
           {!!confirmation.plan?.packages?.length && (
             <ul>
               {confirmation.plan.packages.map((entry) => (
@@ -1558,12 +1571,10 @@ export function App() {
         <div className="operation-toast" role="status">
           <LoaderCircle size={18} className="spin" />
           <div>
-            <strong>{requests.pending['mod-action']?.label}</strong>
-            <span>
-              {progress?.phase === 'downloading' && progress.percent !== undefined
-                ? `${progress.percent}%`
-                : (progress?.phase.replaceAll('-', ' ') ?? 'Preparing and checking files…')}
-            </span>
+            <strong>{operationLabel}</strong>
+            {progress && (
+              <span>{mods.find((mod) => mod.id === progress.modId)?.title ?? progress.modId}</span>
+            )}
           </div>
           {progress && ['downloading', 'validating', 'planning'].includes(progress.phase) && (
             <AsyncButton
@@ -1578,9 +1589,10 @@ export function App() {
         </div>
       )}
       <div className="sr-only" role="status" aria-live="polite">
-        {Object.values(requests.pending)
-          .map((request) => request.label)
-          .join('. ') ||
+        {(working && operationLabel) ||
+          Object.values(requests.pending)
+            .map((request) => request.label)
+            .join('. ') ||
           notification ||
           (progress ? `${progress.phase} ${progress.percent ?? ''}` : '')}
       </div>

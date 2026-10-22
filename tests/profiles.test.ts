@@ -217,19 +217,51 @@ it('preserves inactive choices during updates and saves newly adopted mods to ev
     });
   expect(profileSummary(f.storage.state)?.unsaved).toBe(false);
 });
-it('allows switching after an uninstalled mod was saved disabled, but blocks a missing enabled mod', async () => {
+it('removes an uninstalled mod from enabled and disabled selections in every profile and persists the change', async () => {
   const f = await profileFixture();
-  const enabled = f.storage.state.profiles!.activeId;
-  const disabled = await f.duplicate('Disabled');
+  await f.duplicate('Disabled');
   await f.install('one');
+  await f.duplicate('Enabled');
+  await f.install('two');
+  const profiles = structuredClone(f.storage.state.profiles!);
   await f.installer.uninstall('one');
-  const plan = await f.profiles.preview(disabled);
-  expect(plan.blockers).toEqual([]);
-  await f.profiles.switch(disabled, plan.token);
+  expect(f.storage.state.profiles).toEqual({
+    ...profiles,
+    items: profiles.items.map((profile) => ({
+      ...profile,
+      selection: profile.selection.filter((entry) => entry.id !== 'one'),
+    })),
+  });
   expect(profileSummary(f.storage.state)?.unsaved).toBe(false);
-  expect((await f.profiles.preview(enabled)).blockers.join(' ')).toContain('no longer installed');
+  const loaded = new Storage(f.storage.root);
+  await loaded.initialize();
+  expect(loaded.state.profiles).toEqual(f.storage.state.profiles);
+  for (const profile of profiles.items) {
+    const plan = await f.profiles.preview(profile.id);
+    expect(plan.blockers).toEqual([]);
+    await f.profiles.switch(profile.id, plan.token);
+    expect(profileSummary(f.storage.state)?.unsaved).toBe(false);
+  }
 });
-it('saves installs automatically while preserving unsaved toggles and uninstalls, and ignores version-only changes', async () => {
+it('keeps every profile selection and the mod files intact if uninstall fails', async () => {
+  let failing = false;
+  const f = await profileFixture(async (phase) => {
+    if (failing && phase === 'before-state') throw new Error('fixture uninstall interruption');
+  });
+  await f.duplicate('Other');
+  await f.install('one');
+  const previous = structuredClone(f.storage.state);
+  const file = path.join(f.mods, 'one', 'main.lua');
+  const original = await fs.readFile(file, 'utf8');
+  failing = true;
+  await expect(f.installer.uninstall('one')).rejects.toThrow('uninstall interruption');
+  expect(f.storage.state).toEqual(previous);
+  expect(await fs.readFile(file, 'utf8')).toBe(original);
+  const loaded = new Storage(f.storage.root);
+  await loaded.initialize();
+  expect(loaded.state).toEqual(previous);
+});
+it('saves installs and uninstalls automatically while preserving unrelated unsaved toggles, and ignores version-only changes', async () => {
   const f = await profileFixture();
   await f.install('one');
   const id = f.storage.state.profiles!.activeId;
@@ -250,9 +282,11 @@ it('saves installs automatically while preserving unsaved toggles and uninstalls
   const again = new Storage(f.storage.root);
   await again.initialize();
   expect(profileSummary(again.state)?.unsaved).toBe(true);
+  await f.installer.toggle('two', true);
   await f.installer.uninstall('one');
+  expect(profileSummary(f.storage.state)?.differences).toEqual(['two']);
   const plan = await f.profiles.preview(id);
-  expect(plan.blockers.join(' ')).toContain('no longer installed');
+  expect(plan.blockers).toEqual([]);
 });
 it('switches the full selection atomically, disables new mods and never changes unmanaged files', async () => {
   const f = await profileFixture();

@@ -131,7 +131,7 @@ export function PrerequisiteAction({
           <AsyncButton
             className="button button-primary"
             pending={requests.isPending('mod-action')}
-            pendingLabel={`Installing ${requirement.displayName}…`}
+            pendingLabel={`Preparing ${requirement.displayName}…`}
             disabled={busy || !!snapshot.safetyError}
             onClick={() =>
               reason

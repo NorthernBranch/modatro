@@ -1335,7 +1335,7 @@ test('mod operations show progress before a progress event and survive rejected 
 }) => {
   await mockDesktop(page, fixture(), { action: 'hold' });
   await page.getByRole('button', { name: 'Install', exact: true }).click();
-  await expect(page.locator('.operation-toast')).toContainText('Installing mod');
+  await expect(page.locator('.operation-toast')).toContainText('Preparing installation');
   await expect(page.getByRole('button', { name: 'Install', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Launch Balatro', exact: true })).toBeDisabled();
   await page.evaluate(() => window.requestsTest.reject('action'));
@@ -1359,7 +1359,7 @@ test('download cancellation has its own busy state and errors leave the ongoing 
   await page.evaluate(() => window.requestsTest.reject('cancel'));
   await expect(page.getByRole('dialog')).toContainText('Cancelling download failed');
   await closeError(page);
-  await expect(toast).toContainText('Installing mod');
+  await expect(toast).toContainText('Downloading files 12%');
   await expect(toast.getByRole('button', { name: 'Cancel', exact: true })).toBeEnabled();
   await page.evaluate(() =>
     window.requestsTest.finish('action', {
@@ -1378,7 +1378,25 @@ test('mod details keep progress visible while the service prepares an installati
   await page.getByRole('button', { name: 'Details for Fixture mod', exact: true }).click();
   const details = page.getByRole('dialog');
   await details.getByRole('button', { name: 'Install', exact: true }).click();
-  await expect(details.getByRole('status')).toContainText('Installing mod');
+  await expect(details.getByRole('status')).toContainText('Preparing installation');
+  for (const [phase, label] of [
+    ['downloading', 'Downloading files'],
+    ['validating', 'Checking downloaded files'],
+    ['planning', 'Checking install plan'],
+    ['installing', 'Installing files'],
+  ] as const) {
+    await page.evaluate(
+      (phase) => window.requestsTest.progress({ modId: 'fixture', phase }),
+      phase,
+    );
+    await expect(details.getByRole('status')).toContainText(label);
+    await expect(details.getByRole('button', { name: `${label}…`, exact: true })).toBeDisabled();
+    await expect(page.locator('.operation-toast')).toContainText(label);
+    if (phase !== 'installing') {
+      await expect(details.getByRole('status')).not.toContainText('Installing');
+      await expect(page.locator('.operation-toast')).not.toContainText('Installing');
+    }
+  }
   await page.evaluate(() => window.requestsTest.finish('action'));
   await expect(details.getByRole('status')).toHaveCount(0);
 });
@@ -1478,7 +1496,7 @@ test('a blocked mod can install Talisman directly and reevaluates its requiremen
   await page.getByRole('button', { name: 'Details for Fixture mod' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Install Talisman', exact: true }).click();
-  await expect(dialog.getByRole('button', { name: 'Installing Talisman…' })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Preparing Talisman…' })).toBeDisabled();
   await page.evaluate(() => {
     const dependency = window.requestsTest.state.prerequisites.find((p) => p.id === 'Talisman')!;
     dependency.installed = true;
@@ -2052,7 +2070,6 @@ test('shows the server-generated file plan and returns its confirmation token', 
         },
       },
     });
-    window.requestsTest.behavior.action = 'success';
   });
   const files = page.getByRole('dialog').locator('details');
   await expect(files).not.toHaveAttribute('open');
@@ -2062,6 +2079,7 @@ test('shows the server-generated file plan and returns its confirmation token', 
   await files.locator('summary').click();
   await expect(page.getByRole('dialog')).toContainText('Required package 1.2.0');
   await expect(page.getByRole('dialog')).toContainText('Fixture mod requires Required package');
+  await expect(page.getByRole('dialog')).toContainText('Nothing has been installed yet.');
   await expect(page.getByRole('dialog')).toContainText(
     'installed or updated first, followed by Fixture mod',
   );
@@ -2073,6 +2091,13 @@ test('shows the server-generated file plan and returns its confirmation token', 
   expect((await page.evaluate(() => window.requestsTest.actions)).at(-1)?.token).toBe(
     'actual-plan-token',
   );
+  await expect(page.locator('.operation-toast')).toContainText('Checking reviewed files');
+  await page.evaluate(() =>
+    window.requestsTest.progress({ modId: 'fixture', phase: 'validating' }),
+  );
+  await expect(page.locator('.operation-toast')).toContainText('Checking downloaded files');
+  await expect(page.locator('.operation-toast')).not.toContainText('Downloading');
+  await page.evaluate(() => window.requestsTest.finish('action'));
 });
 test('development dependencies require opt-in and retain that choice through file confirmation', async ({
   page,

@@ -760,6 +760,7 @@ export class ModInstaller {
               mod.thunderstore && mod.downloadProvider !== 'github' ? 'thunderstore' : 'github',
             ));
           try {
+            this.progress({ modId: mod.id, phase: 'validating' });
             const sha256 = await hashFile(download);
             if (!cached) {
               const size = (await fs.stat(download)).size;
@@ -948,6 +949,7 @@ export class ModInstaller {
         this.assertInstalledDependants(prepared, rechecked, accepted);
         abort.signal.throwIfAborted();
         this.abort = undefined;
+        this.progress({ modId: last.id, phase: 'installing' });
         await this.transactions.execute(this.roots(), changes, (journal) =>
           withInstalledMods(
             this.storage.state,
@@ -1098,6 +1100,13 @@ export class ModInstaller {
       await this.transactions.execute(roots, changes, () => ({
         ...this.storage.state,
         installations: this.storage.state.installations.filter((r) => r.modId !== id),
+        profiles: this.storage.state.profiles && {
+          ...this.storage.state.profiles,
+          items: this.storage.state.profiles.items.map((profile) => ({
+            ...profile,
+            selection: profile.selection.filter((entry) => entry.id !== id),
+          })),
+        },
       }));
       const cleanupProblems = await this.cleanupEmptyDirectories(record.files);
       for (const change of changes) {
