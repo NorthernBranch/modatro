@@ -31,20 +31,17 @@ export function affectsDesktop(file) {
 export function packagingScope(eventName, ref, files) {
   return (
     eventName === 'workflow_dispatch' ||
-    (eventName === 'push' && ref.startsWith('refs/tags/v')) ||
-    files.some(affectsDesktop)
+    (eventName === 'push' &&
+      (ref.startsWith('refs/tags/v') || (ref === 'refs/heads/main' && files.some(affectsDesktop))))
   );
 }
 
 export async function determinePackaging(env = process.env, git = execFileSync) {
   const event = JSON.parse(await readFile(env.GITHUB_EVENT_PATH, 'utf8'));
   let files = [];
-  if (
-    env.GITHUB_EVENT_NAME !== 'workflow_dispatch' &&
-    !(env.GITHUB_EVENT_NAME === 'push' && env.GITHUB_REF?.startsWith('refs/tags/v'))
-  ) {
-    const base = event.pull_request?.base.sha ?? event.before;
-    const head = event.pull_request?.head.sha ?? env.GITHUB_SHA;
+  if (env.GITHUB_EVENT_NAME === 'push' && !env.GITHUB_REF?.startsWith('refs/tags/v')) {
+    const base = event.before;
+    const head = env.GITHUB_SHA;
     if (!/^[a-f0-9]{40}$/.test(head ?? '')) throw new Error('Missing valid head commit.');
     if (base === '0'.repeat(40)) {
       // An initial push has no previous tree. Include every tracked file.
@@ -53,8 +50,7 @@ export async function determinePackaging(env = process.env, git = execFileSync) 
         .filter(Boolean);
     } else {
       if (!/^[a-f0-9]{40}$/.test(base ?? '')) throw new Error('Missing valid base commit.');
-      const range =
-        env.GITHUB_EVENT_NAME === 'pull_request' ? `${base}...${head}` : `${base}..${head}`;
+      const range = `${base}..${head}`;
       // Disabling rename detection includes both paths when a desktop file is
       // renamed into docs, or removed. Read the full diff, without API page limits.
       files = git('git', ['diff', '--name-only', '--no-renames', '-z', range], { encoding: 'utf8' })
@@ -65,7 +61,11 @@ export async function determinePackaging(env = process.env, git = execFileSync) 
   const required = packagingScope(env.GITHUB_EVENT_NAME, env.GITHUB_REF ?? '', files);
   await appendFile(env.GITHUB_OUTPUT, `package_desktop=${required}\n`);
   console.log(
-    required ? 'Desktop packaging required.' : 'Checks only: no desktop release inputs changed.',
+    required
+      ? 'Desktop packaging required.'
+      : env.GITHUB_EVENT_NAME === 'pull_request'
+        ? 'PR checks only. Run this workflow manually on the branch to build test installers.'
+        : 'Checks only: no desktop release inputs changed.',
   );
   return required;
 }

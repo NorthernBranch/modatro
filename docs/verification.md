@@ -64,10 +64,11 @@ isolated data. See [Contributing](../CONTRIBUTING.md) for packaging commands and
 
 ## Release gates
 
-Packaging and publication are conditional on `scripts/release-scope.mjs`: docs,
-website, test-only and fixture-only changes run checks without producing installers.
-`release-scope.test.mjs` verifies mixed changes, deleted/renamed inputs, PR merge-base
-diffs, initial pushes and explicit tag/manual packaging. Website browser checks run
+Packaging and publication are conditional on `scripts/release-scope.mjs`. PRs run
+the full shared checks and production compilation without producing installers.
+On main, docs, website, test-only and fixture-only changes also skip packaging.
+`release-scope.test.mjs` verifies PR exclusion, mixed changes, deleted/renamed inputs,
+initial pushes and explicit tag/manual packaging. Website browser checks run
 in the shared job independently of desktop packaging.
 
 When packaging is required, the shared validation job compiles the application once

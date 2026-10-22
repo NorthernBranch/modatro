@@ -92,9 +92,12 @@ test builds. With all credentials present, packaging requires Developer ID signi
 notarization, a stapled ticket and Gatekeeper acceptance. Partial configuration fails
 instead of falling back. See [signing setup](docs/signing.md). Windows builds remain
 unsigned until a separate publisher-signing integration is configured.
-CI checks and packages Windows x64, Apple Silicon
-and Intel macOS installers, plus Linux AppImage and DEB packages. Pull requests and manual workflow runs upload build
-artifacts. Successful pushes to `main` also publish an automated beta release
+PRs run formatting, catalogue, type, unit, browser and source desktop checks and compile
+the production app. Installer packaging runs on relevant pushes to `main`, version
+tags and manual workflow runs, covering Windows x64, Apple Silicon and Intel macOS,
+plus Linux AppImage and DEB. For pre-merge installers, use **Actions → Test, build and
+release → Run workflow**, select the PR branch, and download the resulting artifacts.
+Manual runs do not publish. Successful relevant pushes to `main` publish a beta release
 with every platform's installers, SHA-256 checksums and macOS signing reports.
 
 To smoke-test an unpacked application, point `MODATRO_PACKAGED_EXECUTABLE` at its
@@ -109,7 +112,7 @@ capture changes still run shared checks, but skip installer packaging and publis
 `scripts/release-scope.mjs` checks the complete Git diff, including removals and
 renames. App sources, bundled policy feeds, dependencies, assets and packaging
 configuration qualify; version tags and manual runs explicitly enable packaging.
-CI assigns one version from published GitHub Releases and the PR title before building.
+Packaging runs assign one version from published GitHub Releases before compiling.
 Use `MAJOR:`, `MINOR:` or `PATCH:` at the start of the title; no prefix defaults to
 patch. After merging, CI queries the PR associated with the main commit, so the
 merge method and displayed commit message do not determine the bump. Failed,
