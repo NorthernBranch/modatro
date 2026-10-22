@@ -1125,6 +1125,15 @@ export class ModInstaller {
         preserved: decisions.filter((d) => d.action === 'keep').map((d) => d.path),
       });
       const retainedFiles = new Set<string>();
+      const managedFiles = new Set(
+        this.storage.state.installations.flatMap((installed) =>
+          installed.files.map((file) => `${file.root}/${file.path}`.toLowerCase()),
+        ),
+      );
+      const retain = (root: FileRoot, relative: string) => {
+        const file = `${root}/${relative}`;
+        if (!managedFiles.has(file.toLowerCase())) retainedFiles.add(file);
+      };
       for (const file of record.files) {
         if (
           decisions.some(
@@ -1135,20 +1144,22 @@ export class ModInstaller {
           ) &&
           (await exists(await safeDestination(roots[file.root], file.path)))
         )
-          retainedFiles.add(`${file.root}/${file.path}`);
+          retain(file.root, file.path);
       }
       const modFolders = new Set(
         record.files
           .filter((file) => file.root !== 'game' && file.path.includes('/'))
-          .map((file) => `${file.root}:${file.path.split('/')[0]}`),
+          .map(
+            (file) =>
+              `${file.root}:${file.root === 'disabled' ? record.modId : file.path.split('/')[0]}`,
+          ),
       );
       for (const key of modFolders) {
         const [root, folder] = key.split(':') as [FileRoot, string];
         try {
           const directory = await safeDestination(roots[root], folder);
           if (await exists(directory))
-            for (const file of await walkFiles(directory))
-              retainedFiles.add(`${root}/${folder}/${file}`);
+            for (const file of await walkFiles(directory)) retain(root, `${folder}/${file}`);
         } catch (error) {
           cleanupProblems.push(
             `${root}/${folder}: remaining files could not be inspected (${String(error)}).`,
