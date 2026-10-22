@@ -28,6 +28,8 @@ restrictions. See [the manifest example](../examples/modatro.json).
 
 ## Registering automatic GitHub updates
 
+These fields apply to reviewed native entries and explicit mod definitions.
+
 For a mod absent from Thunderstore, register its source repository, permission evidence,
 loader identity and installation method once. Add `githubRelease: {}` to discover the
 author's latest published stable GitHub release on every refresh. The entry needs no
@@ -44,11 +46,12 @@ See [the latest-release manifest](../examples/modatro-latest.json). Drafts and p
 are excluded from automatic latest-release discovery. Archive metadata, identity and
 permissions are checked again before installation.
 
-When a Thunderstore entry links to a supported GitHub repository, installation
-prefers its author-controlled manual release archive. A unique `-raw.zip` or
-`-manual.zip` asset takes priority over launcher ZIPs; projects without releases
-use a commit-pinned default-branch archive. The registry identity remains available
-for discovery and restrictions, while provenance records the actual download.
+Supported Thunderstore packages use their published archives and dependency
+metadata. A linked GitHub manual archive is a fallback for unsupported installer
+packages, with `-raw.zip` or `-manual.zip` preferred over launcher assets. When no
+published dependency is compatible, the user can explicitly request a commit-pinned
+development build. Downloaded metadata is checked before confirmation, and provenance
+records the actual source separately from the registry identity.
 
 ## Thunderstore exceptions
 
@@ -158,11 +161,6 @@ For registry blocks, `version` is the package version, not the loader's runtime 
 Publish a separate safe
 version rather than replacing a flagged artifact. Existing user files are unaffected.
 
-## Future catalogue signing
-
-Catalogue signatures are not implemented yet. The native provider exposes a verifier
-boundary before schema parsing, allowing a signed envelope without changing the
-installer. A future implementation should verify canonical payloads and both
-restriction feeds against keys shipped with the application, enforce expiry and
-revision rollback checks, and support deliberate key rotation. Keys supplied only by
-the downloaded catalogue must not become trust anchors.
+Catalogue signatures are not implemented. Current checks use HTTPS, schema validation,
+recorded permissions and saved restriction revisions; they do not establish a
+cryptographically verified publisher.

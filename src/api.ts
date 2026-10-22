@@ -2,6 +2,7 @@ import { version } from '../package.json';
 import preview from './preview-catalogue.json';
 import type { ModatroApi, ModDefinition, Reply, Snapshot } from './shared/model';
 import { ModSchema } from './shared/model';
+import { allowedExternalLink } from './shared/trust';
 declare global {
   interface Window {
     modatro?: ModatroApi;
@@ -75,17 +76,7 @@ const previewApi: ModatroApi = {
   }),
   importDefinition: desktopOnly,
   openLink: async (url) => {
-    const u = new URL(url);
-    if (
-      u.protocol === 'https:' &&
-      [
-        'github.com',
-        'smods.dev',
-        'www.playbalatro.com',
-        'thunderstore.io',
-        'wiki.thunderstore.io',
-      ].includes(u.hostname)
-    ) {
+    if (allowedExternalLink(url)) {
       window.open(url, '_blank', 'noopener,noreferrer');
       return { ok: true, value: undefined };
     }

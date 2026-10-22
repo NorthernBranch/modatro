@@ -37,8 +37,8 @@ screenshots use that neutral fallback with representative data. Official Balatro
 artwork or logos are not used as Modatro's brand.
 
 Locally authored creator projects stay on the user's computer and are not submitted
-to a catalogue automatically. Modatro's original generated J-card and patterned-back
-placeholders are CC0 1.0; exported ZIPs include that permission. Imported art and Lua
+to a catalogue automatically. Modatro's fifteen built-in J, D and V designs are
+CC0 1.0; exported ZIPs include that permission. Uploaded art and authored Lua
 retain their authors' rights. The placeholder permission does not license other
 content in an exported mod.
 

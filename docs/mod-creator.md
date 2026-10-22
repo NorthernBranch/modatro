@@ -97,12 +97,13 @@ compatibility. Syntax checking uses `luaparse` without executing code; the limit
 is 128 KiB. Additional dependencies need manual installation. An optional bundled
 atlas is available; other assets are outside this editor.
 
-**Use Custom Lua** preserves a guided project's generated source. Returning to its
-guided builder requires confirmation and saves custom source in history first.
-External `main.lua` edits also open as custom code. Reload before saving external
-changes; stale writes and unsaved navigation/window closing are guarded.
+A guided project can switch through **Use Custom Lua**, preserving its generated
+source. Returning to that project's builder requires confirmation and saves custom
+source in history first. Projects created in Custom Lua have no guided controls.
+External `main.lua` edits also open as custom code; reload before saving them to avoid
+overwriting a newer revision.
 
-## Artwork, migration and builds
+## Artwork
 
 Each type has five original CC0 designs: **J**, **D** or **V** in Amethyst, Ocean,
 Forest, Rose and Amber. Choose a built-in or upload a static PNG (8 MiB maximum,
@@ -110,11 +111,7 @@ up to 2048×2048), then crop, pan and zoom. Transparency and originals are prese
 including when switching to a built-in. Builds contain 71×95 and 142×190 atlases
 with matching Lua references. Use uploaded artwork you may redistribute.
 
-Existing projects upgrade to schema 2 after backing up metadata, Lua and original
-artwork in `history/migration-v1/`. Joker recipes become equivalent rules; deck
-bonuses, IDs, installed relationships and custom code remain unchanged. Migration
-never regenerates source or replaces installed builds. Legacy placeholders remain
-selected until explicitly replaced, including older deck artwork.
+## Saving, installing and exporting
 
 **Save draft → Build mod → Install build → Launch Balatro** remain explicit actions.
 Saving never changes installed copies. Installation reuses dependency, ownership,
@@ -128,6 +125,11 @@ README and artwork permission only. Project state, originals, history, backups a
 machine paths are excluded. Back up Balatro saves separately: Modatro's mod-file
 backups do not include them. Settings contains save locations and the option to
 restore the dismissible backup reminder.
+
+Older projects upgrade after backing up metadata, Lua and original artwork in
+`history/migration-v1/`. Rules, deck bonuses, IDs and installed relationships are
+preserved. Migration keeps custom source and legacy artwork, including older deck
+placeholders, until you explicitly replace them.
 
 ## Verification boundary
 

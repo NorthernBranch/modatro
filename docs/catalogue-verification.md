@@ -19,7 +19,6 @@ installer and transaction engine.
 | API availability             | Shared GitHub cooldowns, recent JSON reuse and persisted optional star budgets; raw policies always reach their source                                | `github-requests.test.ts`, `github-stars.test.ts`                    |
 | Offline management           | Cached browsing and local ownership records survive source removal, migration and outages                                                             | `external-mods.test.ts`, `storage.test.ts`, `catalogue.test.ts`      |
 
-The native catalogue's schema/verifier boundary supports a future signed envelope.
 Cryptographic catalogue signatures are not implemented; feeds currently rely on
 HTTPS, their maintained source, schema checks and saved revision history. Approval
 and licence evidence still require human review. Registry publication and optional
@@ -51,7 +50,7 @@ bounded retries for busy macOS DMG volumes. Browser and packaged startup tests c
 the interface and runtime separately from real-game compatibility.
 
 Windows has received the most complete manual testing. macOS, Linux and Steam Deck
-still need native real-game feedback. Unsupported archive formats, dependency
+still need native real-game feedback. Unfamiliar archive formats, unsupported version
 constraints, native Linux LÖVE launching and ARM Linux remain outside automation.
 Publisher signing, notarization and catalogue signatures are distinct claims;
 a passing checksum or fixture test does not establish any of them.

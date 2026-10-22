@@ -231,14 +231,10 @@ export async function boundedBody(response: Response, limit: number): Promise<Bu
   if (!response.body) throw new UserError('The server sent an empty response.');
   const chunks: Buffer[] = [];
   let bytes = 0;
-  try {
-    for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
-      bytes += chunk.length;
-      if (bytes > limit) throw new UserError('The server response exceeds the size limit.');
-      chunks.push(Buffer.from(chunk));
-    }
-  } finally {
-    /* Iteration cancellation closes the stream on failure. */
+  for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+    bytes += chunk.length;
+    if (bytes > limit) throw new UserError('The server response exceeds the size limit.');
+    chunks.push(Buffer.from(chunk));
   }
   return Buffer.concat(chunks);
 }
@@ -290,9 +286,6 @@ export async function remoteThunderstoreJson(url: string): Promise<unknown> {
   if (bytes[0] === 0x1f && bytes[1] === 0x8b)
     bytes = gunzipSync(bytes, { maxOutputLength: 40 * 1024 * 1024 });
   return JSON.parse(bytes.toString('utf8'));
-}
-export async function remoteText(url: string): Promise<string> {
-  return (await boundedBody(await safeFetch(url), 100000)).toString('utf8');
 }
 export class DownloadService {
   finalUrl?: string;

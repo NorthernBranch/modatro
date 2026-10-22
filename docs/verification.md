@@ -53,7 +53,7 @@ pnpm exec playwright test --config playwright.website.config.mjs
 node scripts/screenshots.mjs
 ```
 
-`pnpm check` covers formatting, catalogue generation, types, unit/service tests and
+`pnpm check` covers formatting, generated catalogue validation, types, unit/service tests and
 production builds. On headless Linux, install Playwright's runtime dependencies and
 run browser/Electron tests under Xvfb, as the release workflow does.
 
@@ -78,6 +78,10 @@ Publication waits for all five installer files and the two matching macOS signin
 reports. The release script validates hashes before making GitHub changes, uploads
 to a draft, and publishes only after success. Retrying an existing completed release
 does not replace its downloads.
+
+Version and publication tests cover PR-title bumps, merged commit identity, release
+history, draft exclusion and retries. A child-process test runs the publisher from
+a temporary checkout without `node_modules`, matching its CI environment.
 
 macOS packaging verifies bundle signatures. Developer ID mode additionally requires
 notarization, a stapled ticket and Gatekeeper acceptance. Only the specific busy-volume
@@ -105,15 +109,16 @@ architecture, game/loader versions and actual result.
 - macOS ad-hoc builds are not notarized; Windows beta installers are unsigned.
   Checksums do not replace publisher signatures.
 
-See [catalogue hardening coverage](catalogue-verification.md),
-[the Thunderstore migration](thunderstore-migration.md), and
+See [catalogue and installation coverage](catalogue-verification.md) and
 [release signing](signing.md) for the relevant boundaries.
 
 ## Profiles, reports and creator acceptance
 
 Profile tests cover migration backups, active/inactive install selections, required
 loader retention, repeated switching without duplicates, external edits, stale
-tokens and rollback. Diagnostic tests cover read-only checks, bounded opt-in log
+tokens and rollback. They also verify uninstall cleanup across all profiles and
+profile sharing: checksums, source references, unique names, dependency-first
+installation, confirmation, cancellation and restoration. Diagnostic tests cover read-only checks, bounded opt-in log
 excerpts, honest unknown states, redaction and reviewed export. Actual desktop IPC
 is tested with disposable fixtures beneath the real home so production path rules
 still apply. Real personal logs, games and saves remain excluded.
@@ -131,22 +136,12 @@ runtime actions is parsed without executing it.
 Electron coverage includes first-use acknowledgement, persisted preferences, the
 save reminder, project creation, unsaved navigation/window protection, custom-source
 preservation before regeneration and building without installation. Native dialogs
-use controlled responses. Screenshot capture checks all seven main pages at 1440,
-1024, 768 and 375 pixels; the website checks all four screenshot modals.
+use controlled responses. Announcement tests check dismissal persistence, onboarding
+and navigation without enabling the creator. Screenshot capture checks the main
+pages at 1440, 1024, 768 and 375 pixels; the website checks all four screenshot modals.
 
-**No in-game creator tests have run as part of this feature.** Static validation
+**No representative in-game creator acceptance run is recorded.** Static validation
 does not prove game behaviour, code safety or compatibility with other mods.
-Before release, test each recipe with backed-up saves and the declared loader
+Before release, test each builder with backed-up saves and the declared loader
 versions, recording exact versions and actual outcomes. See [Mod Creator](mod-creator.md)
 for builder semantics, resource limits, custom-code restrictions and restoration.
-
-Profile sharing tests cover corruption, constrained source references, unique names,
-native-picker cancellation, dependency-first downloads, confirmation and restoration
-after cancellation or invalid archives. Announcement tests cover every dismissal route,
-durable settings, version changes, onboarding and navigation without feature enablement.
-
-Version tests cover semantic ordering, PR title prefixes, merged PR lookup,
-published-history gaps, draft exclusion and retries. A child-process regression
-uses a temporary checkout without node_modules to match the dependency-free
-publishing job. Publication verifies the assigned version and every platform asset
-before modifying GitHub Releases.

@@ -44,11 +44,11 @@ import { DownloadService } from './network';
 import { Logger, Storage } from './storage';
 import { selectStrategy } from './strategies';
 import { TransactionEngine, type Change, type TransactionJournal } from './transaction';
-import { evaluateDependencies } from './versions';
 import {
   blockingDependencies,
   canAcceptUnverified,
   externalLoaderRequirement,
+  evaluateDependencies,
 } from '../../src/shared/dependencies';
 import { automationReason, defaultFolder } from '../../src/shared/trust';
 import { ArtifactHistory } from './artifacts';
@@ -687,6 +687,25 @@ export class ModInstaller {
       }),
     });
   }
+  private async preparedPrerequisites(prepared: PreparedInstallation[]): Promise<Prerequisite[]> {
+    const future = projectedPrerequisites(
+      prepared.map((item) => item.mod),
+      await this.getPrerequisites(),
+    );
+    // Runtime requirements use staged metadata; registry requirements retain
+    // their separate package versions. Call again before committing for fresh evidence.
+    for (const item of prepared)
+      future.unshift({
+        id: item.metadataId ?? item.mod.id,
+        displayName: item.mod.title,
+        installed: true,
+        installedVersion:
+          item.runtimeVersion ??
+          (item.mod.installation.type === 'lovely-injector' ? item.mod.version : undefined),
+        sourceUrl: item.mod.downloadUrl,
+      });
+    return future;
+  }
   async installMany(
     inputs: ModDefinition[],
     confirmationToken?: string,
@@ -823,20 +842,7 @@ export class ModInstaller {
             }
           }
         }
-        const resolved = prepared.map((item) => item.mod);
-        const future = projectedPrerequisites(resolved, await this.getPrerequisites());
-        // Runtime requirements discovered in downloaded metadata use the actual
-        // loader version, while registry requirements use package versions.
-        for (const item of prepared)
-          future.unshift({
-            id: item.metadataId ?? item.mod.id,
-            displayName: item.mod.title,
-            installed: true,
-            installedVersion:
-              item.runtimeVersion ??
-              (item.mod.installation.type === 'lovely-injector' ? item.mod.version : undefined),
-            sourceUrl: item.mod.downloadUrl,
-          });
+        const future = await this.preparedPrerequisites(prepared);
         for (const item of prepared) {
           const conflict = evaluateDependencies(item.declaredConflicts ?? [], future).find(
             (entry) => entry.state === 'satisfied' || entry.state === 'unknown',
@@ -933,17 +939,7 @@ export class ModInstaller {
         for (const item of prepared) await this.verifyTrust?.(item.mod, !!item.previous);
         // Refresh physical prerequisite evidence just before committing. Planned
         // packages are projected, never written early to satisfy another plan.
-        const rechecked = projectedPrerequisites(resolved, await this.getPrerequisites());
-        for (const item of prepared)
-          rechecked.unshift({
-            id: item.metadataId ?? item.mod.id,
-            displayName: item.mod.title,
-            installed: true,
-            installedVersion:
-              item.runtimeVersion ??
-              (item.mod.installation.type === 'lovely-injector' ? item.mod.version : undefined),
-            sourceUrl: item.mod.downloadUrl,
-          });
+        const rechecked = await this.preparedPrerequisites(prepared);
         for (const item of prepared)
           this.assertDependencies(evaluateDependencies(item.dependencies, rechecked), accepted);
         this.assertInstalledDependants(prepared, rechecked, accepted);

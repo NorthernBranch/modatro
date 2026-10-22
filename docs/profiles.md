@@ -5,28 +5,18 @@ creates a profile from the current managed selection and offers rename, duplicat
 and delete actions. Names must be unique, ignoring case and Unicode normalization,
 and contain 1–60 characters. Up to 100 profiles are supported.
 
+Deleting a profile leaves installed mods alone. Deleting the active profile requires
+confirmation to preserve the current selection as a new Default profile.
+
 ![Profile management with representative mod selections](images/profiles.png)
-
-**Export** saves a selected profile to a location you choose. **Import profile from
-file** checks its format and checksum, reviews downloads, installs prerequisites
-before dependent mods, then activates a new profile. Existing names gain `(2)`,
-`(3)`, etc. Save or revert unsaved selections before importing.
-
-Exports contain managed selections and source/version references, not mod settings,
-saves or local ZIP contents. Local-only mods need their separate ZIP; missing index
-entries need the sender's index. Conflicting installed versions or unavailable
-releases block import rather than silently substituting versions shared by other
-profiles. Cancel before confirmation to restore the previous selection. A checksum
-detects corruption, not a trusted sender; review whose mods you install.
 
 ## What a profile shares
 
 A profile records enabled or disabled states by stable managed installation identity,
 including source-qualified identities. Installed versions and configurations are
-shared: updating a mod affects all profiles using it. Profiles are not Balatro save
-slots. Switching never moves, replaces or deletes save files. Creator builds share
-one installed revision across profiles too; switching does not select an older
-project build. Back up Balatro saves separately from mod files.
+shared: updating a mod affects all profiles using it. This includes locally created
+mods; switching does not restore an older creator build. Profiles are separate from
+Balatro save slots and never move or replace saves. Back up saves separately.
 
 Unmanaged mods remain untouched and can still affect gameplay. Review them in
 **Installed** and use the existing adoption action where supported. Lovely's native
@@ -38,7 +28,9 @@ dependencies as enabled in the active profile. Each new managed mod is also reco
 as disabled in every inactive profile; existing choices in those profiles are preserved.
 Adopting an external mod follows the same rule. File changes and the saved install
 selections commit together, so a failed installation cannot leave a partially updated
-profile. Unrelated unsaved manual changes stay unsaved.
+profile. Uninstalling removes the mod from every saved selection, whether enabled
+or disabled, in the same transaction as its files. A failed uninstall preserves both.
+Unrelated unsaved manual changes stay unsaved.
 
 ## Review and apply a selection
 
@@ -60,46 +52,43 @@ Follow **Review Prerequisites** or **Review Installed mods**, then use Discover 
 the normal installation workflow to resolve missing packages. Review a fresh preview
 after any change. Confirmation expires after five minutes and is single-use.
 
-All moves and the active-profile identity commit through one transaction. A failed
-switch restores the previous files and keeps the previous profile. After an interrupted
-switch, startup checks the durable state commit marker and either completes the
-committed journal or rolls back verified changes. External edits or missing backups
-can stop recovery and lock file operations; keep the application data and backups
-and open **Troubleshooting**. Recovery does not discard unverified edits.
+Switches commit the file moves and active profile together. A failure restores the
+previous selection. After an interruption, startup completes or rolls back the
+recorded transaction. If external edits or missing backups block recovery, keep the
+application data and open **Troubleshooting**.
 During a switch, the dialog shows progress and cannot be dismissed with Close,
 Cancel, Escape or a click outside. It closes after success; a failed switch leaves
 the controls available again. Empty folders left by earlier switches are ignored
 by discovery, and new switches remove empty source directories after committing.
 
-Background clicks leave dialogs open, including unsaved profile forms. Use an explicit
-Close/Cancel action or Escape when available. Completed switch scratch backups are
-pruned automatically; originals still needed for uninstall or recovery are retained.
-
 ## Unsaved selections
 
-Manual enables and disables show **Unsaved changes** when the
-actual managed selection differs from the active profile. This persists across restarts.
-Version-only updates do not count as selection changes.
+Manual enables and disables show **Unsaved changes** when the current selection
+differs from the active profile. This persists across restarts; version-only updates
+do not count as selection changes.
 
 - **Save to profile** records the current selection in the active profile.
 - **Save as new profile** captures the current selection under a new active name.
 - **Revert to saved selection** opens the same reviewed, transactional switch.
 
-Uninstalling a mod removes it from every profile, whether saved as enabled or disabled.
-Profile selections and file removal commit together; a failed uninstall preserves both.
-Unrelated unsaved selections remain unsaved.
-Deleting a profile never uninstalls anything. Deleting the active profile requires
-explicit confirmation to preserve the current selection as a newly named Default
-profile; it does not silently apply another profile's files.
+## Sharing and backing up profiles
+
+**Export** saves a selected profile to a location you choose. **Import profile from
+file** checks its format and checksum, reviews required downloads, installs prerequisites
+before dependent mods, then activates a new profile. Existing names gain `(2)`,
+`(3)`, etc. Save or revert unsaved selections before importing.
+
+Exports contain managed selections and source/version references. Mod settings,
+Balatro saves and local ZIP contents need separate backups. Local-only mods require
+their ZIP; missing index entries require the sender's index. Incompatible installed
+versions or unavailable releases block import. Cancel before confirmation to restore
+the previous selection. The checksum detects corruption, not a trusted sender.
 
 ## State upgrade
 
-Saved state upgrades from schema 1 or 2 to schema 3, containing a validated profile
-schema 1. A Default profile captures the existing managed selection exactly. Original
-state is backed up in `data/state-v1.backup.json` or a content-addressed
-`data/state-v1-<hash>.backup.json` / `data/state-v2-<hash>.backup.json` before writing
-the upgrade. Ownership, hashes, original-file backups, provenance and transaction
-markers remain intact; migration does not move game or mod files.
+Older application state is backed up before upgrading to schema 3. A Default profile
+captures the existing managed selection. Ownership, file backups, provenance and
+recovery records remain intact; migration does not move game or mod files.
 
 Prepared journals are recovered against the unchanged old state before migration.
 A backup or state-write failure locks file operations and preserves recovery material.
