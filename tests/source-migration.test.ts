@@ -379,7 +379,7 @@ it('commits a GitHub-backed dependency set and continues to satisfy source-quali
   const graph = resolveDependencyGraph([a], [a, b], []);
   const resolved = await Promise.all(
     graph.map((entry) =>
-      resolveDistribution(entry, async () => ({
+      resolveDistribution({ ...entry, installer: [{ identifier: 'external' }] }, async () => ({
         tag_name: 'v1.0.0',
         draft: false,
         prerelease: false,

@@ -38,6 +38,9 @@ push. The renderer, Electron app, platform installers and release notes all use
 that version. Retrying a published workflow retains its original version. There are no
 version-bump commits and no need to edit `package.json` for normal releases.
 
+The checked-in `package.json` version is `0.0.0`, a placeholder used by local builds.
+CI replaces it with the assigned release version before compiling or packaging.
+
 Version assignment reads published GitHub Releases, including betas, using the CI
 token. The merged PR title selects how the highest published semantic version advances:
 
