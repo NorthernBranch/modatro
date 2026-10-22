@@ -9,20 +9,14 @@ requirements, and manage your collection with backups and a record of every file
 [Report an issue](https://github.com/NorthernBranch/modatro/issues) ·
 [Contribute](CONTRIBUTING.md)
 
-Named **mod profiles** keep managed selections ready to switch with a reviewed,
-recoverable file plan. **Troubleshooting** checks your setup and creates an editable
-support report, with log excerpts included only when you select them. Versions and
-configurations are shared across profiles; unmanaged mods can still affect gameplay.
-
 ![Modatro Discover showing mod browsing, search, categories and installation status](docs/images/discover.png)
 
 | Your collection                                                                                                      | Prerequisite checks                                                                                                                |
 | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | [![Installed mods with management actions and source records](docs/images/installed.png)](docs/images/installed.png) | [![Lovely, Steamodded and Talisman installation and version checks](docs/images/prerequisites.png)](docs/images/prerequisites.png) |
 
-Screenshots show the current interface with representative catalogue and installation
-data. The prerequisite preview includes an expanded source record with a synthetic
-checksum. Click either smaller image to view it at full size.
+Screenshots use representative catalogue and installation data. Click the smaller
+images to view them at full size.
 
 ## Download
 
@@ -51,7 +45,8 @@ and macOS may block opening them. Check the release notes and
 ## What Modatro does
 
 - **Discover:** browse the live [Thunderstore Balatro catalogue](https://thunderstore.io/c/balatro/),
-  search and filter mods, and sort by available GitHub star counts.
+  search and filter mods, and sort by available GitHub star counts. The last validated
+  catalogue remains available offline.
 - **Additional sources:** optionally add a Balatro mod index by GitHub repository
   URL. Listings are fetched at runtime and deduplicated, with Thunderstore preferred.
   Details and install previews identify the source used.
@@ -61,27 +56,19 @@ and macOS may block opening them. Check the release notes and
 - **Prerequisites:** detect and manage Lovely and Steamodded, including supported
   Lovely installation on Windows, macOS and Linux with Proton. Talisman is optional
   unless a mod requires it.
-- **Your collection:** install, update, enable, disable and uninstall supported mods;
-  adopt identified existing mods explicitly.
-- **Profiles:** save managed selections, switch safely, and export/import profiles
-  for backup or sharing with dependency-first installation.
-- **File records:** retain provenance, hashes and needed originals; unused transaction
-  backups are pruned automatically. Changed files require review, and interrupted
-  operations retain recovery records.
-- **Offline browsing:** keep the last validated catalogue and locally manage
-  installed mods. New downloads require current source and removal checks.
-- **Application updates:** quietly indicate newer GitHub releases. Downloading and
-  installing an update always requires your action.
-- **Mod Creator (experimental, optional):** use dedicated Joker, Deck and Voucher builders or write Custom Lua for a local
-  Steamodded mod; edit Lua, import PNG artwork, save drafts, build/install and export
-  ZIPs. Enable it in Settings after acknowledging the disclaimer.
-- **Save guidance:** a dismissible reminder explains how to back up Balatro saves
-  separately from Modatro's mod-file backups.
-- **Appearance:** choose a dark, light or system theme.
-
-GitHub counts are cached and refreshed in small batches to preserve API capacity
-for releases and installations. Missing counts are shown honestly; API limits can
-temporarily prevent new release checks without removing your cached catalogue.
+- **Your collection:** install, update, enable, disable and uninstall supported mods,
+  or adopt identified existing copies. File records and required backups support
+  recovery; unused transaction backups are pruned automatically.
+- **Profiles:** save and switch managed selections, or export/import profiles for
+  backup and sharing. Versions and mod settings are shared across profiles.
+- **Troubleshooting:** check your setup and prepare an editable support report,
+  with log excerpts included only when you select them.
+- **Mod Creator (experimental):** build Jokers, Decks and Vouchers or write Custom
+  Lua, choose artwork, and export local mods. Enable it in Settings after
+  acknowledging the risks.
+- **Application settings:** choose a dark, light or system theme and check for app
+  updates. New releases appear as a quiet notice; downloading and installing them
+  remains your choice.
 
 ## Get started
 
@@ -126,9 +113,7 @@ for builders, Custom Lua, artwork, source history, restoration and export.
 These screenshots use representative selections and synthetic diagnostics.
 Additional screenshots: [switch preview](docs/images/profile-switch.png),
 [Settings](docs/images/settings.png) and [Updates](docs/images/updates.png).
-Open profiles beside **Launch**, and **Troubleshooting** in the sidebar. The first
-upgrade backs up existing state before creating a Default profile; see the
-[profile migration notes](docs/profiles.md#state-upgrade).
+Open profiles beside **Launch**, and **Troubleshooting** in the sidebar.
 
 | Guide                                      | Covers                                                                |
 | ------------------------------------------ | --------------------------------------------------------------------- |

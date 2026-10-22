@@ -12,7 +12,7 @@ import { exists, fileBatches, hashFile, readSmall, safeDestination } from './fil
 import { catalogueMatches, dependencyId, inspectMetadata, parseLuaHeader } from './metadata';
 import { remoteJson } from './network';
 import { Logger, Storage } from './storage';
-import { hasUpdate } from './versions';
+import { hasUpdate } from '../../src/shared/dependencies';
 import { automationReason } from '../../src/shared/trust';
 import { thunderstoreId } from '../../src/shared/thunderstore';
 import type { CatalogueTrust } from './trust';

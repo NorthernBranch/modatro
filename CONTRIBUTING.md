@@ -92,13 +92,10 @@ test builds. With all credentials present, packaging requires Developer ID signi
 notarization, a stapled ticket and Gatekeeper acceptance. Partial configuration fails
 instead of falling back. See [signing setup](docs/signing.md). Windows builds remain
 unsigned until a separate publisher-signing integration is configured.
-PRs run formatting, catalogue, type, unit, browser and source desktop checks and compile
-the production app. Installer packaging runs on relevant pushes to `main`, version
-tags and manual workflow runs, covering Windows x64, Apple Silicon and Intel macOS,
-plus Linux AppImage and DEB. For pre-merge installers, use **Actions → Test, build and
-release → Run workflow**, select the PR branch, and download the resulting artifacts.
-Manual runs do not publish. Successful relevant pushes to `main` publish a beta release
-with every platform's installers, SHA-256 checksums and macOS signing reports.
+
+To build installers before merging, use **Actions → Test, build and release → Run
+workflow**, select the PR branch, and download the resulting artifacts. Manual runs
+do not publish releases.
 
 To smoke-test an unpacked application, point `MODATRO_PACKAGED_EXECUTABLE` at its
 executable and run `pnpm exec playwright test tests/desktop.spec.ts`. The test still
@@ -106,34 +103,21 @@ uses isolated application data.
 
 ## Publishing releases
 
-Pushes or merges to `main` publish a beta when desktop release inputs change and
-all platform checks pass. Documentation, website, tests, fixtures and screenshot
-capture changes still run shared checks, but skip installer packaging and publishing.
-`scripts/release-scope.mjs` checks the complete Git diff, including removals and
-renames. App sources, bundled policy feeds, dependencies, assets and packaging
-configuration qualify; version tags and manual runs explicitly enable packaging.
-Packaging runs assign one version from published GitHub Releases before compiling.
-Use `MAJOR:`, `MINOR:` or `PATCH:` at the start of the title; no prefix defaults to
-patch. After merging, CI queries the PR associated with the main commit, so the
-merge method and displayed commit message do not determine the bump. Failed,
-check-only and intervening PR runs do not consume versions. Normal releases need
-no package-file edit. See [release version rules](docs/release.md).
+PRs run the full shared checks and production compilation without creating installers.
+Relevant changes merged to `main` build and test Windows, both macOS architectures,
+and Linux installers before publishing a beta. Documentation, website and test-only
+changes run checks without a desktop release.
 
-For an optional named release, push a `v<version>` tag. CI assigns that version
-without requiring a package-file edit. Versions with a prerelease suffix remain
-prereleases; other version tags publish a release marked as latest. Beta builds from
-`main` do not replace it.
-
-The release job uses GitHub's built-in token with `contents: write`; no personal
-access token is required. It uploads all installers and checksums to a draft before
-publishing. Retry a failed workflow to finish its draft; a completed release keeps
-its published downloads when retried. Signing and macOS notarization still require
-separate platform credentials.
+Start the PR title with `MAJOR:`, `MINOR:` or `PATCH:`; no prefix defaults to patch.
+CI reads the merged title and published release history, so normal releases need no
+package-version edit. Use a `v<version>` tag for a deliberately named release.
+See [release rules](docs/release.md#automated-beta-downloads) and
+[signing setup](docs/signing.md) for publication and credential details.
 
 ## Documentation screenshots
 
 Capture the current interface with representative catalogue data, synthetic setup
-evidence and a sample creator project. The script checks all seven main pages at
+evidence and a sample creator project. The script checks the main pages at
 desktop, tablet and narrow widths; it never reads personal logs or game saves.
 
 The screenshots use the real renderer. Setup evidence, history and any log examples
@@ -144,8 +128,9 @@ pnpm exec playwright install chromium
 node scripts/screenshots.mjs
 ```
 
-The script starts its own Vite server on port 5183, captures nine app views
-into `docs/images/`, then closes the browser and server. Discover, Profiles, Troubleshooting and Creator images are also copied to `website/images/` for the landing page.
+The script starts its own Vite server on port 5183, captures app and creator views
+into `docs/images/`, then closes the browser and server. Discover, Profiles,
+Troubleshooting and Creator images are also copied to `website/images/`.
 The prerequisite preview expands a representative source record with a synthetic
 checksum so long-value wrapping is visible. The script uses a
 read-only desktop bridge and blocks external requests; it cannot discover or change

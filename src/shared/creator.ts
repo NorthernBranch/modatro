@@ -1,12 +1,6 @@
 import { z } from 'zod';
 import type { ModDefinition } from './model';
-import {
-  ContentSchema,
-  defaultContent,
-  contentDescription,
-  type JokerContent,
-  type DeckContent,
-} from './creator-content';
+import { ContentSchema, defaultContent } from './creator-content';
 
 export const CREATOR_TARGET = '26.1002.0';
 export const SAVE_NOTICE =
@@ -16,13 +10,6 @@ export const CREATOR_DISCLAIMER =
 export const SAVE_GUIDANCE =
   'Close Balatro before copying saves. Copy the entire Balatro save-data folder, including its numbered profile folders, to a separate location. On Windows it is normally %APPDATA%/Balatro; on macOS ~/Library/Application Support/Balatro; on Linux/Proton use the matching Steam compatdata prefix and its AppData/Roaming/Balatro folder. A custom Mods folder may be elsewhere. Modatro’s mod-file backups do not back up these saves.';
 export const RecipeSchema = z.enum(['blank', 'joker-mult', 'joker-chips', 'joker-suit', 'deck']);
-export const recipes = [
-  { id: 'blank', name: 'Blank Steamodded mod' },
-  { id: 'joker-mult', name: 'Joker · fixed Mult' },
-  { id: 'joker-chips', name: 'Joker · fixed Chips' },
-  { id: 'joker-suit', name: 'Joker · scored suit Mult' },
-  { id: 'deck', name: 'Deck · starting bonuses' },
-] as const;
 export const CreatorId = z
   .string()
   .min(3)
@@ -125,7 +112,6 @@ export type CreatorDraft = z.infer<typeof CreatorDraftSchema>;
 export const CreatorOriginSchema = z
   .object({ projectId: z.uuid(), buildId: z.string().regex(/^[a-f0-9]{64}$/) })
   .strict();
-export type CreatorOrigin = z.infer<typeof CreatorOriginSchema>;
 export const CreatorBuildSchema = z
   .object({
     id: z.string().regex(/^[a-f0-9]{64}$/),
@@ -134,7 +120,6 @@ export const CreatorBuildSchema = z
     createdAt: z.iso.datetime(),
   })
   .strict();
-export type CreatorBuild = z.infer<typeof CreatorBuildSchema>;
 export const CreatorProjectSchema = z
   .object({
     schemaVersion: z.literal(2),
@@ -216,9 +201,6 @@ export function creatorIdentities(id: string) {
   const suffix = id.replaceAll('-', '').slice(0, 12);
   return { modId: `modatro_${suffix}`, prefix: `mc_${suffix}` };
 }
-export function recipeDescription(d: CreatorDraft) {
-  return contentDescription(d.content);
-}
 export function migrateCreatorProject(input: unknown) {
   const object = input as { schemaVersion?: unknown; draft?: unknown };
   if (object?.schemaVersion !== 1) return CreatorProjectSchema.parse(input);
@@ -233,9 +215,8 @@ export function migrateCreatorProject(input: unknown) {
     d.recipe === 'blank'
       ? { type: 'blank' as const, name: d.name }
       : defaultContent(d.recipe === 'deck' ? 'deck' : 'joker', d.name);
-  if (content.type === 'joker') {
-    const c = content as JokerContent;
-    c.rules = [
+  if (content.type === 'joker')
+    content.rules = [
       {
         trigger: d.recipe === 'joker-suit' ? 'scored' : 'main',
         conditions: d.recipe === 'joker-suit' ? [{ kind: 'suits', values: [d.suit] }] : [],
@@ -243,9 +224,8 @@ export function migrateCreatorProject(input: unknown) {
         amount: d.amount,
       },
     ];
-  }
   if (content.type === 'deck')
-    Object.assign((content as DeckContent).resources, {
+    Object.assign(content.resources, {
       dollars: d.dollars,
       hands: d.hands,
       discards: d.discards,

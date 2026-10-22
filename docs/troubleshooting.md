@@ -6,19 +6,14 @@ setup and file-operation problems. For installation instructions, see
 
 ## Inspect your setup and prepare a report
 
-Open **Troubleshooting** in the sidebar. **Refresh setup checks** reads a consistent
-snapshot while file changes are excluded by the operation lock. It shows game and
-prerequisite version evidence, managed/unmanaged and enabled/disabled mods, active
-profile differences, file integrity, declared dependencies and recent operations.
-Unknown evidence remains unknown.
+Open **Troubleshooting** in the sidebar and choose **Refresh setup checks** to review
+the game, prerequisites, installed mods, active profile and recent operations.
 
 The **Setup overview** groups installed mods into **Enabled mods**, **Disabled mods**,
 and, when needed, **Enabled state unknown**. Each group retains the mod identity,
 version and managed/unmanaged status. Prerequisite badges show only installed
 Balatro, Lovely, Steamodded and Talisman; ordinary mods appear in the grouped lists.
-Missing required dependencies still produce findings.
-Installation previews and confirmations keep their file-change lists collapsed
-until you choose to expand them.
+Missing required dependencies appear as findings.
 
 If setup or profile selection changes while this page is open, it marks the displayed
 checks as needing refresh. Generating a report always takes fresh checks under the lock.
@@ -52,13 +47,10 @@ universal Balatro crash-log filename: a crash may only appear on screen, while
 macOS/Linux console output may need to be saved manually. Patch dumps are not logs.
 Linux game installation and launching continue to use the supported Proton workflow.
 
-Discovery examines at most 200 entries per log directory and lists the three newest
-text logs per source. Reads are limited to the last 64 KiB of each selected regular
-file, returning at most 8,000 text characters plus a truncation notice. Log processing
-has a two-second response budget; missing, rotated, binary, inaccessible or timed-out
-files produce an explanation. Logs remain untrusted plain text and are never executed.
-File modification times are shown, with logs older than 24 hours marked explicitly;
-timestamps alone do not identify the latest game session.
+The picker lists recent text logs and reads bounded excerpts. Missing, rotated,
+binary or inaccessible logs produce an explanation. Logs remain plain text and are
+never executed. Older logs are marked explicitly; timestamps alone do not identify
+the latest game session.
 
 Choose **Generate support report** to build a Markdown report with the current
 selection of excerpts and the sections chosen under **Report contents**. Application,
@@ -160,13 +152,10 @@ them before the requested mod after approval. Cancelling leaves installed files
 unchanged; a failed dependency check blocks the whole plan. An installed loader with
 an unknown version still requires explicit verification rather than automatic replacement.
 
-Discover shows loader presence separately from version compatibility. An external
-Steamodded or Lovely installation can be detected without proving which Thunderstore
-package was installed. Canonical loader requirements use a known runtime version when
-the package version is unrecorded. Steamodded's beta build numbers (including zero-padded
-requirements such as Amulet's `1.0.0~BETA-0827c`) and newer date-based
-versions are compared in their supported formats. Unknown runtime versions require the
-existing per-operation consent; missing or known incompatible requirements still block.
+Runtime requirements use detected loader metadata, including supported Steamodded
+beta and date formats. Balatro's version comes from `version.jkr` in the game archive;
+invalid or ambiguous data remains unknown. Package requirements still need evidence
+of the corresponding package version.
 
 Modatro verifies a managed Lovely version against the installed binary's recorded
 hash. A manual installation may remain unversioned. Lovely writes its reported version
@@ -223,11 +212,14 @@ check installed dependencies and file ownership.
 
 ## GitHub downloads and manual installations
 
-When a Thunderstore listing links to a GitHub repository, Modatro prefers the author's
-GitHub manual mod archive. A uniquely named `-raw.zip` or `-manual.zip` asset takes
-precedence over bundled launcher ZIPs; ambiguous releases remain blocked. Projects
-without releases use a commit-pinned archive of their default branch. A failed GitHub
-request does not silently switch back to a Thunderstore installer.
+Supported Thunderstore packages use their published archives. For packages that ship
+unsupported installers, Modatro can use a linked GitHub manual archive, preferring a
+unique `-raw.zip` or `-manual.zip` asset. Ambiguous archives remain blocked.
+
+If no published dependency meets the requirement, **Try development build** explicitly
+requests a commit-pinned upstream build. Modatro checks its actual runtime version
+and compatibility, then asks you to review the source and file changes. Unreleased
+code can be unstable; opting in does not override an incompatible requirement.
 
 Registry discovery identity and restrictions remain intact, while installation
 provenance records the actual GitHub URL, release or commit and archive hash. GitHub
@@ -240,20 +232,6 @@ For managed GitHub copies, a verified runtime version can satisfy a requirement 
 the same recorded package identity. Saved dependencies from the installed archive are
 checked instead of borrowing the latest registry package's dependency tree. Unmanaged
 mods cannot satisfy another namespace's requirements by sharing a name.
-
-Lovely can be installed, updated and uninstalled on Windows, Linux with Proton,
-and Intel or Apple Silicon Macs. Game-file changes require a preview and confirmation.
-Existing files at the destination are backed up and restored on uninstall. Managed
-releases expose their verified version immediately. Legacy manual `version.dll` copies
-must follow the official upgrade instructions before installing `winmm.dll`; Modatro
-refuses to leave two injectors active. Steamodded's identity manifest is retained during installation so the
-Prerequisites page continues to recognize the loader; healthy older managed copies
-whose manifest was omitted are recognized from verified file ownership.
-
-Balatro version requirements use `version.jkr` read from its game-data archive,
-including the Windows fused executable and macOS `.love` file. The executable is
-never run to obtain its version. Invalid, oversized or ambiguous version data stays
-unknown; letter releases such as `1.0.1o` are compared explicitly.
 
 ## A mod reports that it was installed incorrectly or is nested
 
@@ -283,8 +261,13 @@ A recorded file has changed since installation. Review each conflict before choo
 - **Restore** overwrites a changed replacement with its verified original backup.
   This choice is available only when an original can be restored.
 
-Keep is selected by default. Backups remain available after uninstall through
-**Settings → Open backups**.
+Keep is selected by default. After uninstall, the report lists preserved edits and
+untracked files from that mod; these are no longer managed. Empty-directory cleanup
+problems are reported separately. Uninstall also removes the mod from every profile.
+
+Required originals remain under **Settings → Open backups** while referenced by
+installation or recovery records. Unused transaction backups are pruned automatically.
+Balatro saves need a separate backup.
 
 ## Creator source or builds need attention
 
@@ -308,12 +291,6 @@ Do not delete the journal or edit installation records to dismiss the message.
 Use **Settings → Copy diagnostics** and **Open logs** to collect details for a bug
 report. Review attachments for personal information before posting. Include what
 operation was interrupted and whether any files were edited afterward.
-
-## Uninstall leaves files behind
-
-Modatro reports the relative paths of preserved edits and untracked files after
-uninstall. Those files are no longer managed by Modatro. Empty-directory cleanup
-failures are reported separately; your backups remain available.
 
 ## Balatro is still running
 

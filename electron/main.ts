@@ -14,6 +14,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { ModId, RelativePath, RootSchema, SettingsUpdateSchema } from '../src/shared/model';
+import { allowedExternalLink } from '../src/shared/trust';
 import { CreatorRequestSchema } from '../src/shared/creator';
 import { ProfileTransferRequestSchema } from '../src/shared/profile-transfer';
 import { ModatroApplication } from './application';
@@ -50,22 +51,6 @@ const rendererUrl =
     ? process.env.MODATRO_DEV_URL
     : 'modatro://app/index.html';
 const development = !app.isPackaged && rendererUrl.startsWith('http:');
-const allowLink = (url: string) => {
-  const u = new URL(url);
-  return (
-    u.protocol === 'https:' &&
-    [
-      'github.com',
-      'smods.dev',
-      'www.playbalatro.com',
-      'thunderstore.io',
-      'wiki.thunderstore.io',
-    ].includes(u.hostname) &&
-    !u.username &&
-    !u.password &&
-    !u.port
-  );
-};
 function handle<T>(channel: string, schema: z.ZodType<T>, work: (arg: T) => Promise<unknown>) {
   ipcMain.handle(`modatro:${channel}`, async (event: IpcMainInvokeEvent, input: unknown) => {
     try {
@@ -365,7 +350,7 @@ void app
       if (error) throw new UserError('The folder could not be opened.', undefined, error);
     });
     handle('openLink', z.url(), async (url) => {
-      if (!allowLink(url))
+      if (!allowedExternalLink(url))
         throw new UserError('This external link is not on a supported upstream website.');
       await shell.openExternal(url);
     });

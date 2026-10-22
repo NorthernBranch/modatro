@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mergeRequirements, parseLuaHeader, parseRequirement } from '../electron/services/metadata';
-import { cleanVersion, evaluateDependency, hasUpdate } from '../electron/services/versions';
+import { cleanVersion, evaluateDependency, hasUpdate } from '../src/shared/dependencies';
 import { thunderstoreDependency } from '../src/shared/thunderstore';
 const requirement = { id: 'Steamodded', displayName: 'Steamodded', required: true };
 const installed = [

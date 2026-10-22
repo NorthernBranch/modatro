@@ -12,7 +12,7 @@ import {
   CreatorDraftSchema,
   CreatorRequestSchema,
   creatorIdentities,
-  recipes,
+  RecipeSchema,
   type CreatorDraft,
   type CreatorProject,
 } from '../src/shared/creator';
@@ -222,10 +222,10 @@ describe('local Mod Creator', () => {
     });
     expect(p.draft.lua).toBe('-- authored source\nreturn 99');
   });
-  it.each(recipes)(
-    'builds a complete, deterministic $name package with escaped metadata',
+  it.each(RecipeSchema.options)(
+    'builds a complete, deterministic legacy %s package with escaped metadata',
     async (recipe) => {
-      const f = await fixture(undefined, recipe.id);
+      const f = await fixture(undefined, recipe);
       const p = await save(f, f.project, {
         name: 'Quotes " \\ \n ☃',
         description: '<script> is plain text',
@@ -256,10 +256,10 @@ describe('local Mod Creator', () => {
       const lua = strFromU8(entries[`${p.draft.modId}/main.lua`]!);
       expect(luaDiagnostics(lua)).toEqual([]);
       expect(lua).not.toContain('starting_params');
-      if (recipe.id === 'joker-suit')
+      if (recipe === 'joker-suit')
         expect(lua).toContain('context.individual and context.cardarea == G.play');
-      if (recipe.id === 'joker-chips') expect(lua).toContain('append({ chips = 30 })');
-      if (recipe.id === 'deck')
+      if (recipe === 'joker-chips') expect(lua).toContain('append({ chips = 30 })');
+      if (recipe === 'deck')
         expect(lua).toContain(
           'config = { dollars = 0, hands = 0, discards = 0, hand_size = 0, joker_slot = 0, consumable_slot = 0 }',
         );

@@ -4,6 +4,7 @@ import { Dialog } from './Dialog';
 import type { Requests } from '../hooks/useRequests';
 import type { Snapshot, Reply, Progress } from '../shared/model';
 import type { ProfileTransferRequest, ProfileTransferResult } from '../shared/profile-transfer';
+import { installationProgressLabel } from '../shared/presentation';
 
 export function ProfileTransfer({
   requests,
@@ -177,18 +178,7 @@ export function ProfileTransfer({
         )}
         {pending && progress && (
           <p role="status">
-            {(
-              {
-                downloading: 'Downloading',
-                planning: 'Checking downloaded files',
-                validating: 'Checking downloaded files',
-                'backing-up': 'Backing up existing files',
-                installing: 'Installing',
-                verifying: 'Verifying',
-                rolling_back: 'Recovering',
-              } as Record<string, string>
-            )[progress.phase] ?? progress.phase}
-            {progress.percent !== undefined ? ` · ${Math.round(progress.percent)}%` : ''} ·{' '}
+            {installationProgressLabel(progress)} ·{' '}
             {result?.confirmation?.plan.packages?.find((p) => p.id === progress.modId)?.title ??
               snapshot.catalogue.mods.find((m) => m.id === progress.modId)?.title ??
               (progress.modId.toLowerCase().includes('lovely') ? 'Lovely' : undefined) ??

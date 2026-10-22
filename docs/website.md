@@ -38,10 +38,26 @@ pnpm exec playwright install chromium
 pnpm exec playwright test --config playwright.website.config.mjs
 ```
 
-## Cloudflare Pages setup
+## Deploy to the existing site
 
-Use Cloudflare's [Git integration](https://developers.cloudflare.com/pages/get-started/git-integration/)
-to deploy website changes from this repository:
+The `modatro` Cloudflare Pages project uses Direct Upload and serves `modatro.app`.
+From the repository root, authenticate once and deploy:
+
+```sh
+pnpm dlx wrangler@4 login
+pnpm deploy:website
+```
+
+The script uploads local `website/` files to the production `main` branch, including
+when run from a feature branch. Review and test the files first. It uses Wrangler 4
+through `pnpm dlx`; no global installation or desktop build is needed. On PowerShell,
+use `pnpm.cmd` if execution policy blocks `pnpm.ps1`. Local Wrangler state is ignored
+by Git.
+
+## Set up another Pages project
+
+For automatic deployments from GitHub, create a separate project using Cloudflare's
+[Git integration](https://developers.cloudflare.com/pages/get-started/git-integration/):
 
 1. In **Workers & Pages**, create a Pages application connected to GitHub and select
    `NorthernBranch/modatro`.
@@ -75,33 +91,11 @@ Follow Cloudflare's [custom-domain setup](https://developers.cloudflare.com/page
 Register the domain with the Pages project before adding its DNS record; a CNAME
 alone is not the complete association.
 
-## Terminal uploads
-
-From the repository root, authenticate once and upload the static directory:
-
-The existing `modatro` project uses Direct Upload and serves `modatro.app`; use its
-production `main` branch when uploading. Local Wrangler state is excluded from Git.
-
-```sh
-pnpm dlx wrangler@4 login
-pnpm deploy:website
-```
-
-The deployment script runs Wrangler 4 through `pnpm dlx`, so no global installation
-or desktop build is needed. It uploads the local `website/` files to production,
-including when run from a feature branch. On Windows PowerShell, use `pnpm.cmd` if
-script execution policy blocks `pnpm.ps1`.
-The project must already exist; `wrangler pages project create modatro
---production-branch main` creates a new Direct Upload project when that workflow is
-chosen. Choose Git integration when dashboard-managed Git deployments are desired.
-Existing Git-integrated projects can also receive Wrangler uploads. Domain setup
-can remain in the dashboard.
-
 ## Feature screenshots
 
 The landing page includes Discover, Profiles, Troubleshooting and Creator screenshots,
 with representative selections, synthetic diagnostics and an example local project.
-The creator is listed as an optional experimental feature. Capture all nine app views
+The creator is listed as an optional experimental feature. Capture the documented views
 with `node scripts/screenshots.mjs`; the script copies the four website images into
 `website/images/`. Screenshot cards remain contained at desktop and mobile widths.
 

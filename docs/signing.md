@@ -39,18 +39,13 @@ password-protected `.p12` file. Add these repository Actions secrets:
 
 Use GitHub's secret settings; keep certificates, private keys and passwords out of
 source control, issue reports and build artifacts. The workflow supplies credentials
-only to macOS packaging on trusted pushes or manual runs. Pull-request builds use
-ad-hoc signatures and do not receive signing credentials.
-The wrapper also strips signing credentials from pull-request environments and
-temporarily enables electron-builder's PR signing override only in certificate-free
-ad-hoc mode. Automatic certificate discovery stays disabled, and the resulting app
-must pass the same signature verification before artifacts are accepted.
+only to macOS packaging on trusted pushes or manual runs. Routine PR checks do not
+package installers. The wrapper also strips credentials if invoked in a pull-request
+environment. Automatic certificate discovery stays disabled, and every packaged app
+must pass signature verification before upload.
 
-The packaging wrapper removes blank signing variables emitted by Actions before invoking
-electron-builder. In particular, an empty `CSC_LINK` must be unset: electron-builder
-otherwise interprets it as a certificate path resolving to the checkout directory.
-Whitespace-only credentials are also absent; partial nonempty credentials still fail
-configuration validation instead of silently changing signing modes.
+Blank credentials are treated as absent. A partially configured setup fails
+validation instead of silently falling back to ad-hoc signing.
 
 The certificate is imported by electron-builder into its temporary signing keychain.
 Packaging requires a matching Developer ID Application identity from the configured

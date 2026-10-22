@@ -10,7 +10,7 @@ import {
   readAuthorManifest,
   validateDistribution,
 } from '../electron/services/distribution';
-import { sourceType, automationReason } from '../src/shared/trust';
+import { sourceType, automationReason, allowedExternalLink } from '../src/shared/trust';
 import { AuthorManifestSchema, NativeCatalogueSchema } from '../src/shared/catalogue-schema';
 import { DownloadService } from '../electron/services/network';
 import { UserError } from '../electron/services/errors';
@@ -18,6 +18,19 @@ import { inspectMetadata } from '../electron/services/metadata';
 import { mod, put, setup, zip } from './helpers';
 
 const roots: string[] = [];
+
+it.each([
+  ['https://github.com/author/mod', true],
+  ['https://thunderstore.io/c/balatro/', true],
+  ['http://github.com/author/mod', false],
+  ['file:///private.log', false],
+  ['https://github.com.example.org/author/mod', false],
+  ['https://user:password@github.com/author/mod', false],
+  ['https://github.com:8443/author/mod', false],
+  ['invalid URL', false],
+] as const)('applies the shared external-link policy to %s', (url, allowed) => {
+  expect(allowedExternalLink(url)).toBe(allowed);
+});
 afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();

@@ -1,6 +1,27 @@
 import { z } from 'zod';
 import { HttpsUrl, ModId, type InstallationSource, type ModDefinition } from './model';
 
+export function allowedExternalLink(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' &&
+      [
+        'github.com',
+        'smods.dev',
+        'www.playbalatro.com',
+        'thunderstore.io',
+        'wiki.thunderstore.io',
+      ].includes(url.hostname) &&
+      !url.username &&
+      !url.password &&
+      !url.port
+    );
+  } catch {
+    return false;
+  }
+}
+
 export const RevocationReason = z.enum([
   'author-request',
   'malware',

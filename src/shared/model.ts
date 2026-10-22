@@ -112,7 +112,6 @@ export const InstallationSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('unsupported'), instructions: z.string().optional() }),
 ]);
-export type InstallationDefinition = z.infer<typeof InstallationSchema>;
 export const ModVersionSchema = z.object({
   version: z.string().min(1).max(100),
   downloadUrl: HttpsUrl,

@@ -168,8 +168,8 @@ rollback rather than being overwritten.
 
 After startup recovery and settled file operations, completed journals are retired
 and unreferenced `.original` files and abandoned backup-copy temporaries are pruned.
-Originals referenced by installed
-records or validated state-upgrade snapshots remain; blocked or uncertain recovery
+Originals referenced by installed records or validated state-upgrade snapshots remain;
+blocked or uncertain recovery
 prevents cleanup. Unknown backup entries, creator history/builds and Balatro saves
 are outside this cleanup. Compact operation history retains the last 100 outcomes.
 
@@ -274,6 +274,8 @@ The shared `withInstalledMods` state builder saves installed or adopted identiti
 to the active selection and adds new disabled entries to inactive selections.
 Existing inactive choices and unrelated unsaved toggles are preserved. Single and
 dependency-batch installs use this builder inside their file transaction.
+Uninstall removes the identity from every profile in the same transaction as file
+removal, preserving unrelated unsaved selections.
 
 `ProfileTransferService` validates a bounded, checksummed portable manifest through
 native open/save pickers. It resolves catalogue identities, constrains pinned GitHub
