@@ -87,7 +87,8 @@ export function resolveDependencyGraph(
     const matches = catalogue.filter((mod) =>
       requirement.packageId
         ? packageIdentity(mod).toLowerCase() === requirement.packageId.toLowerCase()
-        : (mod.metadataId ?? mod.id).toLowerCase() === requirement.id.toLowerCase(),
+        : !mod.deprecated &&
+          (mod.metadataId ?? mod.id).toLowerCase() === requirement.id.toLowerCase(),
     );
     if (!blockingDependencies([status], accepted).length) {
       const candidate = matches.length === 1 ? matches[0] : undefined;

@@ -12,7 +12,12 @@ import {
   type ProfileTransferResult,
 } from '../../src/shared/profile-transfer';
 import { ProfilesSchema } from '../../src/shared/features';
-import { ModSchema, type ModDefinition, type Snapshot } from '../../src/shared/model';
+import {
+  ModSchema,
+  type ModDefinition,
+  type Prerequisite,
+  type Snapshot,
+} from '../../src/shared/model';
 import { atomicWrite, contained, readSmall, safeDestination } from './files';
 import { repositoryPath, validateDistribution } from './distribution';
 import { UserError } from './errors';
@@ -102,7 +107,11 @@ export class ProfileTransferService {
     private profiles: ProfileService,
     private catalogue: () => ModDefinition[],
     private snapshot: () => Promise<Snapshot>,
-    private graph: (roots: ModDefinition[], staged?: ModDefinition[]) => Promise<ModDefinition[]>,
+    private graph: (
+      roots: ModDefinition[],
+      staged?: ModDefinition[],
+      prerequisites?: Prerequisite[],
+    ) => Promise<ModDefinition[]>,
   ) {}
   private fingerprint() {
     return hash(
@@ -408,8 +417,12 @@ export class ProfileTransferService {
                 `${wanted.title}: upstream now resolves to ${candidate.version}, but the export requests ${wanted.version}. No release will be substituted silently.`,
               );
           }
-          await this.installer.installMany(graph, request.confirmationToken, [], false, (staged) =>
-            this.graph(resolved.definitions, staged),
+          await this.installer.installMany(
+            graph,
+            request.confirmationToken,
+            [],
+            false,
+            (staged, prerequisites) => this.graph(resolved.definitions, staged, prerequisites),
           );
         }
       } catch (error) {
