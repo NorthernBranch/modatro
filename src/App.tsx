@@ -116,11 +116,13 @@ export function App() {
     token?: string;
     plan?: InstallPlan;
     acceptedUnverified?: UnverifiedPrerequisite[];
+    developmentDependencies?: string[];
   }>();
   const [conflictAction, setConflictAction] = useState<{
     id: string;
     action: ModAction;
     acceptedUnverified?: UnverifiedPrerequisite[];
+    developmentDependencies?: string[];
   }>();
   const [decisions, setDecisions] = useState<ConflictDecision[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -248,12 +250,17 @@ export function App() {
     setDetectionMessage(message);
     setNotification(message);
   }
+  function closeConfirmation() {
+    setConfirmation(undefined);
+    void run('cancel-review', 'Discarding reviewed downloads', () => api.cancel());
+  }
   async function perform(
     id: string,
     action: ModAction,
     choices?: ConflictDecision[],
     token?: string,
     acceptedUnverified?: UnverifiedPrerequisite[],
+    developmentDependencies?: string[],
   ) {
     if (configuring) return;
     setError(undefined);
@@ -269,7 +276,10 @@ export function App() {
         enable: 'Enabling mod',
         adopt: 'Adopting mod',
       }[action],
-      () => api.action(id, action, choices, token, acceptedUnverified),
+      () =>
+        developmentDependencies?.length
+          ? api.action(id, action, choices, token, acceptedUnverified, developmentDependencies)
+          : api.action(id, action, choices, token, acceptedUnverified),
       {
         group: 'configuration',
         failureMessage:
@@ -303,8 +313,9 @@ export function App() {
           token: reply.error.confirmation.token,
           plan: reply.error.confirmation.plan,
           acceptedUnverified,
+          developmentDependencies,
         });
-      } else setConflictAction({ id, action, acceptedUnverified });
+      } else setConflictAction({ id, action, acceptedUnverified, developmentDependencies });
       setDecisions(
         (reply.error.conflicts ?? []).map((c) => ({ root: c.root, path: c.path, action: 'keep' })),
       );
@@ -1184,7 +1195,7 @@ export function App() {
                 ? `Adopt ${confirmation.title}?`
                 : `Install ${confirmation.title}?`
           }
-          onClose={() => setConfirmation(undefined)}
+          onClose={closeConfirmation}
         >
           <p className="dialog-description">
             {confirmation.action === 'uninstall'
@@ -1231,7 +1242,7 @@ export function App() {
             </details>
           )}
           <div className="dialog-footer">
-            <button className="button button-secondary" onClick={() => setConfirmation(undefined)}>
+            <button className="button button-secondary" onClick={closeConfirmation}>
               Cancel
             </button>
             <button
@@ -1243,6 +1254,7 @@ export function App() {
                   undefined,
                   confirmation.token,
                   confirmation.acceptedUnverified,
+                  confirmation.developmentDependencies,
                 )
               }
             >
@@ -1324,6 +1336,52 @@ export function App() {
               <pre>{error.details}</pre>
             </details>
           )}
+          {error.developmentDependency && conflictAction && (
+            <div className="conflict-item">
+              <strong>Optional development build</strong>
+              <p>
+                The published release cannot satisfy this requirement. You can try{' '}
+                {error.developmentDependency.title}'s unreleased code from its upstream repository.
+                Development builds may be unstable.
+              </p>
+              <p>
+                Modatro will pin a specific commit, check its actual version and other installed
+                mods, and show the files for confirmation before installing.
+              </p>
+              <div className="dialog-footer">
+                <button
+                  className="button button-secondary"
+                  disabled={working}
+                  onClick={() => void openLink(error.developmentDependency!.repositoryUrl)}
+                >
+                  Open dependency project
+                </button>
+                <AsyncButton
+                  className="button button-primary"
+                  pending={working}
+                  pendingLabel="Checking development build…"
+                  disabled={configuring}
+                  onClick={() =>
+                    void perform(
+                      conflictAction.id,
+                      conflictAction.action,
+                      undefined,
+                      undefined,
+                      conflictAction.acceptedUnverified,
+                      [
+                        ...new Set([
+                          ...(conflictAction.developmentDependencies ?? []),
+                          error.developmentDependency!.id,
+                        ]),
+                      ],
+                    )
+                  }
+                >
+                  Try development build
+                </AsyncButton>
+              </div>
+            </div>
+          )}
           {!!error.unverifiedPrerequisites?.length && conflictAction && (
             <p>
               Modatro cannot confirm that these installed prerequisite versions meet this mod’s
@@ -1358,17 +1416,24 @@ export function App() {
                 pendingLabel="Continuing…"
                 disabled={configuring}
                 onClick={() =>
-                  void perform(conflictAction.id, conflictAction.action, undefined, undefined, [
-                    ...(conflictAction.acceptedUnverified ?? []),
-                    ...error.unverifiedPrerequisites!.map(
-                      ({ id, versionConstraint, installedVersion, packageId }) => ({
-                        id,
-                        versionConstraint,
-                        installedVersion,
-                        packageId,
-                      }),
-                    ),
-                  ])
+                  void perform(
+                    conflictAction.id,
+                    conflictAction.action,
+                    undefined,
+                    undefined,
+                    [
+                      ...(conflictAction.acceptedUnverified ?? []),
+                      ...error.unverifiedPrerequisites!.map(
+                        ({ id, versionConstraint, installedVersion, packageId }) => ({
+                          id,
+                          versionConstraint,
+                          installedVersion,
+                          packageId,
+                        }),
+                      ),
+                    ],
+                    conflictAction.developmentDependencies,
+                  )
                 }
               >
                 Proceed at my own risk

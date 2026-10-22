@@ -139,6 +139,16 @@ export function evaluateDependency(
   if (runtimeFallback) observedVersion = found.installedVersion;
   let version = loaderVersion(requirement.id, observedVersion);
   const range = loaderRange(requirement.id, requirement.versionConstraint);
+  // Some upstream mods append a dated build label to the numeric release series.
+  // Registry minimums use that series; runtime constraints still compare full labels.
+  if (
+    runtimeFallback &&
+    found.provenance?.provider === 'github' &&
+    /^>=\d+\.\d+\.\d+$/.test(requirement.versionConstraint)
+  ) {
+    const dated = /^v?(\d+\.\d+\.\d+)-\d{4,8}[a-z]$/i.exec(observedVersion ?? '');
+    if (dated) version = cleanVersion(dated[1]);
+  }
   // The official legacy registry series encoded beta build N as 1.N.0.
   // Compare the known runtime build without claiming a registry archive was installed.
   if (

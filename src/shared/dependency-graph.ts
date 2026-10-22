@@ -16,7 +16,10 @@ export function packageIdentity(mod: ModDefinition) {
   return mod.source?.externalId ?? mod.id;
 }
 export class DependencyGraphError extends Error {
-  constructor(public requirements: DependencyStatus[]) {
+  constructor(
+    public requirements: DependencyStatus[],
+    public candidate?: ModDefinition,
+  ) {
     super(requirements.map((entry) => entry.reason).join(' '));
   }
 }
@@ -77,6 +80,7 @@ export function resolveDependencyGraph(
   catalogue: ModDefinition[],
   installed: Prerequisite[],
   accepted: UnverifiedPrerequisite[] = [],
+  pendingRuntime: string[] = [],
 ): ModDefinition[] {
   const ordered: ModDefinition[] = [];
   const visited = new Set<string>(),
@@ -118,6 +122,16 @@ export function resolveDependencyGraph(
           }
         : undefined;
     }
+    const pending = matches.length === 1 && pendingRuntime.includes(packageIdentity(matches[0]!));
+    // A selected archive is provisional until its runtime metadata is read.
+    if (
+      pending &&
+      status.state !== 'unknown' &&
+      (!requirement.packageId || matches[0]!.downloadProvider === 'github')
+    ) {
+      scheduled.add(packageIdentity(matches[0]!).toLowerCase());
+      return matches[0];
+    }
     // Never overwrite an external loader whose package version is unverified.
     if (status.state === 'unknown') throw new DependencyGraphError([status]);
     if (matches.length !== 1)
@@ -132,8 +146,14 @@ export function resolveDependencyGraph(
       projectedPrerequisites([candidate], []),
     );
     if (candidateStatus.state !== 'satisfied')
-      throw new Error(
-        `No compatible release is available for ${requirement.displayName} ${requirement.versionConstraint ?? ''}.`,
+      throw new DependencyGraphError(
+        [
+          {
+            ...status,
+            reason: `No compatible published release is available for ${requirement.displayName} ${requirement.versionConstraint ?? ''}.${status.installedVersion ? ` The verified runtime version is ${status.installedVersion}.` : ''}`,
+          },
+        ],
+        candidate,
       );
     scheduled.add(packageIdentity(candidate).toLowerCase());
     return candidate;
@@ -166,7 +186,19 @@ export function resolveDependencyGraph(
       mod.prerequisites.map((requirement) => evaluateDependency(requirement, future)),
       accepted,
     );
-    if (blocked.length) throw new Error(blocked.map((entry) => entry.reason).join(' '));
+    const unresolved = blocked.filter(
+      (requirement) =>
+        !catalogue.some(
+          (candidate) =>
+            pendingRuntime.includes(packageIdentity(candidate)) &&
+            (!requirement.packageId || candidate.downloadProvider === 'github') &&
+            (requirement.packageId
+              ? packageIdentity(candidate).toLowerCase() === requirement.packageId.toLowerCase()
+              : (candidate.metadataId ?? candidate.id).toLowerCase() ===
+                requirement.id.toLowerCase()),
+        ),
+    );
+    if (unresolved.length) throw new Error(unresolved.map((entry) => entry.reason).join(' '));
   }
   return changes;
 }

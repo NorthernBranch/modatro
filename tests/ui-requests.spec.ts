@@ -360,6 +360,7 @@ interface MockRequests {
     action: string;
     token?: string;
     acceptedUnverified?: UnverifiedPrerequisite[];
+    developmentDependencies?: string[];
   }[];
   behavior: Record<string, Behavior>;
   finish: (method: string, reply?: Reply<unknown>) => void;
@@ -582,8 +583,8 @@ async function mockDesktop(
           }
           return reply;
         },
-        action: (id, action, _decisions, token, acceptedUnverified) => {
-          control.actions.push({ id, action, token, acceptedUnverified });
+        action: (id, action, _decisions, token, acceptedUnverified, developmentDependencies) => {
+          control.actions.push({ id, action, token, acceptedUnverified, developmentDependencies });
           return call('action', control.state);
         },
         openModFolder: () => call('openModFolder', undefined),
@@ -2073,6 +2074,74 @@ test('shows the server-generated file plan and returns its confirmation token', 
     'actual-plan-token',
   );
 });
+test('development dependencies require opt-in and retain that choice through file confirmation', async ({
+  page,
+}) => {
+  await mockDesktop(page, fixture(), { action: 'hold' });
+  await page.getByRole('button', { name: 'Install', exact: true }).first().click();
+  await page.evaluate(() =>
+    window.requestsTest.finish('action', {
+      ok: false,
+      error: {
+        message: 'No compatible published release is available.',
+        developmentDependency: {
+          id: 'library',
+          title: 'Library',
+          repositoryUrl: 'https://github.com/fixture/library',
+        },
+      },
+    }),
+  );
+  await expect(page.getByRole('dialog')).toContainText('Development builds may be unstable');
+  expect(await page.evaluate(() => window.requestsTest.actions.length)).toBe(1);
+  await page.getByRole('button', { name: 'Try development build', exact: true }).click();
+  expect(
+    (await page.evaluate(() => window.requestsTest.actions)).at(-1)?.developmentDependencies,
+  ).toEqual(['library']);
+  await page.evaluate(() => {
+    window.requestsTest.finish('action', {
+      ok: false,
+      error: {
+        message: 'Review files',
+        confirmation: {
+          token: 'development-review',
+          plan: {
+            modId: 'fixture',
+            version: '1.0.0',
+            create: [],
+            replace: [],
+            remove: [],
+            prerequisites: [],
+            conflicts: [],
+            packages: [
+              {
+                id: 'library',
+                title: 'Library',
+                version: '2.0.0',
+                update: false,
+                source: 'GitHub commit aaaaaaa',
+              },
+              {
+                id: 'fixture',
+                title: 'Fixture mod',
+                version: '1.0.0',
+                update: false,
+                source: 'Thunderstore',
+              },
+            ],
+          },
+        },
+      },
+    });
+    window.requestsTest.behavior.action = 'success';
+  });
+  await expect(page.getByRole('dialog')).toContainText('GitHub commit aaaaaaa');
+  await page.getByRole('button', { name: 'Install mod and dependencies', exact: true }).click();
+  const last = (await page.evaluate(() => window.requestsTest.actions)).at(-1)!;
+  expect(last.token).toBe('development-review');
+  expect(last.developmentDependencies).toEqual(['library']);
+});
+
 test('cancelling a dependency confirmation sends no installation request', async ({ page }) => {
   const state = fixture();
   addPrerequisite(state, 'Talisman');

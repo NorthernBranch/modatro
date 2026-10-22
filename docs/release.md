@@ -181,6 +181,11 @@ does not persist to other installations or updates. Missing prerequisites, known
 incompatible versions and unknown versions of other dependencies still block the
 operation. An unknown version is never reported as verified.
 
+When a published dependency is too old, **Try development build** can check its
+upstream repository's unreleased code. This is optional: Modatro pins a commit,
+verifies its runtime requirements and shows the source and changes for confirmation.
+Development builds may be unstable; incompatible builds remain blocked.
+
 ## Beta limitations
 
 - Linux packages target x64. Native Linux LÖVE launch and ARM Linux are not supported.

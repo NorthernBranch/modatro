@@ -466,6 +466,7 @@ export interface AppError {
   unverifiedPrerequisites?: DependencyStatus[];
   retryable?: boolean;
   confirmation?: { token: string; plan: InstallPlan };
+  developmentDependency?: { id: string; title: string; repositoryUrl: string };
 }
 export type Reply<T> = { ok: true; value: T } | { ok: false; error: AppError };
 export type ModAction = 'install' | 'update' | 'uninstall' | 'disable' | 'enable' | 'adopt';
@@ -520,6 +521,7 @@ export interface ModatroApi {
     decisions?: ConflictDecision[],
     confirmationToken?: string,
     acceptedUnverified?: UnverifiedPrerequisite[],
+    developmentDependencies?: string[],
   ): Promise<Reply<Snapshot>>;
   cancel(): Promise<Reply<void>>;
   previewPlan?(id: string): Promise<Reply<InstallPlan>>;

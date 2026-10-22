@@ -17,13 +17,14 @@ const api: ModatroApi = {
   saveSettings: (settings) => ipcRenderer.invoke('modatro:saveSettings', settings),
   githubStars: () => ipcRenderer.invoke('modatro:githubStars'),
   checkAppUpdates: () => ipcRenderer.invoke('modatro:checkAppUpdates'),
-  action: (id, action, decisions, confirmationToken, acceptedUnverified) =>
+  action: (id, action, decisions, confirmationToken, acceptedUnverified, developmentDependencies) =>
     ipcRenderer.invoke('modatro:action', {
       id,
       action,
       decisions,
       confirmationToken,
       acceptedUnverified,
+      developmentDependencies,
     }),
   openModFolder: (id) => ipcRenderer.invoke('modatro:openModFolder', id),
   cancel: () => ipcRenderer.invoke('modatro:cancel'),

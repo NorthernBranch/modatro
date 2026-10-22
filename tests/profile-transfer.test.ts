@@ -258,7 +258,7 @@ it('stages prerequisites first, confirms the complete plan, installs selected mo
     confirmationToken: prepared.confirmation!.token,
   });
   expect(done.status).toBe('complete');
-  expect(order).toEqual(['dep', 'root', 'dep', 'root']);
+  expect(order).toEqual(['dep', 'root']);
   expect(f.storage.state.installations.find((r) => r.modId === 'root')?.disabled).toBe(true);
   expect(f.storage.state.installations.find((r) => r.modId === 'dep')?.disabled).toBe(false);
   const old = f.storage.state.profiles!.items.find((p) => p.id === original)!;

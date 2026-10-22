@@ -56,7 +56,8 @@ and macOS may block opening them. Check the release notes and
   URL. Listings are fetched at runtime and deduplicated, with Thunderstore preferred.
   Details and install previews identify the source used.
 - **Dependencies:** check installed versions, review required supported dependencies,
-  and install them before the requested mod in one transaction.
+  and install them before the requested mod in one transaction. If published releases
+  are insufficient, explicitly opt into a checked upstream development build.
 - **Prerequisites:** detect and manage Lovely and Steamodded, including supported
   Lovely installation on Windows, macOS and Linux with Proton. Talisman is optional
   unless a mod requires it.

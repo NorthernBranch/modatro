@@ -181,6 +181,7 @@ export function ProfileTransfer({
               {
                 downloading: 'Downloading',
                 planning: 'Checking downloaded files',
+                validating: 'Checking downloaded files',
                 'backing-up': 'Backing up existing files',
                 installing: 'Installing',
                 verifying: 'Verifying',

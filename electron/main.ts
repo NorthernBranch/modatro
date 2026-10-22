@@ -286,6 +286,7 @@ void app
           id: z.string().max(200),
           action: z.enum(['install', 'update', 'uninstall', 'disable', 'enable', 'adopt']),
           confirmationToken: z.uuid().optional(),
+          developmentDependencies: z.array(z.string().min(1).max(200)).max(8).optional(),
           acceptedUnverified: z
             .array(
               z
@@ -318,6 +319,7 @@ void app
           request.decisions,
           request.confirmationToken,
           request.acceptedUnverified,
+          request.developmentDependencies,
         ),
     );
     handle('cancel', z.undefined(), async () => application.installer.cancel());

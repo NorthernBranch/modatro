@@ -174,6 +174,37 @@ export async function readLatestGitHubRelease(
   validateDistribution(mod);
   return mod;
 }
+export async function developmentDistribution(
+  entry: ModDefinition,
+  json = remoteJson,
+): Promise<ModDefinition> {
+  const repo = repositoryPath(entry.repositoryUrl);
+  if (!repo || entry.installation.type === 'lovely-injector' || entry.source?.provider === 'local')
+    throw new UserError('This dependency has no supported development archive.');
+  const repository = z
+    .object({ default_branch: z.string().min(1).max(200) })
+    .parse(await json(`https://api.github.com/repos/${repo}`));
+  const commit = z
+    .object({ sha: z.string().regex(/^[a-f0-9]{40}$/) })
+    .parse(
+      await json(
+        `https://api.github.com/repos/${repo}/commits/${encodeURIComponent(repository.default_branch)}`,
+      ),
+    );
+  const mod = ModSchema.parse({
+    ...entry,
+    version: `Development ${commit.sha.slice(0, 7)}`,
+    downloadProvider: 'github',
+    githubRelease: undefined,
+    manifestUrl: undefined,
+    installer: undefined,
+    prerequisites: [],
+    downloadUrl: `https://github.com/${repo}/archive/${commit.sha}.zip`,
+    releaseSource: { sourceType: 'commit', commitSha: commit.sha },
+  });
+  validateDistribution(mod);
+  return mod;
+}
 export async function resolveDistribution(
   entry: ModDefinition,
   json = remoteJson,

@@ -13,6 +13,41 @@ const installed = [
   },
 ];
 describe('dependency eligibility', () => {
+  it('uses dated upstream release series for registry minimums while retaining full runtime constraints', () => {
+    const runtime = [
+      {
+        id: 'Library',
+        displayName: 'Library',
+        installed: true,
+        installedVersion: '2.4.0-20261022a',
+        packageId: 'thunderstore/Team-Library',
+        sourceUrl: 'https://github.com/team/library',
+        provenance: { sourceType: 'commit' as const, provider: 'github' },
+      },
+    ];
+    expect(evaluateDependency(thunderstoreDependency('Team-Library-2.4.0'), runtime).state).toBe(
+      'satisfied',
+    );
+    expect(
+      evaluateDependency(
+        {
+          id: 'Library',
+          displayName: 'Library',
+          required: true,
+          versionConstraint: '>=2.4.0-20261023a',
+        },
+        runtime,
+      ).state,
+    ).toBe('outdated');
+    expect(
+      evaluateDependency(thunderstoreDependency('Team-Library-2.4.0'), [
+        { ...runtime[0]!, installedVersion: '2.4.0-beta.1' },
+      ]).state,
+    ).toBe('outdated');
+    expect(evaluateDependency(thunderstoreDependency('Other-Library-2.4.0'), runtime).state).toBe(
+      'missing',
+    );
+  });
   it('reports missing Steamodded and Lovely', () => {
     expect(evaluateDependency(requirement, []).state).toBe('missing');
     expect(
