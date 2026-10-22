@@ -488,7 +488,7 @@ it('prefers the GitHub manual archive for a registry package with an installer',
 });
 
 it('pins the author default branch when there are no GitHub releases and never falls back on an outage', async () => {
-  const entry = definition();
+  const entry = { ...definition(), installer: [{ identifier: 'external' }] };
   const json = vi.fn(async (url: string) => {
     const policy = policyResponse(url);
     if (policy) return policy;
@@ -661,6 +661,7 @@ it('returns an installed Steamodded prerequisite immediately after a GitHub-back
       website: 'https://smods.dev',
     }),
   )!;
+  entry.installer = [{ identifier: 'external' }];
   const lovelyName = process.platform === 'darwin' ? 'liblovely.dylib' : 'winmm.dll';
   await fs.writeFile(
     path.join(f.game, lovelyName),
@@ -775,6 +776,8 @@ it.each([[false, true], [true, true], ...(process.platform === 'darwin' ? [] : [
         website: 'https://github.com/ethangreen-dev/lovely-injector',
       }),
     )!;
+    amulet.installer = [{ identifier: 'external' }];
+    steamodded.installer = [{ identifier: 'external' }];
     if (lovelyInstalled) {
       const library = process.platform === 'darwin' ? 'liblovely.dylib' : 'winmm.dll';
       await fs.writeFile(

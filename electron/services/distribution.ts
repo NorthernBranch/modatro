@@ -180,6 +180,16 @@ export async function resolveDistribution(
 ): Promise<ModDefinition> {
   if (entry.installation.type === 'lovely-injector' && entry.downloadProvider !== 'github')
     return lovelyDistribution(entry, process.platform, process.arch, json);
+  // Keep a registry release's archive, package version and requirements together.
+  // A repository link alone does not make its GitHub release the same package.
+  if (
+    entry.thunderstore &&
+    entry.downloadProvider !== 'github' &&
+    !(Array.isArray(entry.installer) && entry.installer.length)
+  ) {
+    validateDistribution(entry);
+    return entry;
+  }
   if (entry.thunderstore && entry.repositoryUrl && entry.downloadProvider !== 'github') {
     const repo = repositoryPath(entry.repositoryUrl);
     if (!repo) throw new UserError('The upstream repository is not a supported GitHub project.');

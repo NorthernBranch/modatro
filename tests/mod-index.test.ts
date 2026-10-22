@@ -119,6 +119,7 @@ it('prefers Thunderstore for matching repositories while keeping different mods 
   const registry = normalizeThunderstore(thunderstorePackage({ website: `${metadata.repo}/` }))!;
   repository.thunderstore.catalogue = {
     mods: [registry],
+    fetchedAt: new Date().toISOString(),
     stale: false,
     refreshing: false,
     rejected: 0,
@@ -138,7 +139,7 @@ it('prefers Thunderstore for matching repositories while keeping different mods 
   );
   expect(repository.catalogue.mods.map((mod) => mod.id)).toEqual(['Other@Demo', registry.id]);
   source.catalogue.stale = true;
-  expect(() => repository.thunderstore.assertAvailable(registry)).not.toThrow();
+  await expect(repository.thunderstore.assertAvailable(registry)).resolves.toBeUndefined();
   await repository.configureIndex('');
   expect(repository.catalogue.mods).toEqual([registry]);
 });
