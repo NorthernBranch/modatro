@@ -85,12 +85,12 @@ export async function releaseBump(env = process.env, request = fetch, event) {
   }
   throw new Error('The merged pull request list exceeds the supported pagination limit.');
 }
-export async function publishedReleaseTags(env = process.env, request = fetch) {
+export async function publishedReleases(env = process.env, request = fetch) {
   if (env.GITHUB_REF?.startsWith('refs/tags/v')) return [];
   if (!/^[\w.-]+\/[\w.-]+$/.test(env.GITHUB_REPOSITORY ?? ''))
     throw new Error('A valid GitHub repository is required to read published releases.');
   const headers = apiHeaders(env);
-  const tags = [];
+  const published = [];
   for (let page = 1; page <= 100; page++) {
     const response = await request(
       `https://api.github.com/repos/${env.GITHUB_REPOSITORY}/releases?per_page=100&page=${page}`,
@@ -108,10 +108,13 @@ export async function publishedReleaseTags(env = process.env, request = fetch) {
       )
     )
       throw new Error('The published release list is invalid.');
-    tags.push(...releases.filter((release) => !release.draft).map((release) => release.tag_name));
-    if (releases.length < 100) return tags;
+    published.push(...releases.filter((release) => !release.draft));
+    if (releases.length < 100) return published;
   }
   throw new Error('The published release list exceeds the supported pagination limit.');
+}
+export async function publishedReleaseTags(env = process.env, request = fetch) {
+  return (await publishedReleases(env, request)).map((release) => release.tag_name);
 }
 export function buildVersion(
   env = process.env,

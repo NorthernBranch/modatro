@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { buildVersion, publishedReleaseTags } from './build-version.mjs';
+import { buildVersion, publishedReleases } from './build-version.mjs';
 
 export function releaseDetails(version, env, tags) {
   if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/.test(version))
@@ -48,10 +48,25 @@ export async function publishRelease({
   version,
   env = process.env,
   directory = 'release-artifacts',
-  tags,
+  releases,
   run = (args) => spawnSync('gh', args, { encoding: 'utf8' }),
 }) {
-  const details = releaseDetails(version, env, tags ?? (await publishedReleaseTags(env)));
+  const published = releases ?? (await publishedReleases(env));
+  const details = releaseDetails(
+    version,
+    env,
+    published.map((release) => release.tag_name),
+  );
+  // Separate push deliveries have different run numbers. Never publish another
+  // automatic release for the same full commit; explicit version tags still work.
+  const previous = published.find(
+    (release) =>
+      !release.draft &&
+      release.target_commitish === details.sha &&
+      release.tag_name !== details.tag,
+  );
+  if (env.GITHUB_REF === 'refs/heads/main' && previous)
+    return { ...details, tag: previous.tag_name };
   const assets = details.assets.map((name) => path.resolve(directory, name));
   // Validate every platform build before making any GitHub mutation.
   const checksums = [];

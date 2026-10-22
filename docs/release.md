@@ -140,7 +140,9 @@ configuration are release inputs; `scripts/release-scope.mjs` includes deletions
 renames when checking the diff.
 
 Release runs stay serialized so each build can use the previous published version.
-New PR commits cancel obsolete checks for that PR.
+The publisher skips a second automatic release for an already-published commit;
+explicit version tags can still publish a named release. New PR commits cancel
+obsolete checks for that PR.
 
 For installers before merging, use **Actions > Test, build and release > Run
 workflow**, select the PR branch, and download its artifacts. Manual runs do not

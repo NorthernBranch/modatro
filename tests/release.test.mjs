@@ -43,7 +43,12 @@ async function fixture() {
   const run = vi.fn((args) =>
     args[1] === 'view' ? { status: 1, stderr: 'release not found' } : { status: 0, stdout: '' },
   );
-  return { directory, details, run, tags };
+  return {
+    directory,
+    details,
+    run,
+    releases: tags.map((tag_name) => ({ tag_name, draft: false })),
+  };
 }
 
 it('gives each main push a unique beta tag tied to its commit', () => {
@@ -128,7 +133,11 @@ it('publishes tested artifacts from a clean checkout with no installed packages'
   `;
   const result = spawnSync(
     process.execPath,
-    ['--input-type=module', '-', JSON.stringify({ version, env, tags, directory: f.directory })],
+    [
+      '--input-type=module',
+      '-',
+      JSON.stringify({ version, env, releases: f.releases, directory: f.directory }),
+    ],
     {
       cwd: checkout,
       input,
@@ -161,6 +170,7 @@ it('does not mutate GitHub when an installer is empty', async () => {
 });
 it('marks a matching stable version release as latest', async () => {
   const f = await fixture();
+  f.releases[0].target_commitish = env.GITHUB_SHA;
   await publishRelease({ version, ...f, env: { ...env, GITHUB_REF: 'refs/tags/v0.4.0' } });
   const edit = f.run.mock.calls[2][0];
   expect(edit).toContain('v0.4.0');
@@ -211,6 +221,30 @@ it('preserves a complete published release when a successful run is retried', as
   await publishRelease({ version, env, ...f });
   expect(f.run).toHaveBeenCalledTimes(1);
 });
+it('does not publish a second automatic release when another run already released the commit', async () => {
+  const run = vi.fn();
+  const result = await publishRelease({
+    version: '0.4.1',
+    env: { ...env, GITHUB_RUN_NUMBER: '43' },
+    releases: [{ tag_name: tags[0], draft: false, target_commitish: env.GITHUB_SHA }],
+    directory: 'missing-artifacts',
+    run,
+  });
+  expect(result.tag).toBe(tags[0]);
+  expect(run).not.toHaveBeenCalled();
+});
+it.each([
+  { draft: false, target_commitish: `${'a'.repeat(7)}${'b'.repeat(33)}` },
+  { draft: true, target_commitish: env.GITHUB_SHA },
+])(
+  'does not suppress publication for an unrelated or unpublished release: %j',
+  async (previous) => {
+    const f = await fixture();
+    f.releases.push({ tag_name: 'v0.3.9-beta.build.41.aaaaaaa', ...previous });
+    await publishRelease({ version, env, ...f });
+    expect(f.run.mock.calls.map(([args]) => args[1])).toEqual(['view', 'create', 'edit']);
+  },
+);
 it('refuses to replace a draft belonging to a different commit', async () => {
   const f = await fixture();
   f.run.mockReturnValue({
