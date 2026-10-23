@@ -193,20 +193,27 @@ export class ThunderstoreModSource implements ModRepository, ModSource {
     const current = this.catalogue.mods.find(
       (entry) => entry.thunderstore?.packageId === mod.thunderstore!.packageId,
     );
+    const release = current?.versions?.find(
+      (entry) => entry.sourceArtifact?.externalId === mod.thunderstore!.versionId,
+    );
+    const dependencies = release?.dependencies.map(
+      (dependency) =>
+        `${dependency.namespace}-${dependency.packageName}-${dependency.minimumVersion}`,
+    );
     if (
       !current ||
-      current.thunderstore?.versionId !== mod.thunderstore.versionId ||
+      !release ||
       current.thunderstore?.namespace !== mod.thunderstore.namespace ||
       current.thunderstore?.name !== mod.thunderstore.name ||
-      current.thunderstore?.packageVersion !== mod.thunderstore.packageVersion ||
-      JSON.stringify([...current.thunderstore!.dependencies].sort()) !==
+      release.version !== mod.thunderstore.packageVersion ||
+      JSON.stringify([...(dependencies ?? [])].sort()) !==
         JSON.stringify([...mod.thunderstore.dependencies].sort()) ||
       (mod.downloadProvider === 'github'
         ? current.repositoryUrl !== mod.repositoryUrl
-        : current.downloadUrl !== mod.downloadUrl)
+        : release.downloadUrl !== mod.downloadUrl)
     )
       throw new UserError(
-        'This registry release is no longer current or available. Refresh the catalogue before installing or updating.',
+        'This registry release is no longer active or available. Refresh the catalogue before installing or updating.',
       );
   }
 }

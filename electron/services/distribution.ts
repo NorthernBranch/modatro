@@ -150,6 +150,14 @@ export async function readLatestGitHubRelease(
   // Authors may publish both a bundled launcher and a raw manual mod archive.
   const manual = assets.filter((asset) => /(?:^|[-_])(?:raw|manual)\.zip$/i.test(asset.name));
   if (!assetName && manual.length === 1) assets = manual;
+  if (!assetName && assets.length > 1) {
+    const project = repo.split('/').at(-1)!.toLowerCase();
+    const named = assets.filter((asset) => {
+      const name = asset.name.toLowerCase();
+      return name.startsWith(project) && /^[-_.0-9]/.test(name.slice(project.length));
+    });
+    if (named.length === 1) assets = named;
+  }
   if ((entry.githubRelease.assetName && assets.length !== 1) || assets.length > 1)
     throw new UserError(
       'The release has no unambiguous mod archive. Register its asset filename or follow the author’s instructions.',

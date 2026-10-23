@@ -5,11 +5,7 @@ import type {
   Prerequisite,
   UnverifiedPrerequisite,
 } from './model';
-import {
-  blockingDependencies,
-  evaluateDependency,
-  externalLoaderRequirement,
-} from './dependencies';
+import { blockingDependencies, evaluateDependency } from './dependencies';
 import { automationReason } from './trust';
 
 export function packageIdentity(mod: ModDefinition) {
@@ -29,21 +25,12 @@ export function projectedPrerequisites(
   installed: Prerequisite[],
 ): Prerequisite[] {
   const replaced = new Set(mods.map((mod) => packageIdentity(mod).toLowerCase()));
-  const replacedLoaders = new Set(
-    mods
-      .filter((mod) =>
-        externalLoaderRequirement({
-          id: mod.metadataId ?? mod.id,
-          packageId: mod.source?.provider === 'thunderstore' ? mod.source.externalId : undefined,
-        }),
-      )
-      .map((mod) => (mod.metadataId ?? mod.id).toLowerCase()),
-  );
+  const replacedRuntime = new Set(mods.map((mod) => (mod.metadataId ?? mod.id).toLowerCase()));
   return [
     ...installed.filter((entry) =>
       entry.packageId
         ? !replaced.has(entry.packageId.toLowerCase())
-        : !replacedLoaders.has(entry.id.toLowerCase()),
+        : !replacedRuntime.has(entry.id.toLowerCase()),
     ),
     ...mods.map((mod) => ({
       id: mod.metadataId ?? mod.id,
@@ -81,6 +68,7 @@ export function resolveDependencyGraph(
   installed: Prerequisite[],
   accepted: UnverifiedPrerequisite[] = [],
   pendingRuntime: string[] = [],
+  stagedRuntime: Prerequisite[] = [],
 ): ModDefinition[] {
   const ordered: ModDefinition[] = [];
   const visited = new Set<string>(),
@@ -150,7 +138,7 @@ export function resolveDependencyGraph(
         [
           {
             ...status,
-            reason: `No compatible published release is available for ${requirement.displayName} ${requirement.versionConstraint ?? ''}.${status.installedVersion ? ` The verified runtime version is ${status.installedVersion}.` : ''}`,
+            reason: `The selected release is not compatible with ${requirement.displayName} ${requirement.versionConstraint ?? ''}.${status.installedVersion ? ` The verified runtime version is ${status.installedVersion}.` : ''} Choose another published version or explicitly try a development build where available.`,
           },
         ],
         candidate,
@@ -180,7 +168,7 @@ export function resolveDependencyGraph(
         (entry) => packageIdentity(entry).toLowerCase() === packageIdentity(mod).toLowerCase(),
       ) === index,
   );
-  const future = projectedPrerequisites(changes, installed);
+  const future = [...stagedRuntime, ...projectedPrerequisites(changes, installed)];
   for (const mod of changes) {
     const blocked = blockingDependencies(
       mod.prerequisites.map((requirement) => evaluateDependency(requirement, future)),

@@ -89,6 +89,12 @@ before changing files; conflicts, unsupported layouts or additional unsatisfied 
 requirements abort the plan. A confirmation token covers packages, versions and file hashes.
 One transaction commits dependencies before dependants and rolls all of them back on failure.
 Automatically installed dependencies remain recorded and are never silently removed.
+The complete staged plan is checked against affected managed, disabled and external
+mods. Compatibility errors identify every affected mod and requirement; unreadable
+metadata is reported as unknown. Published version selection keeps each provider's
+archive identity and dependencies together. GitHub release choices stay pinned, and
+development retries keep explicit consent and commit review rather than depending
+on a particular error dialog.
 
 The Lovely strategy is a technical loader exception, not a catalogue entry. It inspects
 native library format, Lovely evidence and supported loader filenames, refuses unknown
@@ -146,7 +152,7 @@ it never commits a stale file plan. Completion, cancellation and failure clear t
 cache; startup also prunes abandoned downloads older than a day.
 An explicit development-dependency choice resolves the author repository's default
 branch to one commit. Its archive metadata must satisfy the original requirements
-before confirmation, and shared updates must also satisfy enabled installed mods.
+before confirmation, and shared updates must also satisfy affected installed mods.
 
 Game launch, settings changes and the installer share an operation lock. The installer
 holds it while it prepares and commits a change:
@@ -172,6 +178,14 @@ Originals referenced by installed records or validated state-upgrade snapshots r
 blocked or uncertain recovery
 prevents cleanup. Unknown backup entries, creator history/builds and Balatro saves
 are outside this cleanup. Compact operation history retains the last 100 outcomes.
+
+Uninstall snapshots use the existing verified backup copies under
+`backups/removed/<uuid>/`, with a validated manifest containing installation metadata
+and their own copies of replaced originals. Capture must succeed before removal.
+Restore checks hashes, ownership and dependency compatibility, then uses the normal
+transaction engine and profile-install bookkeeping. Retention keeps the 20 most
+recent snapshots plus originals still referenced by installation or migration records.
+Transaction scratch pruning does not touch these snapshots.
 
 Independent preflight/backup reads and disposable staging copies run in bounded
 batches. Scratch staging does not fsync each file; rollback backups, final writes

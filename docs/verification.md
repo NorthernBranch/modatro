@@ -34,6 +34,15 @@ successful installer build alone does not establish real-game compatibility.
 | Releases                     | Baseline version assignment, unique beta tags, all-platform assets, checksums, draft retries and signing reports                                                  | `build-version.test.mjs`, `release.test.mjs`, `signing.test.mjs`                                |
 | Interface and isolation      | Search, categories, details, themes, dependency confirmations, error handling, focus and isolated Electron startup                                                | `ui.spec.ts`, `ui-requests.spec.ts`, `desktop.spec.ts`                                          |
 
+Compatibility/recovery regressions in `compatibility-recovery.test.ts` cover conflicting
+add-on requirements, complete compatible plans, unchanged files after rejection,
+external and disabled dependants, development retries after installed mods change,
+older provider versions, unavailable sources, backup failure and offline restoration
+of a removed development build. Browser tests cover reopening version choices,
+preserving a selection through file review and the restore action. These are fixture
+checks, not a verified run of the reporter's full in-game mod set; undeclared runtime
+incompatibilities remain unknown.
+
 Test counts change with the implementation. Use the output of the current run and
 its CI logs as evidence; older totals are not a record of the current checkout.
 Some filesystem-specific tests may skip when the host cannot represent the required

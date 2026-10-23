@@ -6,13 +6,14 @@ import {
   RefreshCw,
   ShieldCheck,
 } from 'lucide-react';
-import type { Dispatch, SetStateAction } from 'react';
+import type { Dispatch, SetStateAction, ReactNode } from 'react';
 import { AsyncButton } from '../components/AsyncButton';
 import { ExistingInstallNotice } from '../components/ExistingInstallNotice';
 import { EmptyState, LocalRow, PageHeading } from '../components/PageElements';
 import type { LocalMod, ModAction, ModDefinition } from '../shared/model';
 
 interface Props {
+  recovery?: ReactNode;
   page: 'installed' | 'updates';
   installed: LocalMod[];
   updates: LocalMod[];
@@ -30,6 +31,7 @@ interface Props {
   projectPending?: (url: string) => boolean;
 }
 export function InstalledPage({
+  recovery,
   page,
   installed,
   updates,
@@ -118,6 +120,7 @@ export function InstalledPage({
           }
         />
       )}
+      {recovery}
       <div className="info-panel">
         <ShieldCheck size={20} />
         <div>

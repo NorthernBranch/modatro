@@ -56,9 +56,11 @@ import { resolveDistribution, validateDistribution } from './distribution';
 import { validateThunderstoreArchive } from './thunderstore';
 import { thunderstoreId } from '../../src/shared/thunderstore';
 import { AuthorManifestSchema } from '../../src/shared/catalogue-schema';
-import { packageIdentity, projectedPrerequisites } from '../../src/shared/dependency-graph';
+import { projectedPrerequisites } from '../../src/shared/dependency-graph';
 import { inspectLovelyLibrary } from './lovely';
 import { extractLovelyTar } from './lovely-archive';
+import { affectedCompatibility, type CompatibilityMod } from '../../src/shared/compatibility';
+import { RemovedMods } from './removed-mods';
 
 export interface PreparedInstallation {
   plan: InstallPlan;
@@ -73,6 +75,7 @@ export interface PreparedInstallation {
   provenance?: InstallationSource;
 }
 export class ModInstaller {
+  readonly removed: RemovedMods;
   private abort?: AbortController;
   private confirmation?: { token: string; fingerprint: string; expires: number };
   private reviewDownloads = new Map<
@@ -89,7 +92,10 @@ export class ModInstaller {
     private progress: (event: Progress) => void,
     private getPrerequisites: () => Promise<Prerequisite[]>,
     private verifyTrust?: (mod: ModDefinition, update: boolean) => Promise<void>,
-  ) {}
+    private getInstalledMods?: () => Promise<CompatibilityMod[]>,
+  ) {
+    this.removed = new RemovedMods(storage, transactions.backup);
+  }
   cancel() {
     this.abort?.abort();
     return this.clearReviewDownloads();
@@ -108,29 +114,44 @@ export class ModInstaller {
         await fs.rm(file, { force: true });
     }
   }
-  private assertInstalledDependants(
-    prepared: PreparedInstallation[],
+  private async assertInstalledDependants(
+    prepared: { mod: Pick<ModDefinition, 'id' | 'metadataId' | 'source'>; metadataId?: string }[],
     prerequisites: Prerequisite[],
     accepted: UnverifiedPrerequisite[],
   ) {
-    // A shared dependency change must also satisfy every enabled installed mod.
-    for (const record of this.storage.state.installations.filter(
-      (record) => !record.disabled && !prepared.some((item) => item.mod.id === record.modId),
-    )) {
-      const affected = record.dependencies.filter((requirement) =>
-        prepared.some((item) =>
-          requirement.packageId
-            ? packageIdentity(item.mod).toLowerCase() === requirement.packageId.toLowerCase()
-            : (item.metadataId ?? item.mod.metadataId ?? item.mod.id).toLowerCase() ===
-              requirement.id.toLowerCase(),
-        ),
+    const installed = new Map(
+      ((await this.getInstalledMods?.()) ?? []).map((mod) => [mod.id, mod]),
+    );
+    for (const record of this.storage.state.installations)
+      installed.set(record.modId, {
+        id: record.modId,
+        title: record.title,
+        dependencies: record.dependencies,
+        declaredConflicts:
+          record.declaredConflicts ?? installed.get(record.modId)?.declaredConflicts,
+      });
+    const conflicts = affectedCompatibility(
+      prepared.map((item) => ({ ...item.mod, metadataId: item.metadataId ?? item.mod.metadataId })),
+      [...installed.values()],
+      prerequisites,
+    ).filter(
+      (conflict) =>
+        conflict.kind === 'conflict' ||
+        blockingDependencies([conflict.requirement], accepted).length,
+    );
+    if (conflicts.length)
+      throw new UserError(
+        'Compatibility could not be confirmed for these versions. Review the requirements below or choose another version. No installed files were changed.',
+        undefined,
+        undefined,
+        { compatibility: conflicts },
       );
-      const blocked = blockingDependencies(evaluateDependencies(affected, prerequisites), accepted);
-      if (blocked.length)
-        throw new UserError(
-          `${record.title}: ${blocked.map((entry) => entry.reason).join(' ')} No installed files were changed.`,
-        );
-    }
+    return [...installed.values()]
+      .filter((mod) => !mod.dependencies && !prepared.some((item) => item.mod.id === mod.id))
+      .map(
+        (mod) =>
+          `${mod.title}: no readable dependency metadata was found. Compatibility with this mod cannot be established.`,
+      );
   }
   roots(): Record<FileRoot, string> {
     return {
@@ -358,6 +379,7 @@ export class ModInstaller {
     input: ModDefinition,
     staging: string,
     directFile = false,
+    deferConflicts = false,
   ): Promise<PreparedInstallation> {
     let mod = ModSchema.parse(input);
     const previous = this.storage.state.installations.find((r) => r.modId === mod.id),
@@ -498,7 +520,7 @@ export class ModInstaller {
         ]);
       const prerequisites = await this.getPrerequisites();
       declaredConflicts = metadata?.conflicts ?? [];
-      for (const conflict of metadata?.conflicts ?? []) {
+      for (const conflict of deferConflicts ? [] : (metadata?.conflicts ?? [])) {
         const found = evaluateDependencies([conflict], prerequisites)[0];
         if (
           found?.state === 'satisfied' ||
@@ -635,6 +657,11 @@ export class ModInstaller {
       blockingDependencies(prepared.dependencies, acceptedUnverified).length
     )
       throw new UserError('The install plan is not eligible to commit.');
+    await this.assertInstalledDependants(
+      [prepared],
+      await this.preparedPrerequisites([prepared]),
+      acceptedUnverified,
+    );
     this.progress({ modId: prepared.mod.id, phase: 'installing' });
     await this.transactions.execute(this.roots(), prepared.changes, (journal) => {
       const record = this.installationRecord(prepared, journal);
@@ -657,6 +684,7 @@ export class ModInstaller {
         ({ state: _state, reason: _reason, installedVersion: _version, ...requirement }) =>
           requirement,
       ),
+      declaredConflicts: prepared.declaredConflicts,
       source: prepared.mod.source?.provider === 'local' ? undefined : prepared.mod.downloadUrl,
       provenance: prepared.provenance ?? { sourceType: 'legacy' },
       folderName: prepared.folderName,
@@ -715,6 +743,7 @@ export class ModInstaller {
       staged: ModDefinition[],
       prerequisites: Prerequisite[],
     ) => Promise<ModDefinition[]>,
+    requireReview = false,
   ) {
     return this.transactions.locked(async () => {
       await this.guard();
@@ -809,7 +838,11 @@ export class ModInstaller {
             else await new ArchiveService().extract(download, stage, abort.signal);
             await validateThunderstoreArchive(mod, stage);
             this.progress({ modId: mod.id, phase: 'planning' });
-            const item = await this.plan(mod, stage, directFile);
+            const item = await this.plan(mod, stage, directFile, true);
+            if (/^Development [a-f0-9]{7}$/.test(mod.version) && !item.runtimeVersion)
+              throw new UserError(
+                'This development build has no readable runtime version. Its compatibility cannot be verified; no installed files were changed.',
+              );
             item.provenance = provenance;
             prepared.push(item);
           } finally {
@@ -860,7 +893,7 @@ export class ModInstaller {
               item.plan.conflicts,
             );
         }
-        this.assertInstalledDependants(prepared, future, accepted);
+        const warnings = await this.assertInstalledDependants(prepared, future, accepted);
         const changes = prepared.flatMap((item) => item.changes);
         if (
           new Set(changes.map((change) => `${change.root}:${change.path.toLowerCase()}`)).size !==
@@ -871,6 +904,7 @@ export class ModInstaller {
           );
         const last = inputs[inputs.length - 1]!;
         const visible = this.inspectablePlan({
+          warnings,
           modId: last.id,
           version: last.version,
           create: prepared.flatMap((item) => item.plan.create),
@@ -882,7 +916,7 @@ export class ModInstaller {
             source:
               item.mod.downloadProvider === 'github' &&
               item.mod.releaseSource?.sourceType === 'commit'
-                ? `GitHub commit ${item.mod.releaseSource.commitSha?.slice(0, 7)}`
+                ? `GitHub commit ${item.mod.releaseSource.commitSha}`
                 : item.mod.source?.provider === 'mod-index'
                   ? `Additional index: ${new URL(item.mod.source.url!).pathname.slice(1)}`
                   : item.mod.source?.provider === 'thunderstore'
@@ -895,11 +929,15 @@ export class ModInstaller {
                 ? item.mod.version
                 : (item.mod.thunderstore?.packageVersion ?? item.mod.version),
             update: !!item.previous,
+            previousVersion: item.previous?.packageVersion ?? item.previous?.modVersion,
           })),
         });
         if (inspect) return visible;
         if (
+          requireReview ||
           prepared.length > 1 ||
+          prepared.some((item) => !!item.previous) ||
+          !!visible.warnings?.length ||
           changes.some((change) => change.root === 'game') ||
           prepared.some(
             (item) =>
@@ -942,7 +980,7 @@ export class ModInstaller {
         const rechecked = await this.preparedPrerequisites(prepared);
         for (const item of prepared)
           this.assertDependencies(evaluateDependencies(item.dependencies, rechecked), accepted);
-        this.assertInstalledDependants(prepared, rechecked, accepted);
+        await this.assertInstalledDependants(prepared, rechecked, accepted);
         abort.signal.throwIfAborted();
         this.abort = undefined;
         this.progress({ modId: last.id, phase: 'installing' });
@@ -1047,6 +1085,141 @@ export class ModInstaller {
         }
       }
   }
+  async restore(id: string, token?: string) {
+    return this.transactions.locked(async () => {
+      await this.guard();
+      const saved = await this.removed.read(id),
+        record = saved.record,
+        roots = this.roots();
+      if (this.storage.state.installations.some((item) => item.modId === record.modId))
+        throw new UserError(
+          'This mod is already installed. Uninstall it before restoring another copy.',
+        );
+      const mod = {
+        id: record.modId,
+        metadataId: record.metadataId,
+        source: {
+          provider: 'backup',
+          externalId:
+            record.provenance?.namespace && record.provenance.packageName
+              ? thunderstoreId(record.provenance.namespace, record.provenance.packageName)
+              : record.modId,
+        },
+      };
+      const check = async () => {
+        const observed: Prerequisite = {
+          id: record.metadataId ?? record.modId,
+          displayName: record.title,
+          installed: true,
+          installedVersion: record.modVersion,
+          sourceUrl: record.source ?? 'https://github.com/NorthernBranch/modatro',
+          packageId: mod.source.externalId,
+          packageVersion: record.packageVersion,
+          provenance: record.provenance,
+        };
+        const future = [
+          observed,
+          ...(await this.getPrerequisites()).filter(
+            (item) =>
+              item.id.toLowerCase() !== observed.id.toLowerCase() &&
+              item.packageId?.toLowerCase() !== observed.packageId?.toLowerCase(),
+          ),
+        ];
+        this.assertDependencies(evaluateDependencies(record.dependencies, future), []);
+        const conflict = evaluateDependencies(record.declaredConflicts ?? [], future).find(
+          (entry) => ['satisfied', 'unknown'].includes(entry.state),
+        );
+        if (conflict)
+          throw new UserError(
+            `${record.title} declares a conflict with ${conflict.displayName} ${conflict.versionConstraint ?? ''}. Nothing was restored.`,
+          );
+        return this.assertInstalledDependants([{ mod }], future, []);
+      };
+      const warnings = await check();
+      const changes: Change[] = [];
+      for (const [index, file] of record.files.entries()) {
+        const destination = await safeDestination(roots[file.root], file.path);
+        const current = (await exists(destination)) ? await hashFile(destination) : undefined;
+        if (
+          this.storage.state.installations.some((item) =>
+            item.files.some(
+              (owned) =>
+                owned.root === file.root && owned.path.toLowerCase() === file.path.toLowerCase(),
+            ),
+          ) ||
+          (file.operation === 'created' ? current !== undefined : current !== file.originalHash)
+        )
+          throw new UserError(
+            `Restore would overwrite an existing or changed file: ${file.path}. Nothing was changed.`,
+          );
+        if (file.backupPath)
+          await this.transactions.backup.verified(file.backupPath, file.originalHash!);
+        changes.push({
+          root: file.root,
+          path: file.path,
+          source: await this.transactions.backup.verified(
+            saved.copies[index]!.backupPath,
+            file.installedHash,
+          ),
+          expectedBefore: current,
+          afterHash: file.installedHash,
+        });
+      }
+      const plan: InstallPlan = this.inspectablePlan({
+        warnings,
+        modId: record.modId,
+        version: record.modVersion,
+        create: changes.filter((c) => !c.expectedBefore),
+        replace: changes
+          .filter((c) => c.expectedBefore)
+          .map((c) => ({ ...c, previousHash: c.expectedBefore! })),
+        remove: [],
+        conflicts: [],
+        prerequisites: [],
+        packages: [
+          {
+            id: record.modId,
+            title: record.title,
+            version: record.modVersion,
+            update: false,
+            source: `Uninstall backup${record.provenance?.commitSha ? ` · commit ${record.provenance.commitSha}` : ''}`,
+          },
+        ],
+      });
+      const fingerprint = createHash('sha256')
+        .update(JSON.stringify({ id, plan, saved, state: this.storage.state }))
+        .digest('hex');
+      if (
+        !token ||
+        token !== this.confirmation?.token ||
+        fingerprint !== this.confirmation.fingerprint ||
+        Date.now() > this.confirmation.expires
+      ) {
+        this.confirmation = {
+          token: randomUUID(),
+          fingerprint,
+          expires: Date.now() + 10 * 60 * 1000,
+        };
+        throw new UserError(
+          'Review this restore before continuing. Compatibility checks use recorded requirements, not a gameplay test.',
+          undefined,
+          undefined,
+          { confirmation: { token: this.confirmation.token, plan } },
+        );
+      }
+      this.confirmation = undefined;
+      await check();
+      await this.transactions.execute(
+        roots,
+        changes,
+        (journal) =>
+          withInstalledMods(this.storage.state, [
+            { ...record, installedAt: new Date().toISOString(), transactionId: journal.id },
+          ]),
+        'restore',
+      );
+    });
+  }
   async uninstall(id: string, decisions: ConflictDecision[] = []) {
     return this.transactions.locked(async () => {
       await this.guard();
@@ -1093,6 +1266,7 @@ export class ModInstaller {
           'Some files have changed outside Modatro. Choose how to handle each file before uninstalling.',
           conflicts,
         );
+      await this.removed.capture(record, roots);
       await this.transactions.execute(roots, changes, () => ({
         ...this.storage.state,
         installations: this.storage.state.installations.filter((r) => r.modId !== id),
@@ -1104,6 +1278,9 @@ export class ModInstaller {
           })),
         },
       }));
+      await this.removed
+        .prune()
+        .catch((error) => this.logger.log('uninstall.backup.cleanup.deferred', String(error)));
       const cleanupProblems = await this.cleanupEmptyDirectories(record.files);
       for (const change of changes) {
         const file = await safeDestination(roots[change.root], change.path);

@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { ModatroApi, Progress, Snapshot } from '../src/shared/model';
 const api: ModatroApi = {
+  releaseOptions: (id) => ipcRenderer.invoke('modatro:releaseOptions', id),
+  restoreMod: (id, token) => ipcRenderer.invoke('modatro:restoreMod', { id, token }),
   creator: (request) => ipcRenderer.invoke('modatro:creator', request),
   profileTransfer: (request) => ipcRenderer.invoke('modatro:profileTransfer', request),
   profileOperation: (request) => ipcRenderer.invoke('modatro:profileOperation', request),
@@ -17,7 +19,15 @@ const api: ModatroApi = {
   saveSettings: (settings) => ipcRenderer.invoke('modatro:saveSettings', settings),
   githubStars: () => ipcRenderer.invoke('modatro:githubStars'),
   checkAppUpdates: () => ipcRenderer.invoke('modatro:checkAppUpdates'),
-  action: (id, action, decisions, confirmationToken, acceptedUnverified, developmentDependencies) =>
+  action: (
+    id,
+    action,
+    decisions,
+    confirmationToken,
+    acceptedUnverified,
+    developmentDependencies,
+    selectedVersions,
+  ) =>
     ipcRenderer.invoke('modatro:action', {
       id,
       action,
@@ -25,6 +35,7 @@ const api: ModatroApi = {
       confirmationToken,
       acceptedUnverified,
       developmentDependencies,
+      selectedVersions,
     }),
   openModFolder: (id) => ipcRenderer.invoke('modatro:openModFolder', id),
   cancel: () => ipcRenderer.invoke('modatro:cancel'),

@@ -361,6 +361,7 @@ interface MockRequests {
     token?: string;
     acceptedUnverified?: UnverifiedPrerequisite[];
     developmentDependencies?: string[];
+    selectedVersions?: { id: string; key: string }[];
   }[];
   behavior: Record<string, Behavior>;
   finish: (method: string, reply?: Reply<unknown>) => void;
@@ -481,6 +482,26 @@ async function mockDesktop(
         }
       };
       const api: ModatroApi = {
+        releaseOptions: (id) =>
+          call('releaseOptions', {
+            id,
+            title: control.state.catalogue.mods.find((entry) => entry.id === id)?.title ?? id,
+            versions: [
+              {
+                key: 'thunderstore:old',
+                version: '0.9.0',
+                source: 'Thunderstore',
+                compatibility: 'compatible',
+                reason:
+                  'Published requirements fit the proposed plan. Runtime metadata still needs inspection.',
+              },
+            ],
+            development: {
+              available: true,
+              reason: 'Optional upstream development code. Retry after changing installed mods.',
+            },
+          }),
+        restoreMod: () => call('restoreMod', control.state),
         profileTransfer: (request) =>
           call(
             'profileTransfer:' + request.operation,
@@ -583,8 +604,23 @@ async function mockDesktop(
           }
           return reply;
         },
-        action: (id, action, _decisions, token, acceptedUnverified, developmentDependencies) => {
-          control.actions.push({ id, action, token, acceptedUnverified, developmentDependencies });
+        action: (
+          id,
+          action,
+          _decisions,
+          token,
+          acceptedUnverified,
+          developmentDependencies,
+          selectedVersions,
+        ) => {
+          control.actions.push({
+            id,
+            action,
+            token,
+            acceptedUnverified,
+            developmentDependencies,
+            selectedVersions,
+          });
           return call('action', control.state);
         },
         openModFolder: () => call('openModFolder', undefined),
@@ -2165,6 +2201,151 @@ test('development dependencies require opt-in and retain that choice through fil
   const last = (await page.evaluate(() => window.requestsTest.actions)).at(-1)!;
   expect(last.token).toBe('development-review');
   expect(last.developmentDependencies).toEqual(['library']);
+});
+
+test('version selection stays available after a failed development attempt and preserves the chosen release through review', async ({
+  page,
+}) => {
+  await mockDesktop(page, fixture(), { action: 'hold' });
+  await page.getByRole('button', { name: 'Details for Fixture mod' }).click();
+  await page.getByRole('button', { name: 'Versions and builds', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText('Published requirements fit');
+  await page.getByRole('button', { name: 'Try development build', exact: true }).click();
+  expect(
+    (await page.evaluate(() => window.requestsTest.actions)).at(-1)?.developmentDependencies,
+  ).toEqual(['fixture']);
+  await page.evaluate(() =>
+    window.requestsTest.finish('action', {
+      ok: false,
+      error: {
+        message: 'An installed add-on rejects this version.',
+        compatibility: [
+          {
+            modId: 'other',
+            title: 'Other add-on',
+            proposedVersion: '2.0.0',
+            requirement: {
+              id: 'Library',
+              displayName: 'Library',
+              required: true,
+              versionConstraint: '<2.0.0',
+              state: 'incompatible',
+              reason: 'Rejected version',
+            },
+          },
+        ],
+      },
+    }),
+  );
+  await expect(page.getByRole('dialog')).toContainText('Other add-on');
+  await expect(page.getByRole('dialog')).toContainText('Proposed version: 2.0.0');
+  await page.getByRole('button', { name: 'Choose another version or build' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Try development build', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Review selected version' }).click();
+  expect((await page.evaluate(() => window.requestsTest.actions)).at(-1)?.selectedVersions).toEqual(
+    [{ id: 'fixture', key: 'thunderstore:old' }],
+  );
+  await page.evaluate(() =>
+    window.requestsTest.finish('action', {
+      ok: false,
+      error: {
+        message: 'Review old version',
+        confirmation: {
+          token: 'old-release-token',
+          plan: {
+            modId: 'fixture',
+            version: '0.9.0',
+            create: [],
+            replace: [],
+            remove: [],
+            prerequisites: [],
+            conflicts: [],
+            packages: [
+              {
+                id: 'fixture',
+                title: 'Fixture mod',
+                version: '0.9.0',
+                update: true,
+                source: 'Thunderstore',
+              },
+            ],
+          },
+        },
+      },
+    }),
+  );
+  await page.getByRole('button', { name: 'Back up & install', exact: true }).click();
+  expect((await page.evaluate(() => window.requestsTest.actions)).at(-1)).toMatchObject({
+    token: 'old-release-token',
+    selectedVersions: [{ id: 'fixture', key: 'thunderstore:old' }],
+  });
+  await page.evaluate(() => window.requestsTest.finish('action'));
+});
+test('recently uninstalled mods have a reviewed restore route using the backup service', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.removedMods = [
+    {
+      id: '11111111-1111-4111-8111-111111111111',
+      title: 'Local development mod',
+      version: '0.9.0',
+      removedAt: '2026-10-23T10:00:00Z',
+    },
+  ];
+  await mockDesktop(page, state, { restoreMod: 'hold' });
+  await page.getByRole('button', { name: 'Installed', exact: true }).click();
+  await page.getByRole('button', { name: 'Recently uninstalled' }).click();
+  await expect(page.getByText('Local development mod · 0.9.0')).toBeVisible();
+  await page.getByRole('button', { name: 'Review restore', exact: true }).click();
+  await page.evaluate(() =>
+    window.requestsTest.finish('restoreMod', {
+      ok: false,
+      error: {
+        message: 'Review restore',
+        confirmation: {
+          token: 'backup-review-token',
+          plan: {
+            modId: 'fixture',
+            version: '0.9.0',
+            create: [],
+            replace: [],
+            remove: [],
+            prerequisites: [],
+            conflicts: [],
+            packages: [
+              {
+                id: 'fixture',
+                title: 'Local development mod',
+                version: '0.9.0',
+                update: false,
+                source: 'Uninstall backup',
+              },
+            ],
+          },
+        },
+      },
+    }),
+  );
+  await expect(page.getByRole('dialog')).toContainText('Nothing has been restored yet');
+  await page.getByRole('button', { name: 'Restore from backup', exact: true }).click();
+  await page.evaluate(() => window.requestsTest.finish('restoreMod'));
+  expect(await page.evaluate(() => window.requestsTest.calls.restoreMod)).toBe(2);
+  expect(await page.evaluate(() => window.requestsTest.actions.length)).toBe(0);
+});
+test('version history failures can be retried without installing anything', async ({ page }) => {
+  await mockDesktop(page, fixture(), { releaseOptions: 'error' });
+  await page.getByRole('button', { name: 'Details for Fixture mod' }).click();
+  await page.getByRole('button', { name: 'Versions and builds', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText('The folder is not accessible.');
+  await page.evaluate(() => {
+    window.requestsTest.behavior.releaseOptions = 'success';
+  });
+  await page.getByRole('button', { name: 'Refresh available versions' }).click();
+  await expect(page.getByRole('button', { name: 'Try development build' })).toBeVisible();
+  expect(await page.evaluate(() => window.requestsTest.actions.length)).toBe(0);
 });
 
 test('cancelling a dependency confirmation sends no installation request', async ({ page }) => {
