@@ -183,9 +183,18 @@ Uninstall snapshots use the existing verified backup copies under
 `backups/removed/<uuid>/`, with a validated manifest containing installation metadata
 and their own copies of replaced originals. Capture must succeed before removal.
 Restore checks hashes, ownership and dependency compatibility, then uses the normal
-transaction engine and profile-install bookkeeping. Retention keeps the 20 most
-recent snapshots plus originals still referenced by installation or migration records.
-Transaction scratch pruning does not touch these snapshots.
+transaction engine and profile-install bookkeeping. After successful uninstall and
+at startup, retention removes the oldest eligible snapshots until at most 20 remain
+and their combined file size is at most 1 GiB. A single oversized snapshot is verified
+before uninstall proceeds, then may be removed by retention immediately.
+Cleanup and manual deletion use the transaction operation lock and shared original-file
+reference checks. Active installations, migration snapshots and pending recovery records
+protect required originals. Invalid or unreadable records are preserved; uncertain
+references defer all deletion. Protected or unverified copies can exceed the limits,
+with a warning in Installed. Storage totals include retained records and manifests;
+unreadable sizes are shown as a lower bound. Individual deletion and Clear all require
+confirmation and never remove protected copies. Transaction scratch pruning does not
+touch these snapshots, and this cleanup does not touch saves or creator files.
 
 Independent preflight/backup reads and disposable staging copies run in bounded
 batches. Scratch staging does not fsync each file; rollback backups, final writes

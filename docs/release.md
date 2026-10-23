@@ -113,7 +113,9 @@ Development builds may be unstable; incompatible builds remain blocked.
   Balatro's version is read from `version.jkr` in its game archive; invalid or ambiguous
   data remains unknown.
 - Required original-file backups remain available for uninstall and recovery; unused
-  transaction backups are pruned automatically. Back up Balatro saves separately.
+  transaction backups are pruned automatically. Temporary uninstall copies aim for
+  20 snapshots within 1 GiB; referenced or unverified copies are retained and reported.
+  Back up Balatro saves separately.
 - Mod Creator templates target Steamodded 26.1002.0 and require Lovely. Creation,
   PNG processing, syntax parsing and ZIP building are local. Static validation
   cannot establish game compatibility or code safety.

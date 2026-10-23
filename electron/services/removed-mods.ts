@@ -6,11 +6,10 @@ import {
   RecordSchema,
   RelativePath,
   RootSchema,
-  StateSchema,
   type FileRoot,
   type InstallationRecord,
 } from '../../src/shared/model';
-import { BackupService } from './transaction';
+import { BackupService, backupReferenceKey } from './transaction';
 import { exists, hashFile, safeDestination } from './files';
 import { Storage } from './storage';
 import { UserError } from './errors';
@@ -32,29 +31,112 @@ const RemovedSchema = z.object({
     .min(1),
 });
 
-// Kept separately from transaction scratch files. Keep the 20 most recent
-// uninstall snapshots, including their own copies of any replaced originals.
+const MAX_SNAPSHOTS = 20;
+const MAX_BYTES = 1024 ** 3;
+// Kept separately from transaction scratch files. Only complete, recognized
+// uninstall snapshots are eligible for deletion, under the operation lock.
 export class RemovedMods {
+  private cleanupWarning?: string;
   constructor(
     private storage: Storage,
     private backup: BackupService,
   ) {}
   async list() {
-    const directory = await safeDestination(this.storage.root, 'backups/removed');
-    if (!(await exists(directory))) return [];
-    const items: z.infer<typeof RemovedSchema>[] = [];
-    for (const name of await fs.readdir(directory)) {
-      if (!z.uuid().safeParse(name).success) continue;
-      if (
-        !(await exists(
-          await safeDestination(this.storage.root, `backups/removed/${name}/manifest.json`),
-        ))
-      )
-        continue;
-      const item = await this.read(name);
-      if (item) items.push(item);
+    return (await this.inspect()).items;
+  }
+  async inspect(verifyActive = false) {
+    const items: (z.infer<typeof RemovedSchema> & { sizeBytes: number; protected: boolean })[] = [];
+    const warnings: string[] = [];
+    let references: Set<string> | undefined;
+    try {
+      references = await this.backup.references(verifyActive);
+    } catch {
+      warnings.push(
+        'Installation or recovery references could not be verified. All uninstall backups were preserved.',
+      );
     }
-    return items.sort((a, b) => b.removedAt.localeCompare(a.removedAt));
+    let sizeBytes = 0,
+      sizeIncomplete = false,
+      count = 0,
+      invalid = 0;
+    try {
+      const directory = await safeDestination(this.storage.root, 'backups/removed');
+      if (await exists(directory))
+        for (const name of await fs.readdir(directory)) {
+          count++;
+          const prefix = `backups/removed/${name}`;
+          const files = new Set<string>();
+          let bytes = 0,
+            complete = true;
+          const measure = async (relative: string): Promise<void> => {
+            try {
+              const location = await safeDestination(this.storage.root, relative);
+              const stat = await fs.lstat(location);
+              if (stat.isFile()) {
+                bytes += stat.size;
+                files.add(relative);
+              } else if (stat.isDirectory()) {
+                for (const child of await fs.readdir(location))
+                  await measure(`${relative}/${child}`);
+              } else complete = false;
+            } catch {
+              complete = false;
+            }
+          };
+          await measure(prefix);
+          sizeBytes += bytes;
+          sizeIncomplete ||= !complete;
+          try {
+            if (!complete) throw new Error('Unreadable snapshot');
+            const item = await this.read(name);
+            const expected = new Set([
+              `${prefix}/manifest.json`,
+              ...item.copies.map((copy) => copy.backupPath),
+              ...item.record.files.flatMap((file) => (file.backupPath ? [file.backupPath] : [])),
+            ]);
+            if (files.size !== expected.size || [...files].some((file) => !expected.has(file)))
+              throw new Error('Unrecognized or missing snapshot files');
+            items.push({
+              ...item,
+              sizeBytes: bytes,
+              protected:
+                !references ||
+                [...references].some((file) => file.startsWith(backupReferenceKey(`${prefix}/`))),
+            });
+          } catch {
+            invalid++;
+          }
+        }
+    } catch {
+      sizeIncomplete = true;
+      warnings.push(
+        'Uninstall backup storage could not be fully read. Cleanup could not fully complete; unreadable backups were preserved.',
+      );
+    }
+    if (invalid)
+      warnings.push(
+        `${invalid} unrecognized or unreadable uninstall backup record(s) were preserved. Cleanup could not fully complete. Open the backups folder in Settings to investigate.`,
+      );
+    const protectedCount = items.filter((item) => item.protected).length;
+    const overLimit = count > MAX_SNAPSHOTS || sizeBytes > MAX_BYTES;
+    if (protectedCount && references)
+      warnings.push(
+        `${protectedCount} backup(s) contain originals required by installations or recovery records and cannot be deleted.${overLimit ? ' These protected copies may prevent meeting the 20-backup / 1 GiB limits.' : ''}`,
+      );
+    if (overLimit && (!protectedCount || !references))
+      warnings.push(
+        'Uninstall backup storage exceeds the 20-backup / 1 GiB limits. Cleanup will retry at the next startup or uninstall; unverified records are preserved.',
+      );
+    if (this.cleanupWarning) warnings.push(this.cleanupWarning);
+    return {
+      items: items.sort(
+        (a, b) => b.removedAt.localeCompare(a.removedAt) || a.id.localeCompare(b.id),
+      ),
+      sizeBytes,
+      sizeIncomplete,
+      count,
+      warnings,
+    };
   }
   async read(id: string) {
     z.uuid().parse(id);
@@ -125,24 +207,34 @@ export class RemovedMods {
     }
   }
   async prune() {
-    const states = [this.storage.state];
-    for (const name of await fs.readdir(this.storage.file('data'))) {
-      if (!/^state-v\d+(?:-[a-f0-9]{16})?\.backup\.json$/.test(name)) continue;
-      const state = await this.storage.read(`data/${name}`, StateSchema);
-      if (state) states.push(state);
+    return this.cleanup();
+  }
+  // Callers hold TransactionEngine.locked, including startup and manual cleanup.
+  async cleanup(selection?: 'all' | string) {
+    this.cleanupWarning = undefined;
+    const status = await this.inspect(true);
+    let count = status.count,
+      bytes = status.sizeBytes,
+      deleted = 0,
+      failures = 0;
+    for (const item of [...status.items].reverse()) {
+      if (item.protected || (selection && selection !== 'all' && selection !== item.id)) continue;
+      if (!selection && count <= MAX_SNAPSHOTS && bytes <= MAX_BYTES) break;
+      try {
+        // Resolve the complete absolute target again immediately before removal.
+        const directory = await safeDestination(this.storage.root, `backups/removed/${item.id}`);
+        await fs.rm(directory, { recursive: true });
+        count--;
+        bytes -= item.sizeBytes;
+        deleted++;
+      } catch {
+        failures++;
+      }
     }
-    for (const item of (await this.list()).slice(20)) {
-      // A restored file-replacing mod may still depend on this snapshot's originals.
-      if (
-        states.some((state) =>
-          state.installations.some((record) =>
-            record.files.some((file) => file.backupPath?.startsWith(`backups/removed/${item.id}/`)),
-          ),
-        )
-      )
-        continue;
-      const directory = await safeDestination(this.storage.root, `backups/removed/${item.id}`);
-      await fs.rm(directory, { recursive: true, force: true });
-    }
+    if (failures)
+      this.cleanupWarning = `${failures} uninstall backup(s) could not be deleted. Remaining files and records were retained; cleanup could not fully complete. Check folder permissions and retry.`;
+    // Read actual disk totals again: a failed removal can leave a partial copy.
+    const remaining = await this.inspect();
+    return { deleted, retained: remaining.count };
   }
 }

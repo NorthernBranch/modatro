@@ -353,6 +353,7 @@ test('application updates stay quiet and open the installer only after a user cl
   expect(await page.evaluate(() => window.requestsTest.calls.openLink)).toBe(1);
 });
 interface MockRequests {
+  backupDeletes: string[];
   state: Snapshot;
   calls: Record<string, number>;
   actions: {
@@ -438,6 +439,7 @@ async function mockDesktop(
         }
       >();
       const control: MockRequests = {
+        backupDeletes: [],
         state,
         behavior,
         calls: {},
@@ -502,6 +504,14 @@ async function mockDesktop(
             },
           }),
         restoreMod: () => call('restoreMod', control.state),
+        deleteRemovedBackup: (id) => {
+          control.backupDeletes.push(id ?? 'all');
+          return call('deleteRemovedBackup', {
+            snapshot: control.state,
+            deleted: 0,
+            retained: control.state.removedModsStorage?.count ?? 0,
+          });
+        },
         profileTransfer: (request) =>
           call(
             'profileTransfer:' + request.operation,
@@ -2334,6 +2344,174 @@ test('recently uninstalled mods have a reviewed restore route using the backup s
   await page.evaluate(() => window.requestsTest.finish('restoreMod'));
   expect(await page.evaluate(() => window.requestsTest.calls.restoreMod)).toBe(2);
   expect(await page.evaluate(() => window.requestsTest.actions.length)).toBe(0);
+});
+
+test('uninstall backup storage, confirmations and pending deletion preserve required originals', async ({
+  page,
+}) => {
+  const state = fixture();
+  const id = '11111111-1111-4111-8111-111111111111';
+  state.removedMods = [
+    {
+      id,
+      title: 'Recoverable mod',
+      version: '1.0.0',
+      removedAt: '2026-10-23T10:00:00Z',
+      sizeBytes: 1024 ** 2,
+    },
+    {
+      id: '22222222-2222-4222-8222-222222222222',
+      title: 'Required original',
+      version: '1.0.0',
+      removedAt: '2026-10-22T10:00:00Z',
+      sizeBytes: 1024 ** 2,
+      protected: true,
+      installed: true,
+    },
+  ];
+  state.removedModsStorage = { sizeBytes: 2 * 1024 ** 2, sizeIncomplete: false, count: 2 };
+  await mockDesktop(page, state, { deleteRemovedBackup: 'hold' });
+  await page.getByRole('button', { name: 'Installed', exact: true }).click();
+  const panel = page.getByRole('region', { name: 'Uninstall backups' });
+  await panel.getByRole('button', { name: 'Recently uninstalled' }).click();
+  await expect(panel).toContainText('2.0 MiB used');
+  await expect(panel).toContainText('temporary and subject to automatic cleanup');
+  const protectedRow = panel.locator('.conflict-item').filter({ hasText: 'Required original' });
+  await expect(protectedRow.getByRole('button', { name: 'Delete backup' })).toBeDisabled();
+  await expect(protectedRow.getByRole('button', { name: 'Already installed' })).toBeDisabled();
+  await panel.getByRole('button', { name: 'Delete backup' }).first().click();
+  await expect(page.getByRole('dialog')).toContainText('will no longer be available');
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
+  expect(await page.evaluate(() => window.requestsTest.backupDeletes)).toEqual([]);
+  await panel.getByRole('button', { name: 'Delete backup' }).first().click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Delete backup', exact: true })
+    .click();
+  await expect(
+    page.getByRole('dialog').getByRole('button', { name: 'Deleting backups…' }),
+  ).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(
+    page.getByRole('dialog').getByRole('button', { name: 'Close dialog' }),
+  ).toBeDisabled();
+  expect(await page.evaluate(() => window.requestsTest.backupDeletes)).toEqual([id]);
+  await page.evaluate(() => {
+    const state = window.requestsTest.state;
+    state.removedMods = state.removedMods!.slice(1);
+    state.removedModsStorage = { sizeBytes: 1024 ** 2, sizeIncomplete: false, count: 1 };
+    state.removedModsError =
+      '1 backup contains originals required by installations and cannot be deleted.';
+    window.requestsTest.finish('deleteRemovedBackup', {
+      ok: true,
+      value: { snapshot: state, deleted: 1, retained: 1 },
+    });
+  });
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(panel).toContainText('1.0 MiB used');
+  await expect(panel.getByRole('alert')).toContainText('required by installations');
+  await panel.getByRole('button', { name: 'Clear all', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText('will be retained');
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Clear all eligible backups' })
+    .click();
+  await page.evaluate(() => window.requestsTest.finish('deleteRemovedBackup'));
+  expect(await page.evaluate(() => window.requestsTest.backupDeletes)).toEqual([id, 'all']);
+  await expect(panel).toContainText('Required original');
+});
+
+test('backup deletion failures can be retried and refresh storage and the empty state', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.removedMods = [
+    {
+      id: '11111111-1111-4111-8111-111111111111',
+      title: 'Local copy',
+      version: '1.0.0',
+      removedAt: '2026-10-23T10:00:00Z',
+      sizeBytes: 1024,
+    },
+  ];
+  state.removedModsStorage = { sizeBytes: 1024, sizeIncomplete: true, count: 1 };
+  state.removedModsError = 'Some backup storage could not be fully read.';
+  await mockDesktop(page, state, { deleteRemovedBackup: 'error' });
+  await page.getByRole('button', { name: 'Installed', exact: true }).click();
+  const panel = page.getByRole('region', { name: 'Uninstall backups' });
+  await panel.getByRole('button', { name: 'Recently uninstalled' }).click();
+  await expect(panel).toContainText('At least 1.0 KiB used');
+  await panel.getByRole('button', { name: 'Clear all', exact: true }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Clear all eligible backups' })
+    .click();
+  await expect(page.getByRole('dialog')).toContainText('The folder is not accessible.');
+  await closeError(page);
+  await expect(panel).toContainText('Local copy');
+  await page.evaluate(() => {
+    window.requestsTest.behavior.deleteRemovedBackup = 'hold';
+  });
+  await panel.getByRole('button', { name: 'Clear all', exact: true }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Clear all eligible backups' })
+    .click();
+  await page.evaluate(() => {
+    const state = window.requestsTest.state;
+    state.removedMods = [];
+    state.removedModsStorage = { sizeBytes: 0, sizeIncomplete: false, count: 0 };
+    state.removedModsError = undefined;
+    window.requestsTest.finish('deleteRemovedBackup', {
+      ok: true,
+      value: { snapshot: state, deleted: 1, retained: 0 },
+    });
+  });
+  await expect(panel).toContainText('0 B used');
+  await expect(panel).toContainText('No uninstall backups.');
+  await expect(panel.getByRole('button', { name: 'Clear all', exact: true })).toBeDisabled();
+  await panel.getByRole('button', { name: 'Refresh backups' }).click();
+  expect(await page.evaluate(() => window.requestsTest.calls.snapshot)).toBe(2);
+});
+
+test('profile dropdown opens a pending review immediately and retries failed checks inside the modal', async ({
+  page,
+}) => {
+  const state = fixture();
+  const first = '11111111-1111-4111-8111-111111111111',
+    second = '22222222-2222-4222-8222-222222222222';
+  state.profiles = {
+    schemaVersion: 1,
+    activeId: first,
+    items: [
+      { id: first, name: 'Default', selection: [] },
+      { id: second, name: 'Other', selection: [] },
+    ],
+    unsaved: false,
+    differences: [],
+    unmanagedCount: 0,
+  };
+  await mockDesktop(page, state, { previewProfile: 'hold' });
+  await page.getByLabel('Profile', { exact: true }).selectOption(second);
+  const dialog = page.getByRole('dialog', { name: 'Review profile: Other' });
+  await expect(dialog.getByRole('status')).toContainText('Checking profile selection');
+  await expect(dialog.locator('.spin')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Close dialog' })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Confirm profile switch' })).toHaveCount(0);
+  await page.evaluate(() => window.requestsTest.reject('previewProfile'));
+  await expect(dialog.getByRole('alert')).toContainText('Checking profile selection failed');
+  await expect(page.getByRole('dialog')).toHaveCount(1);
+  await expect(dialog.getByRole('button', { name: 'Close dialog' })).toBeEnabled();
+  await dialog.getByRole('button', { name: 'Try again' }).click();
+  await expect(dialog.getByRole('status')).toContainText('Checking profile selection');
+  await page.evaluate(() => window.requestsTest.finish('previewProfile'));
+  await expect(dialog.getByRole('button', { name: 'Confirm profile switch' })).toBeVisible();
+  expect(await page.evaluate(() => window.requestsTest.calls.previewProfile)).toBe(2);
+  expect(await page.evaluate(() => window.requestsTest.calls.switchProfile ?? 0)).toBe(0);
+  await expect(page.getByLabel('Profile', { exact: true })).toHaveValue(first);
 });
 test('version history failures can be retried without installing anything', async ({ page }) => {
   await mockDesktop(page, fixture(), { releaseOptions: 'error' });

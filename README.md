@@ -60,7 +60,9 @@ and macOS may block opening them. Check the release notes and
 - **Your collection:** install, update, enable, disable and uninstall supported mods,
   or adopt identified existing copies. File records and required backups support
   recovery. Restore a recently uninstalled mod from its local backup, including
-  builds no longer available online; unused transaction backups are pruned automatically.
+  builds no longer available online. Temporary uninstall backups are limited to 20
+  copies and 1 GiB, with protected originals retained; review storage or delete copies
+  in **Installed → Recently uninstalled**.
 - **Profiles:** save and switch managed selections, or export/import profiles for
   backup and sharing. Versions and mod settings are shared across profiles.
 - **Troubleshooting:** check your setup and prepare an editable support report,

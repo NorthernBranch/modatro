@@ -265,6 +265,9 @@ void app
     });
     handle('saveSettings', SettingsUpdateSchema, (settings) => application.saveSettings(settings));
     handle('releaseOptions', ModId, (id) => application.releaseOptions(id));
+    handle('deleteRemovedBackup', z.object({ id: z.uuid().optional() }).strict(), (request) =>
+      application.deleteRemovedBackup(request.id),
+    );
     handle(
       'restoreMod',
       z.object({ id: z.uuid(), token: z.uuid().optional() }).strict(),

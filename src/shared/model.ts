@@ -411,7 +411,16 @@ export interface Catalogue {
 }
 export interface Snapshot {
   removedModsError?: string;
-  removedMods?: { id: string; title: string; version: string; removedAt: string }[];
+  removedMods?: {
+    id: string;
+    title: string;
+    version: string;
+    removedAt: string;
+    sizeBytes?: number;
+    protected?: boolean;
+    installed?: boolean;
+  }[];
+  removedModsStorage?: { sizeBytes: number; sizeIncomplete: boolean; count: number };
   profiles?: ProfileSummary;
   appUpdate?: {
     checking: boolean;
@@ -513,6 +522,9 @@ export interface InstallPlan {
 export interface ModatroApi {
   releaseOptions?(id: string): Promise<Reply<ReleaseOptions>>;
   restoreMod?(id: string, token?: string): Promise<Reply<Snapshot>>;
+  deleteRemovedBackup?(
+    id?: string,
+  ): Promise<Reply<{ snapshot: Snapshot; deleted: number; retained: number }>>;
   profileTransfer?(request: ProfileTransferRequest): Promise<Reply<ProfileTransferResult>>;
   creator?(request: CreatorRequest): Promise<Reply<CreatorResponse>>;
   profileOperation?(operation: ProfileOperation): Promise<Reply<Snapshot>>;

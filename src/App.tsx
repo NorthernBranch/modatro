@@ -380,6 +380,20 @@ export function App() {
     }
     setProgress(undefined);
   }
+  async function deleteRemovedBackup(id?: string) {
+    const reply = await run(
+      'backup-delete',
+      'Deleting uninstall backups',
+      () => api.deleteRemovedBackup!(id),
+      { group: 'configuration' },
+    );
+    if (reply?.ok) {
+      setSnapshot(reply.value.snapshot);
+      setNotification(
+        `${reply.value.deleted} uninstall backup${reply.value.deleted === 1 ? '' : 's'} deleted. ${reply.value.retained} retained.`,
+      );
+    }
+  }
   async function openLink(url: string) {
     await run(`link:${url}`, 'Opening project page', () => api.openLink(url), {
       group: 'external-link',
@@ -715,8 +729,16 @@ export function App() {
                   <RemovedModsPanel
                     warning={snapshot.removedModsError}
                     items={snapshot.removedMods ?? []}
+                    storage={snapshot.removedModsStorage}
                     working={configuring}
+                    pending={requests.isPending('backup-delete')}
                     restore={(id) => void restoreMod(id)}
+                    deleteBackup={api.deleteRemovedBackup ? deleteRemovedBackup : undefined}
+                    refresh={() =>
+                      void callSnapshot('backup-refresh', 'Refreshing uninstall backups', () =>
+                        api.snapshot(),
+                      )
+                    }
                   />
                 ) : undefined
               }
@@ -1299,7 +1321,7 @@ export function App() {
         >
           <p className="dialog-description">
             {confirmation.action === 'uninstall'
-              ? 'A verified local copy will be saved before removal, including builds that are no longer downloadable. Find it under Installed → Recently uninstalled. If the backup fails, uninstall stops.'
+              ? 'A verified local copy will be saved before removal. Temporary recovery copies appear under Installed → Recently uninstalled and are limited to 20 copies within 1 GiB; an oversized copy may be cleaned up immediately. If the backup fails, uninstall stops.'
               : confirmation.action === 'adopt'
                 ? 'Modatro will inspect and record the existing files before managing them. Future uninstall removes these recorded files only; changes will be protected.'
                 : confirmation.plan?.packages && confirmation.plan.packages.length > 1

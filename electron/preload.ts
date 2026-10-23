@@ -3,6 +3,7 @@ import type { ModatroApi, Progress, Snapshot } from '../src/shared/model';
 const api: ModatroApi = {
   releaseOptions: (id) => ipcRenderer.invoke('modatro:releaseOptions', id),
   restoreMod: (id, token) => ipcRenderer.invoke('modatro:restoreMod', { id, token }),
+  deleteRemovedBackup: (id) => ipcRenderer.invoke('modatro:deleteRemovedBackup', { id }),
   creator: (request) => ipcRenderer.invoke('modatro:creator', request),
   profileTransfer: (request) => ipcRenderer.invoke('modatro:profileTransfer', request),
   profileOperation: (request) => ipcRenderer.invoke('modatro:profileOperation', request),

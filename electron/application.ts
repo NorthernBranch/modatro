@@ -181,6 +181,8 @@ export class ModatroApplication {
     await this.trust.initialize();
     if (!this.storage.safetyError) await this.transactions.recover();
     await this.storage.migrateProfiles();
+    if (!this.storage.safetyError)
+      await this.transactions.locked(() => this.installer.removed.prune());
     await this.repository.loadCache();
     try {
       this.unavailableSources =
@@ -259,19 +261,27 @@ export class ModatroApplication {
   }
   async snapshot(): Promise<Snapshot> {
     let removedMods: Snapshot['removedMods'] = [],
-      removedModsError: string | undefined;
+      removedModsError: string | undefined,
+      removedModsStorage: Snapshot['removedModsStorage'];
     try {
-      removedMods = (await this.installer.removed.list())
-        .filter(
-          (item) =>
-            !this.storage.state.installations.some((record) => record.modId === item.record.modId),
-        )
-        .map((item) => ({
-          id: item.id,
-          title: item.record.title,
-          version: item.record.modVersion,
-          removedAt: item.removedAt,
-        }));
+      const status = await this.installer.removed.inspect();
+      removedMods = status.items.map((item) => ({
+        id: item.id,
+        title: item.record.title,
+        version: item.record.modVersion,
+        removedAt: item.removedAt,
+        sizeBytes: item.sizeBytes,
+        protected: item.protected,
+        installed: this.storage.state.installations.some(
+          (record) => record.modId === item.record.modId,
+        ),
+      }));
+      removedModsStorage = {
+        sizeBytes: status.sizeBytes,
+        sizeIncomplete: status.sizeIncomplete,
+        count: status.count,
+      };
+      removedModsError = status.warnings.join(' ') || undefined;
     } catch {
       removedModsError =
         'Uninstall backup records could not be verified. They have been preserved; open the backups folder in Settings to investigate.';
@@ -305,6 +315,7 @@ export class ModatroApplication {
       operationReport: this.operationReport,
       removedMods,
       removedModsError,
+      removedModsStorage,
       trust: { ...this.trust.state, fresh: this.trust.isFresh() },
     };
   }
@@ -618,6 +629,13 @@ export class ModatroApplication {
     this.operationReport = undefined;
     await this.installer.restore(id, token);
     return this.snapshot();
+  }
+  async deleteRemovedBackup(id?: string) {
+    if (id !== undefined) z.uuid().parse(id);
+    const result = await this.transactions.locked(() =>
+      this.installer.removed.cleanup(id ?? 'all'),
+    );
+    return { ...result, snapshot: await this.snapshot() };
   }
   async action(
     id: string,

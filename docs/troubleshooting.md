@@ -283,10 +283,17 @@ Required originals remain under **Settings → Open backups** while referenced b
 installation or recovery records. Unused transaction backups are pruned automatically.
 Before uninstalling, Modatro also saves the recorded mod files and installation
 metadata. If that backup fails, uninstall stops. Use **Installed → Recently uninstalled →
-Review restore** to check and restore a copy without downloading it again. The 20 most
-recent uninstall backups are kept locally; changed destinations and incompatible
-requirements block restoration. Install missing dependencies first. This cannot recover
-mods removed before uninstall backups were introduced. Balatro saves need a separate backup.
+Review restore** to check and restore a copy without downloading it again. Changed
+destinations and incompatible requirements block restoration; install missing dependencies
+first. Recovery copies are temporary: startup and uninstall remove the oldest eligible
+copies above 20 backups or 1 GiB. A copy larger than 1 GiB may be cleaned up immediately
+after uninstall. The panel shows sizes and provides **Delete backup** and **Clear all**
+with confirmation; deletion ends recovery from those copies. Required originals remain
+protected, including during Clear all. Warnings explain retained or unreadable records
+and any storage above the limits; **Refresh backups** rereads the list. If deletion fails,
+check permissions and retry. If removal was interrupted, retained files may be incomplete;
+keep them for investigation. This cannot recover mods removed before uninstall backups
+were introduced. Balatro saves need a separate backup.
 
 ## Creator source or builds need attention
 

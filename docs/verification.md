@@ -43,6 +43,11 @@ preserving a selection through file review and the restore action. These are fix
 checks, not a verified run of the reporter's full in-game mod set; undeclared runtime
 incompatibilities remain unknown.
 
+`removed-mods.test.ts` covers count/size retention, oversized uninstalls, protected
+originals, invalid/unreadable records, deletion failures, startup cleanup and refreshed
+storage totals. Browser tests cover deletion confirmation, pending/error/empty states,
+protected copies and immediate profile-switch progress with retry after failed checks.
+
 Test counts change with the implementation. Use the output of the current run and
 its CI logs as evidence; older totals are not a record of the current checkout.
 Some filesystem-specific tests may skip when the host cannot represent the required

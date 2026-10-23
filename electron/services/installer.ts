@@ -1278,9 +1278,6 @@ export class ModInstaller {
           })),
         },
       }));
-      await this.removed
-        .prune()
-        .catch((error) => this.logger.log('uninstall.backup.cleanup.deferred', String(error)));
       const cleanupProblems = await this.cleanupEmptyDirectories(record.files);
       for (const change of changes) {
         const file = await safeDestination(roots[change.root], change.path);
@@ -1293,6 +1290,9 @@ export class ModInstaller {
             `Uninstall finished but ${change.path} could not be verified. Keep your backups and inspect this file.`,
           );
       }
+      await this.removed
+        .prune()
+        .catch((error) => this.logger.log('uninstall.backup.cleanup.deferred', String(error)));
       await this.logger.log('uninstall.complete', {
         modId: id,
         preserved: decisions.filter((d) => d.action === 'keep').map((d) => d.path),
