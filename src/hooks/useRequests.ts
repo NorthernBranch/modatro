@@ -4,6 +4,7 @@ import type { AppError, Reply } from '../shared/model';
 interface RequestOptions {
   group?: string;
   failureMessage?: string;
+  reportError?: boolean;
 }
 export interface Requests {
   pending: Record<string, { label: string; group?: string }>;
@@ -33,7 +34,7 @@ export function useRequests(reportError: (error: AppError) => void): Requests {
       setPending(active.current);
       try {
         const reply = await task();
-        if (!reply.ok) reportError(reply.error);
+        if (!reply.ok && options.reportError !== false) reportError(reply.error);
         return reply;
       } catch (error) {
         const reply: Reply<never> = {
@@ -43,7 +44,7 @@ export function useRequests(reportError: (error: AppError) => void): Requests {
             details: error instanceof Error ? error.message : String(error),
           },
         };
-        reportError(reply.error);
+        if (options.reportError !== false) reportError(reply.error);
         return reply;
       } finally {
         const remaining = { ...active.current };

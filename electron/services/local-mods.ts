@@ -141,6 +141,7 @@ export class InstalledModsService {
         deprecated: latest?.deprecated,
         problems,
         dependencies: record.dependencies,
+        declaredConflicts: record.declaredConflicts,
         metadataId: record.metadataId,
         provenance: record.provenance ?? { sourceType: record.adopted ? 'external' : 'legacy' },
         repositoryUrl: record.provenance?.repositoryUrl ?? latest?.repositoryUrl,
@@ -197,6 +198,10 @@ export class InstalledModsService {
             : entry.isFile() && entry.name.endsWith('.lua')
               ? parseLuaHeader(await readSmall(location))
               : undefined;
+          if (owner && meta) {
+            const managed = mods.find((mod) => mod.managed && mod.id === owner!.modId);
+            if (managed && !managed.problems.length) managed.declaredConflicts = meta.conflicts;
+          }
           // Older registry installs omitted manifest.json. A fully verified
           // managed record still establishes the loader identity and runtime version.
           if (
@@ -247,6 +252,7 @@ export class InstalledModsService {
                   : undefined,
               metadataId: meta?.id,
               dependencies: meta?.requirements,
+              declaredConflicts: meta?.conflicts,
               problems: [],
             });
         } catch (e) {

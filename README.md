@@ -51,14 +51,18 @@ and macOS may block opening them. Check the release notes and
   URL. Listings are fetched at runtime and deduplicated, with Thunderstore preferred.
   Details and install previews identify the source used.
 - **Dependencies:** check installed versions, review required supported dependencies,
-  and install them before the requested mod in one transaction. If published releases
-  are insufficient, explicitly opt into a checked upstream development build.
+  and install them before the requested mod in one transaction. Check the proposed
+  changes against other installed mods, choose published versions, or explicitly
+  try an upstream development build.
 - **Prerequisites:** detect and manage Lovely and Steamodded, including supported
   Lovely installation on Windows, macOS and Linux with Proton. Talisman is optional
   unless a mod requires it.
 - **Your collection:** install, update, enable, disable and uninstall supported mods,
   or adopt identified existing copies. File records and required backups support
-  recovery; unused transaction backups are pruned automatically.
+  recovery. Restore a recently uninstalled mod from its local backup, including
+  builds no longer available online. Temporary uninstall backups are limited to 20
+  copies and 1 GiB, with protected originals retained; review storage or delete copies
+  in **Installed → Recently uninstalled**.
 - **Profiles:** save and switch managed selections, or export/import profiles for
   backup and sharing. Versions and mod settings are shared across profiles.
 - **Troubleshooting:** check your setup and prepare an editable support report,

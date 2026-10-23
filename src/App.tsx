@@ -40,6 +40,8 @@ import { ProfileControls } from './components/ProfileControls';
 import { TroubleshootingPage } from './pages/TroubleshootingPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SaveBackupNotice } from './components/CreatorSettings';
+import { VersionsDialog } from './components/VersionsDialog';
+import { RemovedModsPanel } from './components/RemovedModsPanel';
 import type {
   AppError,
   ConflictDecision,
@@ -102,6 +104,7 @@ export function App() {
   const [profileManage, setProfileManage] = useState(false);
 
   const [selected, setSelected] = useState<ModDefinition>();
+  const [versionsFor, setVersionsFor] = useState<string>();
   const [requirementTrail, setRequirementTrail] = useState<ModDefinition[]>([]);
   const [progress, setProgress] = useState<Progress>();
   const [loadFailed, setLoadFailed] = useState(false);
@@ -122,12 +125,15 @@ export function App() {
     plan?: InstallPlan;
     acceptedUnverified?: UnverifiedPrerequisite[];
     developmentDependencies?: string[];
+    selectedVersions?: { id: string; key: string }[];
+    restoreId?: string;
   }>();
   const [conflictAction, setConflictAction] = useState<{
     id: string;
     action: ModAction;
     acceptedUnverified?: UnverifiedPrerequisite[];
     developmentDependencies?: string[];
+    selectedVersions?: { id: string; key: string }[];
   }>();
   const [decisions, setDecisions] = useState<ConflictDecision[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -270,6 +276,7 @@ export function App() {
     token?: string,
     acceptedUnverified?: UnverifiedPrerequisite[],
     developmentDependencies?: string[],
+    selectedVersions?: { id: string; key: string }[],
   ) {
     if (configuring) return;
     setError(undefined);
@@ -286,9 +293,19 @@ export function App() {
         adopt: 'Adopting mod',
       }[action],
       () =>
-        developmentDependencies?.length
-          ? api.action(id, action, choices, token, acceptedUnverified, developmentDependencies)
-          : api.action(id, action, choices, token, acceptedUnverified),
+        selectedVersions?.length
+          ? api.action(
+              id,
+              action,
+              choices,
+              token,
+              acceptedUnverified,
+              developmentDependencies,
+              selectedVersions,
+            )
+          : developmentDependencies?.length
+            ? api.action(id, action, choices, token, acceptedUnverified, developmentDependencies)
+            : api.action(id, action, choices, token, acceptedUnverified),
       {
         group: 'configuration',
         failureMessage:
@@ -323,13 +340,59 @@ export function App() {
           plan: reply.error.confirmation.plan,
           acceptedUnverified,
           developmentDependencies,
+          selectedVersions,
         });
-      } else setConflictAction({ id, action, acceptedUnverified, developmentDependencies });
+      } else
+        setConflictAction({
+          id,
+          action,
+          acceptedUnverified,
+          developmentDependencies,
+          selectedVersions,
+        });
       setDecisions(
         (reply.error.conflicts ?? []).map((c) => ({ root: c.root, path: c.path, action: 'keep' })),
       );
     }
     setProgress(undefined);
+  }
+  async function restoreMod(id: string, token?: string) {
+    setError(undefined);
+    setConfirmation(undefined);
+    const reply = await run(
+      'mod-action',
+      'Checking uninstall backup',
+      () => api.restoreMod!(id, token),
+      { group: 'configuration' },
+    );
+    if (reply?.ok) {
+      setSnapshot(reply.value);
+      setNotification('Mod restored from its local uninstall backup.');
+    } else if (reply && !reply.ok && reply.error.confirmation) {
+      setConfirmation({
+        id: reply.error.confirmation.plan.modId,
+        action: 'install',
+        title: reply.error.confirmation.plan.packages?.[0]?.title ?? 'uninstalled mod',
+        plan: reply.error.confirmation.plan,
+        token: reply.error.confirmation.token,
+        restoreId: id,
+      });
+    }
+    setProgress(undefined);
+  }
+  async function deleteRemovedBackup(id?: string) {
+    const reply = await run(
+      'backup-delete',
+      'Deleting uninstall backups',
+      () => api.deleteRemovedBackup!(id),
+      { group: 'configuration' },
+    );
+    if (reply?.ok) {
+      setSnapshot(reply.value.snapshot);
+      setNotification(
+        `${reply.value.deleted} uninstall backup${reply.value.deleted === 1 ? '' : 's'} deleted. ${reply.value.retained} retained.`,
+      );
+    }
   }
   async function openLink(url: string) {
     await run(`link:${url}`, 'Opening project page', () => api.openLink(url), {
@@ -661,6 +724,24 @@ export function App() {
           )}
           {snapshot && (page === 'installed' || page === 'updates') && (
             <InstalledPage
+              recovery={
+                page === 'installed' && api.restoreMod ? (
+                  <RemovedModsPanel
+                    warning={snapshot.removedModsError}
+                    items={snapshot.removedMods ?? []}
+                    storage={snapshot.removedModsStorage}
+                    working={configuring}
+                    pending={requests.isPending('backup-delete')}
+                    restore={(id) => void restoreMod(id)}
+                    deleteBackup={api.deleteRemovedBackup ? deleteRemovedBackup : undefined}
+                    refresh={() =>
+                      void callSnapshot('backup-refresh', 'Refreshing uninstall backups', () =>
+                        api.snapshot(),
+                      )
+                    }
+                  />
+                ) : undefined
+              }
               page={page}
               installed={installed}
               updates={updates}
@@ -742,6 +823,7 @@ export function App() {
           !operationReport &&
           !confirmation &&
           !selected &&
+          !versionsFor &&
           !about &&
           !profileManage &&
           !pendingPage &&
@@ -796,7 +878,28 @@ export function App() {
           </div>
         </Dialog>
       )}
-      {selected && snapshot && (
+      {versionsFor && api.releaseOptions && (
+        <VersionsDialog
+          key={versionsFor}
+          id={versionsFor}
+          close={() => setVersionsFor(undefined)}
+          install={(key) => {
+            const id = versionsFor;
+            setVersionsFor(undefined);
+            setError(undefined);
+            void perform(
+              id,
+              'install',
+              undefined,
+              undefined,
+              undefined,
+              key ? [] : [id],
+              key ? [{ id, key }] : undefined,
+            );
+          }}
+        />
+      )}
+      {selected && !versionsFor && !confirmation && !error && snapshot && (
         <Dialog title={selected.title} onClose={() => setSelected(undefined)} wide>
           {requirementTrail.length > 0 && (
             <div className="requirement-trail">
@@ -938,7 +1041,17 @@ export function App() {
             </button>
           </section>
           <div className="detail-install">
-            {selected.thunderstore &&
+            {api.releaseOptions && (
+              <button
+                className="button button-secondary"
+                disabled={configuring}
+                onClick={() => setVersionsFor(selected.id)}
+              >
+                Versions and builds
+              </button>
+            )}
+            {selected.downloadProvider === 'github' &&
+              selected.thunderstore &&
               selected.repositoryUrl &&
               selected.metadataId !== 'Lovely' && (
                 <p className="muted-text">Downloads use the project’s GitHub manual archive.</p>
@@ -1198,15 +1311,17 @@ export function App() {
           title={
             confirmation.action === 'uninstall'
               ? `Uninstall ${confirmation.title}?`
-              : confirmation.action === 'adopt'
-                ? `Adopt ${confirmation.title}?`
-                : `Install ${confirmation.title}?`
+              : confirmation.restoreId
+                ? `Restore ${confirmation.title}?`
+                : confirmation.action === 'adopt'
+                  ? `Adopt ${confirmation.title}?`
+                  : `Install ${confirmation.title}?`
           }
           onClose={closeConfirmation}
         >
           <p className="dialog-description">
             {confirmation.action === 'uninstall'
-              ? 'Modatro removes only recorded files and restores verified originals. If a file has changed, you’ll choose how to handle it.'
+              ? 'A verified local copy will be saved before removal. Temporary recovery copies appear under Installed → Recently uninstalled and are limited to 20 copies within 1 GiB; an oversized copy may be cleaned up immediately. If the backup fails, uninstall stops.'
               : confirmation.action === 'adopt'
                 ? 'Modatro will inspect and record the existing files before managing them. Future uninstall removes these recorded files only; changes will be protected.'
                 : confirmation.plan?.packages && confirmation.plan.packages.length > 1
@@ -1220,20 +1335,29 @@ export function App() {
           </p>
           {confirmation.plan && (
             <p className="muted-text">
-              Packages were downloaded for inspection. Continuing rechecks the downloaded files
-              before installing them. Nothing has been installed yet.
+              {confirmation.restoreId
+                ? 'Files were checked against the uninstall backup. Nothing has been restored yet.'
+                : 'Packages were downloaded for inspection. Continuing rechecks the downloaded files before installing them. Nothing has been installed yet.'}{' '}
+              Compatibility checks use declared requirements; they do not prove gameplay
+              compatibility.
             </p>
           )}
           {!!confirmation.plan?.packages?.length && (
             <ul>
               {confirmation.plan.packages.map((entry) => (
                 <li key={entry.id}>
-                  {entry.title} {entry.version} · {entry.update ? 'Update' : 'Install'}
+                  {entry.title} {entry.previousVersion ? `${entry.previousVersion} → ` : ''}
+                  {entry.version} · {entry.update ? 'Update' : 'Install'}
                   {entry.source && ` · ${entry.source}`}
                 </li>
               ))}
             </ul>
           )}
+          {confirmation.plan?.warnings?.map((warning) => (
+            <p className="install-reason" key={warning}>
+              {warning}
+            </p>
+          ))}
           {confirmation.plan && (
             <details key={confirmation.token ?? `${confirmation.id}:${confirmation.action}`}>
               <summary>
@@ -1261,23 +1385,28 @@ export function App() {
             <button
               className={`button ${confirmation.action === 'uninstall' ? 'button-danger' : 'button-primary'}`}
               onClick={() =>
-                void perform(
-                  confirmation.id,
-                  confirmation.action,
-                  undefined,
-                  confirmation.token,
-                  confirmation.acceptedUnverified,
-                  confirmation.developmentDependencies,
-                )
+                confirmation.restoreId
+                  ? void restoreMod(confirmation.restoreId, confirmation.token)
+                  : void perform(
+                      confirmation.id,
+                      confirmation.action,
+                      undefined,
+                      confirmation.token,
+                      confirmation.acceptedUnverified,
+                      confirmation.developmentDependencies,
+                      confirmation.selectedVersions,
+                    )
               }
             >
-              {confirmation.action === 'uninstall'
-                ? 'Uninstall'
-                : confirmation.action === 'adopt'
-                  ? 'Adopt existing files'
-                  : confirmation.plan?.packages && confirmation.plan.packages.length > 1
-                    ? 'Install mod and dependencies'
-                    : 'Back up & install'}
+              {confirmation.restoreId
+                ? 'Restore from backup'
+                : confirmation.action === 'uninstall'
+                  ? 'Uninstall'
+                  : confirmation.action === 'adopt'
+                    ? 'Adopt existing files'
+                    : confirmation.plan?.packages && confirmation.plan.packages.length > 1
+                      ? 'Install mod and dependencies'
+                      : 'Back up & install'}
             </button>
           </div>
         </Dialog>
@@ -1288,6 +1417,22 @@ export function App() {
             <TriangleAlert size={23} />
             <p>{error.message}</p>
           </div>
+          {error.compatibility?.map((conflict, index) => (
+            <div className="conflict-item" key={index}>
+              <strong>{conflict.title}</strong>
+              <p>
+                {conflict.kind === 'conflict' ? 'Declares a conflict with' : 'Requires'}{' '}
+                {conflict.requirement.displayName}{' '}
+                {conflict.requirement.versionConstraint ?? '(version not specified)'} · Proposed
+                version: {conflict.proposedVersion ?? 'Unknown'}
+              </p>
+              <p>
+                {conflict.requirement.state === 'unknown'
+                  ? 'Compatibility cannot be established from the available metadata.'
+                  : 'The proposed version does not meet this mod’s declared requirement.'}
+              </p>
+            </div>
+          ))}
           {error.conflicts?.map((conflict) => (
             <div className="conflict-item" key={`${conflict.root}:${conflict.path}`}>
               <strong>
@@ -1353,9 +1498,8 @@ export function App() {
             <div className="conflict-item">
               <strong>Optional development build</strong>
               <p>
-                The published release cannot satisfy this requirement. You can try{' '}
-                {error.developmentDependency.title}'s unreleased code from its upstream repository.
-                Development builds may be unstable.
+                You can try {error.developmentDependency.title}'s unreleased code from its upstream
+                repository. Development builds may be unstable.
               </p>
               <p>
                 Modatro will pin a specific commit, check its actual version and other installed
@@ -1387,6 +1531,7 @@ export function App() {
                           error.developmentDependency!.id,
                         ]),
                       ],
+                      conflictAction.selectedVersions,
                     )
                   }
                 >
@@ -1403,6 +1548,31 @@ export function App() {
             </p>
           )}
           <div className="dialog-footer">
+            {error.compatibility?.length ? (
+              <button
+                className="button button-secondary"
+                onClick={() => {
+                  setError(undefined);
+                  setSelected(undefined);
+                  setPage('installed');
+                }}
+              >
+                Review installed mods
+              </button>
+            ) : null}
+            {api.releaseOptions &&
+              conflictAction &&
+              ['install', 'update'].includes(conflictAction.action) && (
+                <button
+                  className="button button-secondary"
+                  onClick={() => {
+                    setVersionsFor(conflictAction.id);
+                    setError(undefined);
+                  }}
+                >
+                  Choose another version or build
+                </button>
+              )}
             <button className="button button-secondary" onClick={() => setError(undefined)}>
               Close
             </button>
@@ -1417,7 +1587,17 @@ export function App() {
             {error.retryable && conflictAction && (
               <button
                 className="button button-primary"
-                onClick={() => void perform(conflictAction.id, conflictAction.action)}
+                onClick={() =>
+                  void perform(
+                    conflictAction.id,
+                    conflictAction.action,
+                    undefined,
+                    undefined,
+                    conflictAction.acceptedUnverified,
+                    conflictAction.developmentDependencies,
+                    conflictAction.selectedVersions,
+                  )
+                }
               >
                 Check again
               </button>
@@ -1446,6 +1626,7 @@ export function App() {
                       ),
                     ],
                     conflictAction.developmentDependencies,
+                    conflictAction.selectedVersions,
                   )
                 }
               >

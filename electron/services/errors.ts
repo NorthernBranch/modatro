@@ -11,6 +11,7 @@ export class UserError extends Error {
       | 'confirmation'
       | 'unverifiedPrerequisites'
       | 'developmentDependency'
+      | 'compatibility'
     >,
     public readonly statusCode?: number,
   ) {

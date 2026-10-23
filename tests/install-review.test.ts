@@ -120,7 +120,17 @@ it('refuses a shared dependency update that would break an enabled installed mod
   const pending = await review(f);
   await f.installer.installMany(f.mods, pending.token);
   f.mods[0] = normalizeThunderstore(thunderstorePackage({ name: 'Library', version: '2.0.0' }))!;
-  await expect(f.installer.installMany([f.mods[0]!])).rejects.toThrow('Addon: Library');
+  await expect(f.installer.installMany([f.mods[0]!])).rejects.toMatchObject({
+    context: {
+      compatibility: [
+        expect.objectContaining({
+          title: 'Addon',
+          proposedVersion: '2.0.0',
+          requirement: expect.objectContaining({ versionConstraint: '<2.0.0' }),
+        }),
+      ],
+    },
+  });
   expect(f.storage.state.installations.find((m) => m.metadataId === 'Library')!.modVersion).toBe(
     '1.0.0',
   );

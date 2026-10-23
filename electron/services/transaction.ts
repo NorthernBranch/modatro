@@ -44,8 +44,60 @@ const JournalSchema = z.object({
   phase: z.enum(['prepared', 'committed', 'rolled-back']),
 });
 export type TransactionJournal = z.infer<typeof JournalSchema>;
+export const backupReferenceKey = (relative: string) => relative.normalize('NFKC').toLowerCase();
 export class BackupService {
   constructor(private storage: Storage) {}
+  async references(verifyActive = false) {
+    const references = new Set<string>();
+    const retain = (state: AppState) => {
+      for (const record of state.installations)
+        for (const file of record.files)
+          if (file.backupPath) references.add(backupReferenceKey(file.backupPath));
+    };
+    this.storage.assertSafe();
+    const current = StateSchema.parse(this.storage.state);
+    const persisted = await this.storage.read('data/state.json', StateSchema);
+    if (!persisted || JSON.stringify(persisted) !== JSON.stringify(current))
+      throw new UserError('Saved state changed before backup cleanup; backups were preserved.');
+    retain(current);
+    if (verifyActive) {
+      const originals = new Map<string, { path: string; hash: string }>();
+      for (const record of current.installations)
+        for (const file of record.files) {
+          if (!file.backupPath) continue;
+          const key = backupReferenceKey(file.backupPath);
+          if (
+            !file.originalHash ||
+            (originals.has(key) && originals.get(key)!.hash !== file.originalHash)
+          )
+            throw new UserError(
+              'Original backup references are inconsistent; cleanup was deferred.',
+            );
+          originals.set(key, { path: file.backupPath, hash: file.originalHash });
+        }
+      // Older copies may help manual recovery if an active original is damaged.
+      await fileBatches([...originals.values()], (original) =>
+        this.verified(original.path, original.hash),
+      );
+    }
+    for (const name of await fs.readdir(await safeDestination(this.storage.root, 'data'))) {
+      if (!/^state-v\d+(?:-[a-f0-9]{16})?\.backup\.json$/.test(name)) continue;
+      const state = await this.storage.read(`data/${name}`, StateSchema);
+      if (!state) throw new UserError('An upgrade snapshot changed during backup cleanup.');
+      retain(state);
+    }
+    for (const name of await fs.readdir(await safeDestination(this.storage.root, 'transactions'))) {
+      if (!name.endsWith('.json')) continue;
+      const journal = await this.storage.read(`transactions/${name}`, JournalSchema);
+      if (!journal || name !== `${journal.id}.json`)
+        throw new UserError('Recovery records could not be verified; backups were preserved.');
+      if (journal.phase !== 'prepared') continue;
+      retain(journal.previousState);
+      for (const change of journal.changes)
+        if (change.beforeBackup) references.add(backupReferenceKey(change.beforeBackup));
+    }
+    return references;
+  }
   async capture(
     transactionId: string,
     index: number,
@@ -400,42 +452,7 @@ export class TransactionEngine {
 
   private async pruneCompleted(completed: { relative: string; journal: TransactionJournal }[]) {
     if (this.storage.safetyError || completed.some((e) => e.journal.phase === 'prepared')) return;
-    const references = new Set<string>();
-    const key = (relative: string) => relative.normalize('NFKC').toLowerCase();
-    const retain = (state: AppState) => {
-      for (const record of state.installations)
-        for (const file of record.files) if (file.backupPath) references.add(key(file.backupPath));
-    };
-    const current = StateSchema.parse(this.storage.state);
-    const persisted = await this.storage.read('data/state.json', StateSchema);
-    if (!persisted || JSON.stringify(persisted) !== JSON.stringify(current))
-      throw new UserError('Saved state changed before backup cleanup; backups were preserved.');
-    retain(current);
-    const originals = new Map<string, { path: string; hash: string }>();
-    for (const record of current.installations)
-      for (const file of record.files) {
-        if (!file.backupPath) continue;
-        if (
-          !file.originalHash ||
-          (originals.has(key(file.backupPath)) &&
-            originals.get(key(file.backupPath))!.hash !== file.originalHash)
-        )
-          throw new UserError('Original backup references are inconsistent; cleanup was deferred.');
-        originals.set(key(file.backupPath), { path: file.backupPath, hash: file.originalHash });
-      }
-    // If an active original is missing/corrupt, older scratch copies may still
-    // help manual recovery. Preserve everything until that is resolved.
-    await fileBatches([...originals.values()], (original) =>
-      this.backup.verified(original.path, original.hash),
-    );
-    // Upgrade snapshots remain available for manual recovery too. Validate every
-    // recognized snapshot before deleting anything; uncertainty defers cleanup.
-    for (const name of await fs.readdir(await safeDestination(this.storage.root, 'data'))) {
-      if (!/^state-v\d+(?:-[a-f0-9]{16})?\.backup\.json$/.test(name)) continue;
-      const state = await this.storage.read(`data/${name}`, StateSchema);
-      if (!state) throw new UserError('An upgrade snapshot changed during backup cleanup.');
-      retain(state);
-    }
+    const references = await this.backup.references(true);
     // Terminal journals are no longer recovery inputs. Compact operation history
     // is retained separately. Retire journals before deleting their scratch backups.
     for (const entry of completed) {
@@ -457,7 +474,12 @@ export class TransactionEngine {
         const scratch =
           /^\d+\.original$/.test(file.name) ||
           (!!temporary && z.uuid().safeParse(temporary).success);
-        if (!file.isFile() || file.isSymbolicLink() || !scratch || references.has(key(owned)))
+        if (
+          !file.isFile() ||
+          file.isSymbolicLink() ||
+          !scratch ||
+          references.has(backupReferenceKey(owned))
+        )
           return;
         await fs.unlink(await safeDestination(this.storage.root, owned));
         removed++;

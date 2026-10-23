@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Plus, Minus, ShieldCheck, Info, TriangleAlert } from 'lucide-react';
+import { Plus, Minus, ShieldCheck, Info, TriangleAlert, LoaderCircle } from 'lucide-react';
 import { api } from '../api';
 import type { Snapshot } from '../shared/model';
 import type { ProfileOperation, ProfilePlan } from '../shared/features';
@@ -26,6 +26,7 @@ export function ProfileControls({
   installed: () => void;
 }) {
   const [plan, setPlan] = useState<ProfilePlan>();
+  const [previewing, setPreviewing] = useState<{ id: string; name: string; error?: string }>();
   const [transfer, setTransfer] = useState<{ exportId?: string }>();
   const [editing, setEditing] = useState<{
     operation: 'create' | 'rename' | 'duplicate' | 'delete';
@@ -39,6 +40,7 @@ export function ProfileControls({
   const active = profiles.items.find((p) => p.id === profiles.activeId)!;
   const busy = requests.isBusy('configuration');
   const switching = requests.isPending('profile-switch');
+  const checking = requests.isPending('profile-preview');
   async function operation(request: ProfileOperation) {
     const reply = await requests.run(
       'profile-operation',
@@ -52,16 +54,28 @@ export function ProfileControls({
     }
   }
   async function preview(id: string) {
+    if (requests.isBusy('configuration')) return;
+    const name = profiles!.items.find((profile) => profile.id === id)?.name ?? 'Selected profile';
+    setPlan(undefined);
+    setPreviewing({ id, name });
+    setOpen(false);
+    setEditing(undefined);
     const reply = await requests.run(
       'profile-preview',
       'Checking profile selection',
       () => api.previewProfile!(id),
-      { group: 'configuration' },
+      { group: 'configuration', reportError: false },
     );
     if (reply?.ok) {
-      setOpen(false);
+      setPreviewing(undefined);
       setPlan(reply.value);
-    }
+    } else
+      setPreviewing({
+        id,
+        name,
+        error:
+          reply && !reply.ok ? reply.error.message : 'The profile could not be checked. Try again.',
+      });
   }
   function edit(operation: 'create' | 'rename' | 'duplicate' | 'delete', id?: string) {
     setEditing({ operation, id });
@@ -314,6 +328,39 @@ export function ProfileControls({
             setOpen(true);
           }}
         />
+      )}
+      {previewing && (
+        <Dialog
+          title={`Review profile: ${previewing.name}`}
+          dismissible={!checking}
+          onClose={() => setPreviewing(undefined)}
+        >
+          {checking ? (
+            <div className="profile-switch-intro" role="status" aria-busy="true">
+              <LoaderCircle className="spin" size={20} aria-hidden="true" />
+              <p>Checking profile selection and installed files… No changes have been made.</p>
+            </div>
+          ) : (
+            <>
+              <p role="alert">{previewing.error}</p>
+              <div className="dialog-footer">
+                <button
+                  className="button button-secondary"
+                  onClick={() => setPreviewing(undefined)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="button button-primary"
+                  disabled={busy}
+                  onClick={() => void preview(previewing.id)}
+                >
+                  Try again
+                </button>
+              </div>
+            </>
+          )}
+        </Dialog>
       )}
       {plan && (
         <Dialog

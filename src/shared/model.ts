@@ -324,6 +324,7 @@ export const RecordSchema = z
     installedAt: z.iso.datetime(),
     files: z.array(InstalledFileSchema).min(1),
     dependencies: z.array(DependencySchema),
+    declaredConflicts: z.array(DependencySchema).optional(),
     source: HttpsUrl.optional(),
     provenance: InstallationSourceSchema.optional(),
     disabled: z.boolean().default(false),
@@ -373,6 +374,7 @@ export type ModState =
   | 'broken'
   | 'unmanaged';
 export interface LocalMod {
+  declaredConflicts?: DependencyRequirement[];
   disabled?: boolean;
   id: string;
   title: string;
@@ -408,6 +410,17 @@ export interface Catalogue {
   rejected: number;
 }
 export interface Snapshot {
+  removedModsError?: string;
+  removedMods?: {
+    id: string;
+    title: string;
+    version: string;
+    removedAt: string;
+    sizeBytes?: number;
+    protected?: boolean;
+    installed?: boolean;
+  }[];
+  removedModsStorage?: { sizeBytes: number; sizeIncomplete: boolean; count: number };
   profiles?: ProfileSummary;
   appUpdate?: {
     checking: boolean;
@@ -458,6 +471,7 @@ export interface FileConflict {
   canRestore: boolean;
 }
 export interface AppError {
+  compatibility?: import('./compatibility').CompatibilityConflict[];
   message: string;
   details?: string;
   conflicts?: FileConflict[];
@@ -488,6 +502,7 @@ export interface PlannedReplacement extends PlannedFile {
   previousHash: string;
 }
 export interface InstallPlan {
+  warnings?: string[];
   modId: string;
   version: string;
   create: PlannedFile[];
@@ -495,9 +510,21 @@ export interface InstallPlan {
   remove: PlannedFile[];
   prerequisites: DependencyStatus[];
   conflicts: FileConflict[];
-  packages?: { id: string; title: string; version: string; update: boolean; source?: string }[];
+  packages?: {
+    id: string;
+    title: string;
+    version: string;
+    previousVersion?: string;
+    update: boolean;
+    source?: string;
+  }[];
 }
 export interface ModatroApi {
+  releaseOptions?(id: string): Promise<Reply<ReleaseOptions>>;
+  restoreMod?(id: string, token?: string): Promise<Reply<Snapshot>>;
+  deleteRemovedBackup?(
+    id?: string,
+  ): Promise<Reply<{ snapshot: Snapshot; deleted: number; retained: number }>>;
   profileTransfer?(request: ProfileTransferRequest): Promise<Reply<ProfileTransferResult>>;
   creator?(request: CreatorRequest): Promise<Reply<CreatorResponse>>;
   profileOperation?(operation: ProfileOperation): Promise<Reply<Snapshot>>;
@@ -521,6 +548,7 @@ export interface ModatroApi {
     confirmationToken?: string,
     acceptedUnverified?: UnverifiedPrerequisite[],
     developmentDependencies?: string[],
+    selectedVersions?: { id: string; key: string }[],
   ): Promise<Reply<Snapshot>>;
   cancel(): Promise<Reply<void>>;
   previewPlan?(id: string): Promise<Reply<InstallPlan>>;
@@ -532,4 +560,17 @@ export interface ModatroApi {
   importDefinition(): Promise<Reply<Snapshot>>;
   onProgress(callback: (progress: Progress) => void): () => void;
   onSnapshot(callback: (snapshot: Snapshot) => void): () => void;
+}
+export interface ReleaseOptions {
+  id: string;
+  title: string;
+  versions: {
+    key: string;
+    version: string;
+    source: string;
+    compatibility: 'compatible' | 'conflict' | 'unknown';
+    reason: string;
+  }[];
+  development: { available: boolean; reason: string };
+  warning?: string;
 }

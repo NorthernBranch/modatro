@@ -152,6 +152,12 @@ them before the requested mod after approval. Cancelling leaves installed files
 unchanged; a failed dependency check blocks the whole plan. An installed loader with
 an unknown version still requires explicit verification rather than automatic replacement.
 
+Dependency changes are also checked against affected installed mods, including
+disabled and external mods with readable metadata. Conflicts show each mod's declared
+requirement and the proposed version; nothing is silently removed or disabled.
+Missing metadata means compatibility is unknown, and passing metadata checks does
+not establish gameplay compatibility.
+
 Runtime requirements use detected loader metadata, including supported Steamodded
 beta and date formats. Balatro's version comes from `version.jkr` in the game archive;
 invalid or ambiguous data remains unknown. Package requirements still need evidence
@@ -216,10 +222,18 @@ Supported Thunderstore packages use their published archives. For packages that 
 unsupported installers, Modatro can use a linked GitHub manual archive, preferring a
 unique `-raw.zip` or `-manual.zip` asset. Ambiguous archives remain blocked.
 
-If no published dependency meets the requirement, **Try development build** explicitly
-requests a commit-pinned upstream build. Modatro checks its actual runtime version
-and compatibility, then asks you to review the source and file changes. Unreleased
-code can be unstable; opting in does not override an incompatible requirement.
+Open a mod's **Versions and builds** to choose an active Thunderstore version or
+a supported stable GitHub release. The picker checks published requirements and
+suggests a version when those requirements fit; downloaded metadata is checked before
+installation. Missing, unpublished or removed historical builds cannot be recovered
+from the provider. GitHub history is limited to the most recent 100 releases.
+
+**Try development build** explicitly requests a commit-pinned upstream build.
+Modatro checks its actual runtime version and installed-mod requirements, then asks
+you to review the full source commit and file changes. Unreleased code can be unstable;
+opting in does not override an incompatible requirement. Reopen **Versions and builds**
+after cancelling, changing installed mods or a failed attempt. It explains unsupported
+development sources; a failed history lookup leaves supported development retries available.
 
 Registry discovery identity and restrictions remain intact, while installation
 provenance records the actual GitHub URL, release or commit and archive hash. GitHub
@@ -267,7 +281,19 @@ problems are reported separately. Uninstall also removes the mod from every prof
 
 Required originals remain under **Settings → Open backups** while referenced by
 installation or recovery records. Unused transaction backups are pruned automatically.
-Balatro saves need a separate backup.
+Before uninstalling, Modatro also saves the recorded mod files and installation
+metadata. If that backup fails, uninstall stops. Use **Installed → Recently uninstalled →
+Review restore** to check and restore a copy without downloading it again. Changed
+destinations and incompatible requirements block restoration; install missing dependencies
+first. Recovery copies are temporary: startup and uninstall remove the oldest eligible
+copies above 20 backups or 1 GiB. A copy larger than 1 GiB may be cleaned up immediately
+after uninstall. The panel shows sizes and provides **Delete backup** and **Clear all**
+with confirmation; deletion ends recovery from those copies. Required originals remain
+protected, including during Clear all. Warnings explain retained or unreadable records
+and any storage above the limits; **Refresh backups** rereads the list. If deletion fails,
+check permissions and retry. If removal was interrupted, retained files may be incomplete;
+keep them for investigation. This cannot recover mods removed before uninstall backups
+were introduced. Balatro saves need a separate backup.
 
 ## Creator source or builds need attention
 

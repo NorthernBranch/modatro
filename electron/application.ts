@@ -15,6 +15,7 @@ import {
   type Snapshot,
   type UnverifiedPrerequisite,
   type SettingsUpdate,
+  type ReleaseOptions,
 } from '../src/shared/model';
 import { ModatroCatalogueRepository } from './services/catalogue';
 import { GameDetectionService, LaunchService } from './services/detection';
@@ -52,6 +53,9 @@ import { profileSummary } from '../src/shared/profile-selection';
 import type { ProfileOperation } from '../src/shared/features';
 import { CreatorService } from './services/creator';
 import { ProfileTransferService } from './services/profile-transfer';
+import { developmentAvailability, publishedOptions } from './services/releases';
+import { affectedCompatibility } from '../src/shared/compatibility';
+import { projectedPrerequisites } from '../src/shared/dependency-graph';
 
 export class ModatroApplication {
   readonly storage: Storage;
@@ -79,6 +83,10 @@ export class ModatroApplication {
   private publishing?: Promise<void>;
   private republish = false;
   private operationReport?: OperationReport;
+  private releaseChoices = new Map<
+    string,
+    { checked: number; choices: Awaited<ReturnType<typeof publishedOptions>>['choices'] }
+  >();
   constructor(
     dataRoot: string,
     private appVersion: string,
@@ -117,11 +125,21 @@ export class ModatroApplication {
             (!!mod.thunderstore && entry.thunderstore?.packageId === mod.thunderstore.packageId),
         );
         if (current) {
-          const reason = automationReason(current, update);
+          const reason = automationReason(
+            {
+              ...current,
+              ...mod,
+              permissions: current.permissions,
+              approvalStatus: current.approvalStatus,
+              policyReason: current.policyReason,
+            },
+            update,
+          );
           if (reason) throw new UserError(reason);
         }
         await this.trust.assertAllowed(mod, update);
       },
+      async () => (await this.snapshot()).localMods,
     );
     this.profiles = new ProfileService(this.storage, this.installer, () => this.snapshot());
     this.profileTransfer = new ProfileTransferService(
@@ -163,6 +181,8 @@ export class ModatroApplication {
     await this.trust.initialize();
     if (!this.storage.safetyError) await this.transactions.recover();
     await this.storage.migrateProfiles();
+    if (!this.storage.safetyError)
+      await this.transactions.locked(() => this.installer.removed.prune());
     await this.repository.loadCache();
     try {
       this.unavailableSources =
@@ -240,6 +260,32 @@ export class ModatroApplication {
     return this.snapshot();
   }
   async snapshot(): Promise<Snapshot> {
+    let removedMods: Snapshot['removedMods'] = [],
+      removedModsError: string | undefined,
+      removedModsStorage: Snapshot['removedModsStorage'];
+    try {
+      const status = await this.installer.removed.inspect();
+      removedMods = status.items.map((item) => ({
+        id: item.id,
+        title: item.record.title,
+        version: item.record.modVersion,
+        removedAt: item.removedAt,
+        sizeBytes: item.sizeBytes,
+        protected: item.protected,
+        installed: this.storage.state.installations.some(
+          (record) => record.modId === item.record.modId,
+        ),
+      }));
+      removedModsStorage = {
+        sizeBytes: status.sizeBytes,
+        sizeIncomplete: status.sizeIncomplete,
+        count: status.count,
+      };
+      removedModsError = status.warnings.join(' ') || undefined;
+    } catch {
+      removedModsError =
+        'Uninstall backup records could not be verified. They have been preserved; open the backups folder in Settings to investigate.';
+    }
     const gamePath = this.storage.state.settings.gamePath;
     const validation = gamePath ? await this.detection.validate(gamePath) : undefined;
     const local = await this.local.scan(this.allMods());
@@ -267,6 +313,9 @@ export class ModatroApplication {
       safetyError: this.storage.safetyError,
       discoveryError: this.discoveryError,
       operationReport: this.operationReport,
+      removedMods,
+      removedModsError,
+      removedModsStorage,
       trust: { ...this.trust.state, fresh: this.trust.isFresh() },
     };
   }
@@ -413,6 +462,7 @@ export class ModatroApplication {
     staged: ModDefinition[] = [],
     stagedPrerequisites: Prerequisite[] = [],
     developmentDependencies: string[] = [],
+    selectedVersions: { id: string; key: string }[] = [],
   ) {
     // Downloaded metadata describes the planned files before they are committed.
     const installed = [...stagedPrerequisites, ...(await this.snapshot()).prerequisites];
@@ -424,6 +474,22 @@ export class ModatroApplication {
     const candidates = new Map(
       [...this.allMods(), ...roots, ...staged].map((mod) => [mod.id, mod]),
     );
+    for (const choice of selectedVersions) {
+      if (staged.some((mod) => mod.id === choice.id)) continue;
+      const current = candidates.get(choice.id);
+      if (!current) throw new UserError('The selected mod is no longer in the catalogue.');
+      let history = this.releaseChoices.get(choice.id);
+      if (!history || Date.now() - history.checked > 5 * 60 * 1000) {
+        history = { checked: Date.now(), choices: (await publishedOptions(current)).choices };
+        this.releaseChoices.set(choice.id, history);
+      }
+      const selected = history.choices.find((item) => item.key === choice.key)?.mod;
+      if (!selected)
+        throw new UserError(
+          'This published version is no longer available. Reopen Versions and builds to check again.',
+        );
+      candidates.set(choice.id, selected);
+    }
     const visited = new Set<string>();
     const visit = async (input: ModDefinition) => {
       if (visited.has(input.id)) return;
@@ -469,6 +535,7 @@ export class ModatroApplication {
               !staged.some((mod) => mod.id === candidate.id),
           )
           .map(packageIdentity),
+        stagedPrerequisites,
       );
     } catch (error) {
       if (error instanceof UserError) throw error;
@@ -498,6 +565,78 @@ export class ModatroApplication {
       );
     }
   }
+  async releaseOptions(id: string): Promise<ReleaseOptions> {
+    const mod = this.allMods().find((item) => item.id === id);
+    if (!mod) throw new UserError('This mod has no catalogue source for version selection.');
+    const { choices, warning } = await publishedOptions(mod);
+    this.releaseChoices.set(id, { checked: Date.now(), choices });
+    const snapshot = await this.snapshot();
+    return {
+      id,
+      title: mod.title,
+      development: developmentAvailability(mod),
+      warning:
+        warning ??
+        'Showing active Thunderstore packages and up to 100 published GitHub releases where available. Unsupported archives are omitted. Runtime metadata is checked before installation.',
+      versions: choices.map((choice) => {
+        let compatibility: 'compatible' | 'conflict' | 'unknown' =
+          !snapshot.catalogue.stale &&
+          choice.mod.thunderstore &&
+          choice.mod.downloadProvider !== 'github'
+            ? 'compatible'
+            : 'unknown';
+        let reason =
+          compatibility === 'compatible'
+            ? 'Published package requirements fit the proposed plan. Runtime requirements still need inspection.'
+            : 'Compatibility cannot be established until the downloaded metadata is checked.';
+        try {
+          const graph = resolveDependencyGraph(
+            [choice.mod],
+            [...this.allMods().filter((item) => item.id !== id), choice.mod],
+            snapshot.prerequisites,
+          );
+          const conflicts = affectedCompatibility(
+            graph,
+            snapshot.localMods,
+            projectedPrerequisites(graph, snapshot.prerequisites),
+          );
+          if (conflicts.length) {
+            compatibility = conflicts.every((conflict) => conflict.requirement.state === 'unknown')
+              ? 'unknown'
+              : 'conflict';
+            reason = conflicts
+              .map(
+                (conflict) =>
+                  `${conflict.title} requires ${conflict.requirement.displayName} ${conflict.requirement.versionConstraint ?? '(version not specified)'}; proposed ${conflict.proposedVersion ?? 'unknown'}.`,
+              )
+              .join(' ');
+          }
+        } catch (error) {
+          compatibility = 'unknown';
+          reason = error instanceof Error ? error.message : 'Requirements could not be checked.';
+        }
+        return {
+          key: choice.key,
+          version: choice.mod.version,
+          source: choice.mod.downloadProvider === 'github' ? 'GitHub' : 'Thunderstore',
+          compatibility,
+          reason,
+        };
+      }),
+    };
+  }
+  async restoreMod(id: string, token?: string) {
+    this.operationReport = undefined;
+    await this.installer.restore(id, token);
+    return this.snapshot();
+  }
+  async deleteRemovedBackup(id?: string) {
+    if (id !== undefined) z.uuid().parse(id);
+    const result = await this.transactions.locked(() =>
+      this.installer.removed.cleanup(id ?? 'all'),
+    );
+    return { ...result, snapshot: await this.snapshot() };
+  }
   async action(
     id: string,
     action: ModAction,
@@ -505,8 +644,18 @@ export class ModatroApplication {
     confirmationToken?: string,
     acceptedUnverified: UnverifiedPrerequisite[] = [],
     developmentDependencies: string[] = [],
+    selectedVersions: { id: string; key: string }[] = [],
   ) {
     this.operationReport = undefined;
+    if (developmentDependencies.length || selectedVersions.length) {
+      for (const selected of [
+        id,
+        ...developmentDependencies,
+        ...selectedVersions.map((choice) => choice.id),
+      ])
+        delete this.unavailableSources[selected];
+      await this.storage.write('data/unavailable-sources.json', this.unavailableSources);
+    }
     const mods = this.allMods();
     if (action === 'uninstall')
       this.operationReport = await this.installer.uninstall(id, decisions);
@@ -557,6 +706,7 @@ export class ModatroApplication {
             [],
             [],
             developmentDependencies,
+            selectedVersions,
           );
           await this.logger.log('dependencies.resolved', { ids: graph.map((entry) => entry.id) });
           await this.installer.installMany(
@@ -571,7 +721,9 @@ export class ModatroApplication {
                 staged,
                 prerequisites,
                 developmentDependencies,
+                selectedVersions,
               ),
+            selectedVersions.length > 0,
           );
         } else {
           const archive = mod.creator
@@ -595,6 +747,30 @@ export class ModatroApplication {
             'The original download source is no longer available. Your installed copy has not been changed. Refresh to check again.';
           await this.storage.write('data/unavailable-sources.json', this.unavailableSources);
           await this.publish();
+        }
+        if (
+          error instanceof UserError &&
+          !error.context?.confirmation &&
+          developmentDependencies.length
+        ) {
+          const candidate = this.allMods().find(
+            (entry) => entry.id === developmentDependencies.at(-1),
+          );
+          if (candidate && developmentAvailability(candidate).available)
+            throw new UserError(
+              error.message,
+              error.conflicts,
+              error.details,
+              {
+                ...error.context,
+                developmentDependency: {
+                  id: candidate.id,
+                  title: candidate.title,
+                  repositoryUrl: candidate.repositoryUrl!,
+                },
+              },
+              error.statusCode,
+            );
         }
         throw error;
       }

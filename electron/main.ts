@@ -264,6 +264,15 @@ void app
       return application.setPath('game', p);
     });
     handle('saveSettings', SettingsUpdateSchema, (settings) => application.saveSettings(settings));
+    handle('releaseOptions', ModId, (id) => application.releaseOptions(id));
+    handle('deleteRemovedBackup', z.object({ id: z.uuid().optional() }).strict(), (request) =>
+      application.deleteRemovedBackup(request.id),
+    );
+    handle(
+      'restoreMod',
+      z.object({ id: z.uuid(), token: z.uuid().optional() }).strict(),
+      (request) => application.restoreMod(request.id, request.token),
+    );
     handle(
       'action',
       z
@@ -272,6 +281,10 @@ void app
           action: z.enum(['install', 'update', 'uninstall', 'disable', 'enable', 'adopt']),
           confirmationToken: z.uuid().optional(),
           developmentDependencies: z.array(z.string().min(1).max(200)).max(8).optional(),
+          selectedVersions: z
+            .array(z.object({ id: ModId, key: z.string().min(1).max(220) }).strict())
+            .max(8)
+            .optional(),
           acceptedUnverified: z
             .array(
               z
@@ -305,6 +318,7 @@ void app
           request.confirmationToken,
           request.acceptedUnverified,
           request.developmentDependencies,
+          request.selectedVersions,
         ),
     );
     handle('cancel', z.undefined(), async () => application.installer.cancel());
