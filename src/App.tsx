@@ -42,6 +42,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { SaveBackupNotice } from './components/CreatorSettings';
 import { VersionsDialog } from './components/VersionsDialog';
 import { RemovedModsPanel } from './components/RemovedModsPanel';
+import { NavigationLabel } from './components/NavigationLabel';
 import type {
   AppError,
   ConflictDecision,
@@ -545,7 +546,7 @@ export function App() {
                 }}
               >
                 <Icon size={19} />
-                <span>{label}</span>
+                <NavigationLabel theme={snapshot?.settings.theme}>{label}</NavigationLabel>
                 {id === 'updates' && updates.length > 0 ? (
                   <span className="nav-count">{updates.length}</span>
                 ) : id === 'installed' && installed.length > 0 ? (

@@ -6,7 +6,7 @@ import { ModIndexSettings } from '../components/ModIndexSettings';
 import { CreatorSettings } from '../components/CreatorSettings';
 import type { Requests } from '../hooks/useRequests';
 import { PageHeading, PaletteIcon, SettingsRow } from '../components/PageElements';
-import type { Reply, Snapshot } from '../shared/model';
+import type { Reply, Settings, Snapshot } from '../shared/model';
 
 interface Props {
   snapshot?: Snapshot;
@@ -206,7 +206,10 @@ export function SettingsPage({
               <PaletteIcon />
               Appearance
             </h2>
-            <SettingsRow title="Theme" description="Choose the look that feels right for you.">
+            <SettingsRow
+              title="Theme"
+              description="Choose a familiar look or a Balatro-inspired card table."
+            >
               <select
                 aria-label="Theme"
                 value={snapshot.settings.theme}
@@ -215,7 +218,7 @@ export function SettingsPage({
                 onChange={(e) =>
                   void callSnapshot('settings', 'Saving theme', () =>
                     api.saveSettings({
-                      theme: e.target.value as 'dark' | 'light' | 'system',
+                      theme: e.target.value as Settings['theme'],
                       setupComplete: snapshot.settings.setupComplete,
                     }),
                   )
@@ -223,6 +226,7 @@ export function SettingsPage({
               >
                 <option value="dark">Dark</option>
                 <option value="light">Light</option>
+                <option value="balatro">Balatro</option>
                 <option value="system">Match system</option>
               </select>
               {requests.isPending('settings') && <span role="status">Saving theme…</span>}

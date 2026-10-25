@@ -70,9 +70,10 @@ and macOS may block opening them. Check the release notes and
 - **Mod Creator (experimental):** build Jokers, Decks and Vouchers or write Custom
   Lua, choose artwork, and export local mods. Enable it in Settings after
   acknowledging the risks.
-- **Application settings:** choose a dark, light or system theme and check for app
-  updates. New releases appear as a quiet notice; downloading and installing them
-  remains your choice.
+- **Application settings:** choose Dark, Light, Match system or Balatro under
+  **Settings → Appearance → Theme**. The optional Balatro theme adds pixel typography,
+  raised controls and card-table colours, with a bundled font that works offline.
+  App updates appear as a quiet notice; downloading and installing them remains your choice.
 
 ## Get started
 

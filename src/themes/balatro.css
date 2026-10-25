@@ -1,0 +1,293 @@
+/* Locally bundled OFL font and original CSS artwork; no game assets. */
+@font-face {
+  font-family: 'Modatro Pixel';
+  src: url('/fonts/pixelify-sans/PixelifySans.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+:root[data-theme='balatro'] {
+  color-scheme: dark;
+  --bg: #174b43;
+  --sidebar: #26383d;
+  --panel: #35484c;
+  --panel-hover: #486166;
+  --border: #8e9d96;
+  --text: #fff6df;
+  --muted: #d0dbd2;
+  --faint: #b9ccc1;
+  --accent: #ffd070;
+  --accent-text: #302c25;
+  --red: #ffb4a8;
+  --amber: #ffda8a;
+  --table-edge: #14272e;
+  --display-font: 'Modatro Pixel', ui-monospace, monospace;
+  background: var(--bg);
+}
+
+:root[data-theme='balatro'] .app-shell {
+  background:
+    repeating-linear-gradient(0deg, #06171c0d 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at 100% 5%, #a34b4655, transparent 55%),
+    radial-gradient(ellipse at 0% 45%, #315f8d80, transparent 60%),
+    radial-gradient(ellipse at 85% 90%, #55836455, transparent 60%), var(--bg);
+  background-attachment: fixed;
+}
+
+:root[data-theme='balatro'] .sidebar {
+  border-right: 4px solid var(--table-edge);
+  box-shadow: inset -3px 0 #69817b;
+  background: linear-gradient(180deg, #3b5056, var(--sidebar) 65%);
+}
+
+:root[data-theme='balatro'] .topbar {
+  background: #233b3edb;
+  border-bottom: 3px solid var(--table-edge);
+  box-shadow: 0 2px #9aa99755;
+}
+
+:root[data-theme='balatro'] :is(h1, h2, h3, .brand) {
+  font-family: var(--display-font);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-shadow: 0 3px 0 var(--table-edge);
+}
+
+:root[data-theme='balatro'] .brand {
+  font-size: 28px;
+  letter-spacing: -0.5px;
+  white-space: nowrap;
+}
+
+:root[data-theme='balatro'] .brand-mark {
+  flex-shrink: 0;
+  color: #fff6df;
+  background: #bd4945;
+  border-radius: 4px;
+  box-shadow:
+    0 3px 0 #742e32,
+    inset 0 2px #f08973;
+}
+
+:root[data-theme='balatro'] .nav-item {
+  font-family: var(--display-font);
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 6px;
+  text-shadow: 0 2px var(--table-edge);
+}
+
+:root[data-theme='balatro'] .nav-item.active {
+  color: #fff6df;
+  background: #b64343;
+  box-shadow:
+    0 4px 0 #602d33,
+    inset 0 2px #fa9680,
+    inset 0 -2px #8c343a;
+}
+
+:root[data-theme='balatro'] .hero {
+  background:
+    repeating-radial-gradient(
+      ellipse at 90% 125%,
+      transparent 0 34px,
+      #e5da9b0d 35px 38px,
+      transparent 39px 72px
+    ),
+    linear-gradient(120deg, #1e514b, #37755f);
+  border: 3px solid #a1af95;
+  border-radius: 7px;
+  box-shadow:
+    0 6px 0 var(--table-edge),
+    inset 0 0 0 3px #163d35,
+    inset 0 0 0 5px #6b94784d;
+}
+
+:root[data-theme='balatro'] .hero h1 {
+  color: #fff6df;
+  font-size: clamp(40px, 4.4vw, 60px);
+  line-height: 1;
+  text-shadow: 0 4px 0 #173138;
+}
+
+:root[data-theme='balatro'] .hero :is(.eyebrow, h1 > span) {
+  color: var(--accent);
+}
+
+:root[data-theme='balatro'] .hero p {
+  color: #e1ead9;
+  font-size: 12px;
+}
+
+:root[data-theme='balatro'] .eyebrow {
+  font-family: var(--display-font);
+  font-size: 12px;
+  letter-spacing: 1.3px;
+}
+
+:root[data-theme='balatro'] .section-heading h2 {
+  font-size: 28px;
+}
+
+:root[data-theme='balatro'] .settings-section > h2 {
+  font-size: 22px;
+}
+
+:root[data-theme='balatro'] .mod-title-row h3 {
+  font-size: 19px;
+}
+
+:root[data-theme='balatro'] :is(.mod-description, .mod-author) {
+  font-size: 11px;
+}
+
+:root[data-theme='balatro']
+  :is(
+    .mod-card,
+    .prerequisite-card,
+    .settings-section,
+    .info-panel,
+    .creator-section,
+    .profile-switch-card
+  ) {
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow:
+    0 5px 0 var(--table-edge),
+    inset 0 2px #dce6cd38,
+    inset 0 -2px #182c33;
+}
+
+:root[data-theme='balatro'] .mod-card:hover {
+  border-color: var(--accent);
+  box-shadow:
+    0 5px 0 var(--table-edge),
+    inset 0 2px #dce6cd55,
+    inset 0 -2px #182c33;
+}
+
+:root[data-theme='balatro'] .mod-art {
+  border-radius: 5px;
+  border: 2px solid #e9ddbb;
+  box-shadow: 0 3px 0 #14272e;
+}
+
+:root[data-theme='balatro'] .card-footer {
+  border-top: 2px solid #1c3239;
+  background: #2c3e43;
+  box-shadow: inset 0 1px #748b7c55;
+}
+
+:root[data-theme='balatro'] .card-footer .text-button {
+  font-family: var(--display-font);
+  font-size: 13px;
+}
+
+:root[data-theme='balatro'] .button {
+  font-family: var(--display-font);
+  font-size: 14px;
+  border-radius: 6px;
+  font-weight: 600;
+  text-shadow: 0 2px #122d3780;
+}
+
+:root[data-theme='balatro'] :is(.button-primary, .hero-button, .launch-button, .button-install) {
+  color: #fff6df;
+  background: #226c9e;
+  border-color: #7cbad0;
+  box-shadow:
+    0 4px 0 #163e60,
+    inset 0 2px #a5dcf34d,
+    inset 0 -2px #195382;
+}
+
+:root[data-theme='balatro'] :is(.button-secondary, .filter-button) {
+  color: var(--text);
+  background: #415b5f;
+  border-color: #849b94;
+  box-shadow:
+    0 4px 0 var(--table-edge),
+    inset 0 2px #d1e3d64d,
+    inset 0 -2px #2c4149;
+}
+
+:root[data-theme='balatro'] :is(.button-secondary, .filter-button):hover:not(:disabled) {
+  background: #506c6e;
+}
+
+:root[data-theme='balatro'] .button-danger {
+  color: #fff6df;
+  background: #a43c3c;
+  border-color: #ed917a;
+  box-shadow:
+    0 4px 0 #642d31,
+    inset 0 2px #f2a58e66,
+    inset 0 -2px #7a3138;
+}
+
+:root[data-theme='balatro'] .button:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: inset 0 1px #ffffff20;
+}
+
+:root[data-theme='balatro'] .category-tabs button {
+  font-family: var(--display-font);
+  font-size: 13px;
+  background: #273f41;
+  border-radius: 5px;
+  box-shadow: 0 2px var(--table-edge);
+}
+
+:root[data-theme='balatro'] .category-tabs button.selected {
+  color: #302c25;
+  background: var(--accent);
+  border-color: #ffe4a4;
+  box-shadow: 0 2px 0 #8c652e;
+}
+
+:root[data-theme='balatro'] :is(input, select, textarea, .search-field) {
+  color: var(--text);
+  background-color: #203b3d;
+  border-color: var(--border);
+  accent-color: var(--accent);
+}
+
+:root[data-theme='balatro'] :is(input, textarea)::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+:root[data-theme='balatro'] :is(.game-panel, .view-switch, .count-pill) {
+  background: #263c3f;
+  border-color: var(--border);
+}
+
+:root[data-theme='balatro'] .dialog {
+  background: #2c4245;
+  border: 3px solid #b0b9a3;
+  border-radius: 8px;
+  box-shadow:
+    0 7px 0 var(--table-edge),
+    0 20px 80px #0008,
+    inset 0 0 0 3px #455b59,
+    inset 0 0 0 5px #99aa8f40;
+}
+
+:root[data-theme='balatro'] .dialog-heading h2 {
+  font-size: 28px;
+}
+
+:root[data-theme='balatro'] .dialog::backdrop {
+  background: #102a29db;
+}
+
+@media (max-width: 650px) {
+  :root[data-theme='balatro'] .hero h1 {
+    font-size: 40px;
+  }
+  :root[data-theme='balatro'] .button {
+    font-size: 13px;
+  }
+}

@@ -260,7 +260,7 @@ export const SettingsSchema = z.object({
   modIndexUrl: ModIndexUrl.optional(),
   gamePath: z.string().optional(),
   modsPath: z.string().optional(),
-  theme: z.enum(['dark', 'light', 'system']).default('dark'),
+  theme: z.enum(['dark', 'light', 'system', 'balatro']).default('dark'),
   setupComplete: z.boolean().default(false),
 });
 export type Settings = z.infer<typeof SettingsSchema>;

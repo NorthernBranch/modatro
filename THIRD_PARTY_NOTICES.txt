@@ -1,4 +1,18 @@
-Mod Creator dependency notices
+Third-party notices
+
+Pixelify Sans
+Copyright 2021 The Pixelify Sans Project Authors
+https://github.com/eifetx/Pixelify-Sans
+Revision: 39df74aba80df8157546034b878e8be1eb565ced
+
+The optional Balatro theme uses the unmodified Pixelify Sans variable font.
+Licensed under the SIL Open Font License 1.1. The complete copyright notice and
+license are bundled with the font at dist/fonts/pixelify-sans/OFL.txt in the app
+(public/fonts/pixelify-sans/OFL.txt in the source tree).
+
+------------------------------------------------------------
+
+Mod Creator dependencies
 
 luaparse 0.3.1
 https://github.com/fstirlitz/luaparse.git
