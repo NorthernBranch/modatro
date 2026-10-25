@@ -309,6 +309,14 @@ test('setup and theme saves preserve selected folders through validated desktop 
       dismissedAnnouncements: ['mod-creator-introduction'],
     });
     expect(saved.schemaVersion).toBe(3);
+    await page.getByLabel('Theme', { exact: true }).selectOption('balatro');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'balatro');
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'balatro');
+    await page.evaluate(() => document.fonts.ready);
+    expect(await page.evaluate(() => document.fonts.check('700 20px "Modatro Pixel"'))).toBe(true);
+    const themed = JSON.parse(await fs.readFile(path.join(data, 'data', 'state.json'), 'utf8'));
+    expect(themed.settings).toEqual({ ...saved.settings, theme: 'balatro' });
     const originalId = saved.profiles.activeId;
     await page.getByRole('button', { name: 'Manage profiles', exact: true }).click();
     await page.getByRole('button', { name: 'Create profile from current selection' }).click();

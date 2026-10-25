@@ -1,4 +1,5 @@
 @import url('/fonts.css');
+@import './themes/balatro.css';
 
 .save-notice {
   display: flex;
@@ -623,12 +624,24 @@ svg {
   color: var(--text);
   background: var(--panel);
 }
+.nav-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+.nav-label > span {
+  display: inline-block;
+}
 .nav-item.active {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 9%, transparent);
 }
 .nav-item.active::after {
   content: '';
+  flex-shrink: 0;
   height: 4px;
   width: 4px;
   background: var(--accent);

@@ -1,1 +1,2 @@
-/* System fonts keep the interface offline and avoid third-party font requests. */
+/* Default themes use system fonts. The optional Balatro theme bundles its pixel
+   display font locally, so every theme works without external font requests. */

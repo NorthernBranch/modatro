@@ -27,10 +27,112 @@ test('discover supports search, categories, details, navigation and themes', asy
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByLabel('Theme', { exact: true }).selectOption('light');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.getByLabel('Theme', { exact: true }).selectOption('balatro');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'balatro');
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'balatro');
+  await page.getByLabel('Theme', { exact: true }).selectOption('system');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.getByLabel('Theme', { exact: true }).selectOption('dark');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   expect(errors).toEqual([]);
 });
+
+test('Balatro theme stays readable and contained across pages, dialogs and narrow layouts', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByLabel('Theme', { exact: true }).selectOption('balatro');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'balatro');
+  await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark');
+  await page.evaluate(() => document.fonts.ready);
+  expect(await page.evaluate(() => document.fonts.check('700 20px "Modatro Pixel"'))).toBe(true);
+  await page.getByRole('button', { name: 'Discover', exact: true }).click();
+  await page.screenshot({ path: 'test-results/balatro-discover.png', fullPage: true });
+  const trigger = page.getByRole('button', { name: 'Details for Steamodded' });
+  await trigger.click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.screenshot({ path: 'test-results/balatro-dialog.png' });
+  await page.keyboard.press('Escape');
+  await expect(trigger).toBeFocused();
+  for (const width of [1320, 650, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const name of ['Discover', 'Prerequisites', 'Settings']) {
+      await page.getByRole('button', { name, exact: true }).click();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+    }
+  }
+  await page.screenshot({ path: 'test-results/balatro-settings-mobile.png', fullPage: true });
+  await page.getByLabel('Theme', { exact: true }).selectOption('light');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.locator('html')).toHaveCSS('color-scheme', 'light');
+});
+test('long navigation labels shrink to fit, including the active marker and loaded pixel font', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByLabel('Theme', { exact: true }).selectOption('balatro');
+  await page.evaluate(() => document.fonts.ready);
+  const target = page.getByRole('button', { name: 'Troubleshooting', exact: true });
+  await target.click();
+  await expect(target).toHaveAttribute('aria-current', 'page');
+  await expect
+    .poll(() =>
+      target.locator('.nav-label').evaluate((label) => {
+        const text = label.firstElementChild!;
+        return text.getBoundingClientRect().width <= label.clientWidth;
+      }),
+    )
+    .toBe(true);
+  const size = await target.locator('.nav-label').evaluate((label) => ({
+    normal: parseFloat(getComputedStyle(label).fontSize),
+    fitted: parseFloat(getComputedStyle(label.firstElementChild!).fontSize),
+  }));
+  expect(size.fitted).toBeLessThan(size.normal);
+  expect(size.fitted).toBeGreaterThanOrEqual(10);
+  const short = page.getByRole('button', { name: 'Discover', exact: true }).locator('.nav-label');
+  expect(
+    await short.evaluate(
+      (label) =>
+        getComputedStyle(label).fontSize === getComputedStyle(label.firstElementChild!).fontSize,
+    ),
+  ).toBe(true);
+  await page.setViewportSize({ width: 650, height: 900 });
+  await expect(target.locator('.nav-label')).toBeHidden();
+  await page.setViewportSize({ width: 1320, height: 900 });
+  await expect(target.locator('.nav-label')).toBeVisible();
+  await expect
+    .poll(() =>
+      target
+        .locator('.nav-label')
+        .evaluate(
+          (label) => label.firstElementChild!.getBoundingClientRect().width <= label.clientWidth,
+        ),
+    )
+    .toBe(true);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByLabel('Theme', { exact: true }).selectOption('dark');
+  await target.click();
+  await expect
+    .poll(() =>
+      target
+        .locator('.nav-label')
+        .evaluate(
+          (label) => label.firstElementChild!.getBoundingClientRect().width <= label.clientWidth,
+        ),
+    )
+    .toBe(true);
+  expect(errors).toEqual([]);
+});
+
 test('keyboard shortcuts and dialogs preserve focus', async ({ page }) => {
   await page.goto('/');
   await page.keyboard.press('ControlOrMeta+k');
