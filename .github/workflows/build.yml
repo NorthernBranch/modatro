@@ -128,6 +128,14 @@ jobs:
         run: ${{ matrix.headless }} pnpm exec playwright test tests/desktop.spec.ts
         env:
           MODATRO_PACKAGED_EXECUTABLE: ${{ github.workspace }}/${{ matrix.executable }}
+      - name: Preserve failed packaged desktop diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: failed-desktop-${{ matrix.artifact }}
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
       - uses: actions/upload-artifact@v7
         with:
           name: Modatro-${{ matrix.artifact }}

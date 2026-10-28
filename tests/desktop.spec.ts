@@ -1,7 +1,18 @@
-import { _electron as electron, expect, test } from '@playwright/test';
+import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test';
 import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+
+// Cold packaged launches and real filesystem/process checks are slower than
+// browser fixtures, particularly on shared Windows and macOS runners.
+test.setTimeout(60000);
+
+async function closeApplication(application: ElectronApplication) {
+  // Exit the isolated test process without awaiting a debugger evaluation whose
+  // reply can be lost when app.exit() destroys that same debugger connection.
+  application.process().kill();
+  await application.close();
+}
 
 for (const theme of ['light', 'balatro', 'balatro-dark', 'system'] as const) {
   test(`desktop supplies saved ${theme} to its initial document and native background`, async () => {
@@ -38,12 +49,14 @@ for (const theme of ['light', 'balatro', 'balatro-dark', 'system'] as const) {
     });
     try {
       const page = await application.firstWindow();
+      // The first BrowserWindow can be reported before its document/preload loads.
+      await page.waitForURL('modatro://app/index.html');
       const native = await application.evaluate(({ BrowserWindow, nativeTheme }) => ({
         dark: nativeTheme.shouldUseDarkColors,
         background: BrowserWindow.getAllWindows()[0]!.getBackgroundColor().toLowerCase(),
       }));
       const expected = theme === 'system' ? (native.dark ? 'dark' : 'light') : theme;
-      expect(await page.evaluate(() => window.modatro!.initialTheme)).toBe(theme);
+      await expect.poll(() => page.evaluate(() => window.modatro?.initialTheme)).toBe(theme);
       await expect(page.locator('html')).toHaveAttribute('data-theme', expected);
       expect(
         native.background.endsWith(
@@ -60,8 +73,7 @@ for (const theme of ['light', 'balatro', 'balatro-dark', 'system'] as const) {
         )
         .toBe(true);
     } finally {
-      await application.evaluate(({ app }) => app.exit());
-      await application.close();
+      await closeApplication(application);
       await fs.rm(data, { recursive: true, force: true });
     }
   });
@@ -266,8 +278,7 @@ test('desktop has an isolated renderer, working preload and validated IPC', asyn
     await expect(page.getByRole('button', { name: 'Create mods', exact: true })).toHaveCount(0);
     expect(await fs.readdir(path.join(data, 'creator', 'projects'))).toEqual(projectFiles);
   } finally {
-    await application.evaluate(({ app }) => app.exit());
-    await application.close();
+    await closeApplication(application);
     await fs.rm(data, { recursive: true, force: true });
   }
 });
@@ -374,6 +385,16 @@ test('setup and theme saves preserve selected folders through validated desktop 
     });
     expect(saved.schemaVersion).toBe(3);
     await page.getByLabel('Theme', { exact: true }).selectOption('balatro');
+    // Settings saves include filesystem validation and a library scan. Wait for
+    // the durable save before checking rendering or reloading on slower runners.
+    await expect
+      .poll(
+        async () =>
+          JSON.parse(await fs.readFile(path.join(data, 'data', 'state.json'), 'utf8')).settings
+            .theme,
+        { timeout: 10000, message: 'The Balatro theme preference must be saved successfully' },
+      )
+      .toBe('balatro');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'balatro');
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'balatro');
@@ -551,7 +572,7 @@ test('setup and theme saves preserve selected folders through validated desktop 
     expect(savedImport.profiles.items.some((p: { id: string }) => p.id === active.id)).toBe(true);
     expect(savedImport.settings.dismissedAnnouncements).toContain('mod-creator-introduction');
   } finally {
-    await application.close();
+    await closeApplication(application);
     await fs.rm(root, { recursive: true, force: true });
   }
 });
