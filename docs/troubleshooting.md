@@ -27,6 +27,8 @@ while verified missing or changed managed files are reported as problems.
 **Verified problems**, **Warnings and unknowns**, and **Possible causes from log
 evidence** are separate. Each finding explains its observation, relevance and next
 action. A mod referenced in a traceback is not proof that it caused the crash.
+Modatro log findings use each event's timestamp and the current app session. Errors
+from earlier sessions remain in selected excerpts, without appearing as current failures.
 Actions link to normal management pages; checks do not install, disable or delete mods.
 
 Log content is excluded initially. Select up to five logs and choose **Read selected

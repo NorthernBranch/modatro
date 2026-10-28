@@ -44,9 +44,15 @@ export async function profileFixture(
     };
   };
   const profiles = new ProfileService(f.storage, f.installer, snapshot);
-  async function install(id: string, requirements: DependencyRequirement[] = []) {
+  async function install(
+    id: string,
+    requirements: DependencyRequirement[] = [],
+    runtimeVersion?: string,
+  ) {
     const stage = path.join(f.root, `stage-${id}`);
     await put(path.join(stage, 'main.lua'), `-- fixture ${id}\nreturn {}`);
+    if (runtimeVersion)
+      await put(path.join(stage, 'mod.json'), JSON.stringify({ id, version: runtimeVersion }));
     await f.installer.commitPrepared(
       await f.installer.plan(mod({ id, metadataId: id, title: id, prerequisites: [] }), stage),
     );
@@ -335,6 +341,97 @@ it('retains required dependencies and saves the confirmed effective selection', 
     enabled: true,
   });
 });
+it.each([
+  { runtime: '2.0.0', explicit: true },
+  { runtime: '2.0.0', explicit: false },
+  { runtime: '1.0.0', explicit: true },
+  { runtime: undefined, explicit: true },
+])(
+  'validates the projected registry dependency runtime: $runtime, selected: $explicit',
+  async ({ runtime, explicit }) => {
+    const f = await profileFixture();
+    await f.install('library', [], runtime);
+    await f.install('consumer', [
+      {
+        id: 'library',
+        displayName: 'Library',
+        required: true,
+        versionConstraint: '>=2.0.0 <3.0.0',
+      },
+      {
+        id: 'library',
+        displayName: 'Library',
+        required: true,
+        packageId: 'thunderstore/Fixture-library',
+        versionConstraint: '>=9.0.0 <10.0.0',
+      },
+    ]);
+    await f.storage.save({
+      ...f.storage.state,
+      installations: f.storage.state.installations.map((record) =>
+        record.modId === 'library'
+          ? {
+              ...record,
+              metadataId: 'library',
+              modVersion: '9.0.0',
+              packageVersion: '9.0.0',
+              provenance: {
+                sourceType: 'registry',
+                provider: 'thunderstore',
+                namespace: 'Fixture',
+                packageName: 'library',
+              },
+            }
+          : record,
+      ),
+    });
+    const target = await f.duplicate('With dependency');
+    if (!explicit)
+      await f.storage.save({
+        ...f.storage.state,
+        profiles: {
+          ...f.storage.state.profiles!,
+          items: f.storage.state.profiles!.items.map((profile) =>
+            profile.id === target
+              ? { ...profile, selection: [{ id: 'consumer', enabled: true }] }
+              : profile,
+          ),
+        },
+      });
+    await f.installer.toggle('consumer', true);
+    await f.installer.toggle('library', true);
+    if (!runtime) {
+      // Unowned metadata must not invent a compatible runtime for a managed build.
+      await put(
+        path.join(f.storage.file('disabled'), 'library/library/mod.json'),
+        JSON.stringify({ id: 'library', version: '2.0.0' }),
+      );
+    }
+    const before = await fs.readFile(f.storage.file('data/state.json'), 'utf8');
+    const plan = await f.profiles.preview(target);
+    expect(plan.enable).toEqual(['library', 'consumer']);
+    if (runtime === '2.0.0') {
+      expect(plan.blockers).toEqual([]);
+      if (!explicit) expect(plan.retained).toContain('library');
+      await f.profiles.switch(target, plan.token);
+      expect(f.storage.state.installations.every((record) => !record.disabled)).toBe(true);
+      expect(profileSummary(f.storage.state)?.unsaved).toBe(false);
+      expect((await f.snapshot()).prerequisites).toContainEqual(
+        expect.objectContaining({
+          id: 'library',
+          installed: true,
+          installedVersion: '2.0.0',
+          packageVersion: '9.0.0',
+        }),
+      );
+    } else {
+      expect(plan.blockers.join(' ')).toContain(runtime ? 'update required' : 'Cannot verify');
+      await expect(f.profiles.switch(target, plan.token)).rejects.toThrow();
+      expect(await fs.readFile(f.storage.file('data/state.json'), 'utf8')).toBe(before);
+      expect(f.storage.state.installations.every((record) => record.disabled)).toBe(true);
+    }
+  },
+);
 it('resolves source-qualified dependencies and blocks ambiguous runtime identities', async () => {
   const f = await profileFixture();
   await f.install('first');

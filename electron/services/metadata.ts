@@ -119,11 +119,14 @@ export function parseLuaHeader(text: string): ModMetadata | undefined {
     conflicts: list('CONFLICTS'),
   };
 }
-export async function inspectMetadata(root: string): Promise<ModMetadata> {
+export async function inspectMetadata(
+  root: string,
+  ownedEntries?: ReadonlySet<string>,
+): Promise<ModMetadata> {
   const results: ModMetadata[] = [];
   let authorMetadata: ModMetadata | undefined;
   for (const entry of await fs.readdir(root, { withFileTypes: true })) {
-    if (!entry.isFile()) continue;
+    if (!entry.isFile() || (ownedEntries && !ownedEntries.has(entry.name))) continue;
     const file = path.join(root, entry.name);
     if (entry.name === 'modatro.json') {
       const manifest = AuthorManifestSchema.parse(JSON.parse(await readSmall(file)));
@@ -207,7 +210,11 @@ export async function inspectMetadata(root: string): Promise<ModMetadata> {
     requirements: results.flatMap((r) => r.requirements),
     conflicts: results.flatMap((r) => r.conflicts),
   };
-  if (merged.id === 'Steamodded' && (await exists(path.join(root, 'version.lua')))) {
+  if (
+    merged.id === 'Steamodded' &&
+    (!ownedEntries || ownedEntries.has('version.lua')) &&
+    (await exists(path.join(root, 'version.lua')))
+  ) {
     // Read a literal return value; never evaluate Lua.
     merged.version =
       /^\s*return\s+["']([^"']+)["']\s*$/.exec(

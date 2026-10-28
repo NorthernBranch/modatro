@@ -122,6 +122,59 @@ it('excludes logs by default, labels stale evidence and never claims a reference
   expect(rotated.logs.some((l) => l.name === 'fixture.log')).toBe(false);
   await expect(f.service.inspect({ logIds: [item.id] })).rejects.toThrow('unavailable');
 });
+it('keeps historical application errors in excerpts without presenting them as current failures', async () => {
+  const f = await fixture();
+  await put(
+    f.storage.file('logs/modatro.log'),
+    [
+      JSON.stringify({
+        time: '2020-01-01T12:00:00.000Z',
+        event: 'ipc.failed',
+        details: {
+          channel: 'saveSettings',
+          error: 'The old session could not verify installation records.',
+        },
+      }),
+      JSON.stringify({
+        time: new Date().toISOString(),
+        event: 'game.validation',
+        details: { valid: true },
+      }),
+    ].join('\n'),
+  );
+  const before = await f.service.inspect({ logIds: [] });
+  const log = before.logs.find((log) => log.name === 'modatro.log')!;
+  expect(log.stale).toBe(false);
+  const selected = await f.service.inspect({ logIds: [log.id] });
+  expect(selected.report).toContain('The old session could not verify installation records.');
+  expect(selected.findings.some((finding) => finding.kind === 'possible')).toBe(false);
+  f.snapshot.safetyError = 'The current installation records cannot be verified.';
+  expect((await f.service.inspect({ logIds: [log.id] })).findings).toContainEqual(
+    expect.objectContaining({ kind: 'problem', observed: f.snapshot.safetyError }),
+  );
+});
+it('labels current application failures with the event timestamp and operation, without raw JSON', async () => {
+  const f = await fixture();
+  const time = new Date().toISOString();
+  await put(
+    f.storage.file('logs/modatro.log'),
+    JSON.stringify({
+      time,
+      event: 'ipc.failed',
+      details: { channel: 'saveSettings', error: 'Fixture request failed' },
+    }),
+  );
+  const logs = (await f.service.inspect({ logIds: [] })).logs;
+  const log = logs.find((log) => log.name === 'modatro.log')!;
+  const selected = await f.service.inspect({ logIds: [log.id] });
+  const finding = selected.findings.find((finding) => finding.kind === 'possible')!;
+  expect(finding.observed).toBe(`modatro.log: ipc.failed at ${time} (saveSettings).`);
+  expect(finding.why).toContain('current setup checks');
+  expect(finding.observed).not.toContain('{');
+  expect(selected.logs.find((entry) => entry.id === log.id)?.excerpt).toContain(
+    'Fixture request failed',
+  );
+});
 it('bounds log reads and handles malformed and binary content, missing folders and invalid selections', async () => {
   const f = await fixture(),
     log = path.join(f.root, 'large.txt');
