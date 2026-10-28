@@ -1199,7 +1199,7 @@ test('failed setup saves keep the setup dialog open and restore its controls', a
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
-for (const theme of ['light', 'balatro', 'system'] as const) {
+for (const theme of ['light', 'balatro', 'balatro-dark', 'system'] as const) {
   test(`startup keeps ${theme} while library loading is pending or fails`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'light' });
     const state = fixture();

@@ -208,7 +208,7 @@ export function SettingsPage({
             </h2>
             <SettingsRow
               title="Theme"
-              description="Choose a familiar look or a Balatro-inspired card table."
+              description="Choose a Modatro or Balatro look. Match system uses Modatro Light and Modatro Dark."
             >
               <select
                 aria-label="Theme"
@@ -224,9 +224,10 @@ export function SettingsPage({
                   )
                 }
               >
-                <option value="dark">Dark</option>
-                <option value="light">Light</option>
-                <option value="balatro">Balatro</option>
+                <option value="dark">Modatro Dark</option>
+                <option value="light">Modatro Light</option>
+                <option value="balatro">Balatro Light</option>
+                <option value="balatro-dark">Balatro Dark</option>
                 <option value="system">Match system</option>
               </select>
               {requests.isPending('settings') && <span role="status">Saving theme…</span>}

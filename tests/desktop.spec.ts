@@ -3,7 +3,7 @@ import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-for (const theme of ['light', 'balatro', 'system'] as const) {
+for (const theme of ['light', 'balatro', 'balatro-dark', 'system'] as const) {
   test(`desktop supplies saved ${theme} to its initial document and native background`, async () => {
     const data = await fs.mkdtemp(path.join(os.tmpdir(), 'modatro-theme-test-'));
     await fs.mkdir(path.join(data, 'data'));
@@ -47,7 +47,9 @@ for (const theme of ['light', 'balatro', 'system'] as const) {
       await expect(page.locator('html')).toHaveAttribute('data-theme', expected);
       expect(
         native.background.endsWith(
-          { dark: '141b1a', light: 'f3f5f0', balatro: '174b43' }[expected],
+          { dark: '141b1a', light: 'f3f5f0', balatro: '174b43', 'balatro-dark': '0d1d21' }[
+            expected
+          ],
         ),
       ).toBe(true);
       await expect

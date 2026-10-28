@@ -7,7 +7,7 @@
   font-display: swap;
 }
 
-:root[data-theme='balatro'] {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) {
   color-scheme: dark;
   --bg: #174b43;
   --sidebar: #26383d;
@@ -26,41 +26,74 @@
   background: var(--bg);
 }
 
-:root[data-theme='balatro'] .app-shell {
+:root[data-theme='balatro-dark'] {
+  --bg: #0d1d21;
+  --sidebar: #111e24;
+  --panel: #1c2a32;
+  --panel-hover: #253944;
+  --border: #586b70;
+  --text: #f5efd9;
+  --muted: #b7c7c6;
+  --faint: #a6bbb9;
+  --table-edge: #050c12;
+  --balatro-red-haze: #70444833;
+  --balatro-blue-haze: #204c6640;
+  --balatro-green-haze: #2f5b4e33;
+  --balatro-sidebar-rim: #3c535a;
+  --balatro-sidebar-top: #1b2b35;
+  --balatro-topbar: #101c23ed;
+  --balatro-hero-start: #142d32;
+  --balatro-hero-end: #1f4943;
+  --balatro-hero-border: #65796a;
+  --balatro-card-footer: #142129;
+  --balatro-secondary: #2a3e4a;
+  --balatro-secondary-border: #627883;
+  --balatro-secondary-hover: #344c59;
+  --balatro-tab: #15262d;
+  --balatro-input: #101e26;
+  --balatro-inset: #111f27;
+  --balatro-dialog: #182830;
+  --balatro-dialog-border: #7b8981;
+  --balatro-dialog-rim: #2d4249;
+  --balatro-backdrop: #02080be6;
+}
+
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .app-shell {
   background:
     repeating-linear-gradient(0deg, #06171c0d 0 1px, transparent 1px 3px),
-    radial-gradient(ellipse at 100% 5%, #a34b4655, transparent 55%),
-    radial-gradient(ellipse at 0% 45%, #315f8d80, transparent 60%),
-    radial-gradient(ellipse at 85% 90%, #55836455, transparent 60%), var(--bg);
+    radial-gradient(ellipse at 100% 5%, var(--balatro-red-haze, #a34b4655), transparent 55%),
+    radial-gradient(ellipse at 0% 45%, var(--balatro-blue-haze, #315f8d80), transparent 60%),
+    radial-gradient(ellipse at 85% 90%, var(--balatro-green-haze, #55836455), transparent 60%),
+    var(--bg);
   background-attachment: fixed;
 }
 
-:root[data-theme='balatro'] .sidebar {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .sidebar {
   border-right: 4px solid var(--table-edge);
-  box-shadow: inset -3px 0 #69817b;
-  background: linear-gradient(180deg, #3b5056, var(--sidebar) 65%);
+  box-shadow: inset -3px 0 var(--balatro-sidebar-rim, #69817b);
+  background: linear-gradient(180deg, var(--balatro-sidebar-top, #3b5056), var(--sidebar) 65%);
 }
 
-:root[data-theme='balatro'] .topbar {
-  background: #233b3edb;
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .topbar {
+  background: var(--balatro-topbar, #233b3edb);
   border-bottom: 3px solid var(--table-edge);
   box-shadow: 0 2px #9aa99755;
 }
 
-:root[data-theme='balatro'] :is(h1, h2, h3, .brand) {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) :is(h1, h2, h3, .brand) {
   font-family: var(--display-font);
   font-weight: 700;
   letter-spacing: 0;
   text-shadow: 0 3px 0 var(--table-edge);
 }
 
-:root[data-theme='balatro'] .brand {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .brand {
   font-size: 28px;
   letter-spacing: -0.5px;
   white-space: nowrap;
 }
 
-:root[data-theme='balatro'] .brand-mark {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .brand-mark {
   flex-shrink: 0;
   color: #fff6df;
   background: #bd4945;
@@ -70,7 +103,7 @@
     inset 0 2px #f08973;
 }
 
-:root[data-theme='balatro'] .nav-item {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .nav-item {
   font-family: var(--display-font);
   font-size: 15px;
   font-weight: 600;
@@ -78,7 +111,7 @@
   text-shadow: 0 2px var(--table-edge);
 }
 
-:root[data-theme='balatro'] .nav-item.active {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .nav-item.active {
   color: #fff6df;
   background: #b64343;
   box-shadow:
@@ -87,7 +120,7 @@
     inset 0 -2px #8c343a;
 }
 
-:root[data-theme='balatro'] .hero {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .hero {
   background:
     repeating-radial-gradient(
       ellipse at 90% 125%,
@@ -95,8 +128,8 @@
       #e5da9b0d 35px 38px,
       transparent 39px 72px
     ),
-    linear-gradient(120deg, #1e514b, #37755f);
-  border: 3px solid #a1af95;
+    linear-gradient(120deg, var(--balatro-hero-start, #1e514b), var(--balatro-hero-end, #37755f));
+  border: 3px solid var(--balatro-hero-border, #a1af95);
   border-radius: 7px;
   box-shadow:
     0 6px 0 var(--table-edge),
@@ -104,45 +137,45 @@
     inset 0 0 0 5px #6b94784d;
 }
 
-:root[data-theme='balatro'] .hero h1 {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .hero h1 {
   color: #fff6df;
   font-size: clamp(40px, 4.4vw, 60px);
   line-height: 1;
   text-shadow: 0 4px 0 #173138;
 }
 
-:root[data-theme='balatro'] .hero :is(.eyebrow, h1 > span) {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .hero :is(.eyebrow, h1 > span) {
   color: var(--accent);
 }
 
-:root[data-theme='balatro'] .hero p {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .hero p {
   color: #e1ead9;
   font-size: 12px;
 }
 
-:root[data-theme='balatro'] .eyebrow {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .eyebrow {
   font-family: var(--display-font);
   font-size: 12px;
   letter-spacing: 1.3px;
 }
 
-:root[data-theme='balatro'] .section-heading h2 {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .section-heading h2 {
   font-size: 28px;
 }
 
-:root[data-theme='balatro'] .settings-section > h2 {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .settings-section > h2 {
   font-size: 22px;
 }
 
-:root[data-theme='balatro'] .mod-title-row h3 {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .mod-title-row h3 {
   font-size: 19px;
 }
 
-:root[data-theme='balatro'] :is(.mod-description, .mod-author) {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) :is(.mod-description, .mod-author) {
   font-size: 11px;
 }
 
-:root[data-theme='balatro']
+:root:is([data-theme='balatro'], [data-theme='balatro-dark'])
   :is(
     .mod-card,
     .prerequisite-card,
@@ -160,7 +193,7 @@
     inset 0 -2px #182c33;
 }
 
-:root[data-theme='balatro'] .mod-card:hover {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .mod-card:hover {
   border-color: var(--accent);
   box-shadow:
     0 5px 0 var(--table-edge),
@@ -168,24 +201,24 @@
     inset 0 -2px #182c33;
 }
 
-:root[data-theme='balatro'] .mod-art {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .mod-art {
   border-radius: 5px;
   border: 2px solid #e9ddbb;
   box-shadow: 0 3px 0 #14272e;
 }
 
-:root[data-theme='balatro'] .card-footer {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .card-footer {
   border-top: 2px solid #1c3239;
-  background: #2c3e43;
+  background: var(--balatro-card-footer, #2c3e43);
   box-shadow: inset 0 1px #748b7c55;
 }
 
-:root[data-theme='balatro'] .card-footer .text-button {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .card-footer .text-button {
   font-family: var(--display-font);
   font-size: 13px;
 }
 
-:root[data-theme='balatro'] .button {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .button {
   font-family: var(--display-font);
   font-size: 14px;
   border-radius: 6px;
@@ -193,7 +226,8 @@
   text-shadow: 0 2px #122d3780;
 }
 
-:root[data-theme='balatro'] :is(.button-primary, .hero-button, .launch-button, .button-install) {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark'])
+  :is(.button-primary, .hero-button, .launch-button, .button-install) {
   color: #fff6df;
   background: #226c9e;
   border-color: #7cbad0;
@@ -203,21 +237,23 @@
     inset 0 -2px #195382;
 }
 
-:root[data-theme='balatro'] :is(.button-secondary, .filter-button) {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark'])
+  :is(.button-secondary, .filter-button) {
   color: var(--text);
-  background: #415b5f;
-  border-color: #849b94;
+  background: var(--balatro-secondary, #415b5f);
+  border-color: var(--balatro-secondary-border, #849b94);
   box-shadow:
     0 4px 0 var(--table-edge),
     inset 0 2px #d1e3d64d,
     inset 0 -2px #2c4149;
 }
 
-:root[data-theme='balatro'] :is(.button-secondary, .filter-button):hover:not(:disabled) {
-  background: #506c6e;
+:root:is([data-theme='balatro'], [data-theme='balatro-dark'])
+  :is(.button-secondary, .filter-button):hover:not(:disabled) {
+  background: var(--balatro-secondary-hover, #506c6e);
 }
 
-:root[data-theme='balatro'] .button-danger {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .button-danger {
   color: #fff6df;
   background: #a43c3c;
   border-color: #ed917a;
@@ -227,67 +263,69 @@
     inset 0 -2px #7a3138;
 }
 
-:root[data-theme='balatro'] .button:active:not(:disabled) {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .button:active:not(:disabled) {
   transform: translateY(2px);
   box-shadow: inset 0 1px #ffffff20;
 }
 
-:root[data-theme='balatro'] .category-tabs button {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .category-tabs button {
   font-family: var(--display-font);
   font-size: 13px;
-  background: #273f41;
+  background: var(--balatro-tab, #273f41);
   border-radius: 5px;
   box-shadow: 0 2px var(--table-edge);
 }
 
-:root[data-theme='balatro'] .category-tabs button.selected {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .category-tabs button.selected {
   color: #302c25;
   background: var(--accent);
   border-color: #ffe4a4;
   box-shadow: 0 2px 0 #8c652e;
 }
 
-:root[data-theme='balatro'] :is(input, select, textarea, .search-field) {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark'])
+  :is(input, select, textarea, .search-field) {
   color: var(--text);
-  background-color: #203b3d;
+  background-color: var(--balatro-input, #203b3d);
   border-color: var(--border);
   accent-color: var(--accent);
 }
 
-:root[data-theme='balatro'] :is(input, textarea)::placeholder {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) :is(input, textarea)::placeholder {
   color: var(--faint);
   opacity: 1;
 }
 
-:root[data-theme='balatro'] :is(.game-panel, .view-switch, .count-pill) {
-  background: #263c3f;
+:root:is([data-theme='balatro'], [data-theme='balatro-dark'])
+  :is(.game-panel, .view-switch, .count-pill) {
+  background: var(--balatro-inset, #263c3f);
   border-color: var(--border);
 }
 
-:root[data-theme='balatro'] .dialog {
-  background: #2c4245;
-  border: 3px solid #b0b9a3;
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .dialog {
+  background: var(--balatro-dialog, #2c4245);
+  border: 3px solid var(--balatro-dialog-border, #b0b9a3);
   border-radius: 8px;
   box-shadow:
     0 7px 0 var(--table-edge),
     0 20px 80px #0008,
-    inset 0 0 0 3px #455b59,
+    inset 0 0 0 3px var(--balatro-dialog-rim, #455b59),
     inset 0 0 0 5px #99aa8f40;
 }
 
-:root[data-theme='balatro'] .dialog-heading h2 {
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .dialog-heading h2 {
   font-size: 28px;
 }
 
-:root[data-theme='balatro'] .dialog::backdrop {
-  background: #102a29db;
+:root:is([data-theme='balatro'], [data-theme='balatro-dark']) .dialog::backdrop {
+  background: var(--balatro-backdrop, #102a29db);
 }
 
 @media (max-width: 650px) {
-  :root[data-theme='balatro'] .hero h1 {
+  :root:is([data-theme='balatro'], [data-theme='balatro-dark']) .hero h1 {
     font-size: 40px;
   }
-  :root[data-theme='balatro'] .button {
+  :root:is([data-theme='balatro'], [data-theme='balatro-dark']) .button {
     font-size: 13px;
   }
 }

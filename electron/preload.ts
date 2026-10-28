@@ -2,7 +2,10 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { ModatroApi, Progress, Snapshot } from '../src/shared/model';
 const theme = process.argv.find((arg) => arg.startsWith('--modatro-theme='))?.split('=')[1];
 const api: ModatroApi = {
-  initialTheme: theme === 'light' || theme === 'balatro' || theme === 'system' ? theme : 'dark',
+  initialTheme:
+    theme === 'light' || theme === 'balatro' || theme === 'balatro-dark' || theme === 'system'
+      ? theme
+      : 'dark',
   releaseOptions: (id) => ipcRenderer.invoke('modatro:releaseOptions', id),
   restoreMod: (id, token) => ipcRenderer.invoke('modatro:restoreMod', { id, token }),
   deleteRemovedBackup: (id) => ipcRenderer.invoke('modatro:deleteRemovedBackup', { id }),
