@@ -1,4 +1,16 @@
 import { expect, test } from '@playwright/test';
+test('the startup theme is applied before the renderer entry runs', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.modatro = { initialTheme: 'balatro' } as never;
+  });
+  await page.route('**/src/main.tsx', (route) =>
+    route.fulfill({ contentType: 'application/javascript', body: '' }),
+  );
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'balatro');
+  await expect(page.locator('#root')).toBeEmpty();
+});
+
 test('discover supports search, categories, details, navigation and themes', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));

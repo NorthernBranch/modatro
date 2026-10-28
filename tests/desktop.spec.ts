@@ -2,6 +2,68 @@ import { _electron as electron, expect, test } from '@playwright/test';
 import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+
+for (const theme of ['light', 'balatro', 'system'] as const) {
+  test(`desktop supplies saved ${theme} to its initial document and native background`, async () => {
+    const data = await fs.mkdtemp(path.join(os.tmpdir(), 'modatro-theme-test-'));
+    await fs.mkdir(path.join(data, 'data'));
+    await fs.writeFile(
+      path.join(data, 'data/state.json'),
+      JSON.stringify({
+        schemaVersion: 2,
+        settings: {
+          theme,
+          setupComplete: true,
+          dismissedAnnouncements: ['mod-creator-introduction'],
+        },
+        installations: [],
+      }),
+    );
+    const env = {
+      ...Object.fromEntries(
+        Object.entries(process.env).filter(
+          ([key, value]) => key !== 'ELECTRON_RUN_AS_NODE' && value !== undefined,
+        ),
+      ),
+      MODATRO_TEST_DATA: data,
+      MODATRO_DEV_URL: '',
+    };
+    const packagedExecutable = process.env.MODATRO_PACKAGED_EXECUTABLE;
+    const application = await electron.launch({
+      args: packagedExecutable ? [] : ['.'],
+      executablePath: packagedExecutable,
+      env,
+      // Match the native OS preference instead of Playwright's default light emulation.
+      colorScheme: null,
+    });
+    try {
+      const page = await application.firstWindow();
+      const native = await application.evaluate(({ BrowserWindow, nativeTheme }) => ({
+        dark: nativeTheme.shouldUseDarkColors,
+        background: BrowserWindow.getAllWindows()[0]!.getBackgroundColor().toLowerCase(),
+      }));
+      const expected = theme === 'system' ? (native.dark ? 'dark' : 'light') : theme;
+      expect(await page.evaluate(() => window.modatro!.initialTheme)).toBe(theme);
+      await expect(page.locator('html')).toHaveAttribute('data-theme', expected);
+      expect(
+        native.background.endsWith(
+          { dark: '141b1a', light: 'f3f5f0', balatro: '174b43' }[expected],
+        ),
+      ).toBe(true);
+      await expect
+        .poll(() =>
+          application.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows()[0]!.isVisible(),
+          ),
+        )
+        .toBe(true);
+    } finally {
+      await application.evaluate(({ app }) => app.exit());
+      await application.close();
+      await fs.rm(data, { recursive: true, force: true });
+    }
+  });
+}
 test('desktop has an isolated renderer, working preload and validated IPC', async () => {
   const data = await fs.mkdtemp(path.join(os.tmpdir(), 'modatro-desktop-test-'));
   // Electron creates this directory before Modatro initializes its own storage.
@@ -335,9 +397,10 @@ test('setup and theme saves preserve selected folders through validated desktop 
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toHaveCount(0);
     const reviewed = await page.evaluate((id) => window.modatro!.previewProfile!(id), originalId);
-    expect(reviewed, 'The synthetic folders must pass the production profile guard').toMatchObject({
-      ok: true,
-    });
+    expect(
+      reviewed,
+      `The synthetic folders must pass the production profile guard: ${JSON.stringify(reviewed)}`,
+    ).toMatchObject({ ok: true });
     await page.getByLabel('Profile', { exact: true }).selectOption(originalId);
     await expect(
       page.getByRole('heading', { name: 'Review profile: Default', exact: true }),
@@ -473,7 +536,10 @@ test('setup and theme saves preserve selected folders through validated desktop 
       (token) => window.modatro!.profileTransfer!({ operation: 'install', token }),
       reviewedProfile.value.token!,
     );
-    expect(imported).toMatchObject({
+    expect(
+      imported,
+      `The synthetic profile import must complete: ${JSON.stringify(imported)}`,
+    ).toMatchObject({
       ok: true,
       value: { status: 'complete', name: active.name + ' (2)' },
     });

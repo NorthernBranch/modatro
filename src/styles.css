@@ -446,7 +446,7 @@
     'Segoe UI',
     sans-serif;
   color: #ecf0eb;
-  background: #141b1a;
+  background: var(--bg);
   font-synthesis: none;
   --bg: #141b1a;
   --sidebar: #101715;

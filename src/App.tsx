@@ -194,7 +194,7 @@ export function App() {
       setSetup(true);
       setupOpened.current = true;
     }
-    const mode = snapshot?.settings.theme ?? 'dark';
+    const mode = snapshot?.settings.theme ?? api.initialTheme ?? 'dark';
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     const update = () => {
       document.documentElement.dataset.theme =

@@ -520,6 +520,7 @@ export interface InstallPlan {
   }[];
 }
 export interface ModatroApi {
+  readonly initialTheme?: Settings['theme'];
   releaseOptions?(id: string): Promise<Reply<ReleaseOptions>>;
   restoreMod?(id: string, token?: string): Promise<Reply<Snapshot>>;
   deleteRemovedBackup?(
