@@ -5,6 +5,10 @@ requirements, and manage your collection with backups and a record of every file
 
 **Beta · Windows · macOS · Linux / Steam Deck**
 
+[![Downloads](https://img.shields.io/github/downloads/NorthernBranch/modatro/total)](https://github.com/NorthernBranch/modatro/releases)
+[![Latest release](https://img.shields.io/github/v/release/NorthernBranch/modatro)](https://github.com/NorthernBranch/modatro/releases/latest)
+[![Build status](https://img.shields.io/github/actions/workflow/status/NorthernBranch/modatro/build.yml)](https://github.com/NorthernBranch/modatro/actions)
+
 [Download Modatro](https://github.com/NorthernBranch/modatro/releases) ·
 [Report an issue](https://github.com/NorthernBranch/modatro/issues) ·
 [Contribute](CONTRIBUTING.md)
