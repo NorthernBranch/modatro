@@ -85,7 +85,12 @@ async function createWindow() {
     minHeight: 640,
     title: 'Modatro',
     show: false,
-    backgroundColor: { dark: '#141b1a', light: '#f3f5f0', balatro: '#174b43' }[resolved],
+    backgroundColor: {
+      dark: '#141b1a',
+      light: '#f3f5f0',
+      balatro: '#174b43',
+      'balatro-dark': '#0d1d21',
+    }[resolved],
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 20, y: 20 },
     webPreferences: {

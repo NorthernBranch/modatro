@@ -16,6 +16,19 @@ afterEach(async () => {
 });
 
 describe('application storage startup', () => {
+  it.each(['balatro', 'balatro-dark'] as const)(
+    'preserves the saved %s preference across restarts',
+    async (theme) => {
+      const directory = await root();
+      const storage = new Storage(directory);
+      await storage.initialize();
+      await storage.save({ ...storage.state, settings: { theme, setupComplete: false } });
+      const restarted = new Storage(directory);
+      await restarted.initialize();
+      expect(restarted.safetyError).toBeUndefined();
+      expect(restarted.state.settings.theme).toBe(theme);
+    },
+  );
   it('initializes beside an existing Electron Cache without changing browser data', async () => {
     const directory = await root();
     await put(path.join(directory, 'Cache', 'browser-data'), 'chromium cache');

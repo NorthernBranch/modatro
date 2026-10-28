@@ -1,15 +1,17 @@
 import { expect, test } from '@playwright/test';
-test('the startup theme is applied before the renderer entry runs', async ({ page }) => {
-  await page.addInitScript(() => {
-    window.modatro = { initialTheme: 'balatro' } as never;
+for (const theme of ['balatro', 'balatro-dark'] as const) {
+  test(`the ${theme} startup theme is applied before the renderer entry runs`, async ({ page }) => {
+    await page.addInitScript((theme) => {
+      window.modatro = { initialTheme: theme } as never;
+    }, theme);
+    await page.route('**/src/main.tsx', (route) =>
+      route.fulfill({ contentType: 'application/javascript', body: '' }),
+    );
+    await page.goto('/');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    await expect(page.locator('#root')).toBeEmpty();
   });
-  await page.route('**/src/main.tsx', (route) =>
-    route.fulfill({ contentType: 'application/javascript', body: '' }),
-  );
-  await page.goto('/');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'balatro');
-  await expect(page.locator('#root')).toBeEmpty();
-});
+}
 
 test('discover supports search, categories, details, navigation and themes', async ({ page }) => {
   const errors: string[] = [];
@@ -37,12 +39,21 @@ test('discover supports search, categories, details, navigation and themes', asy
   await page.getByRole('button', { name: 'Prerequisites', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Lovely', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page.getByLabel('Theme', { exact: true }).locator('option')).toHaveText([
+    'Modatro Dark',
+    'Modatro Light',
+    'Balatro Light',
+    'Balatro Dark',
+    'Match system',
+  ]);
   await page.getByLabel('Theme', { exact: true }).selectOption('light');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await page.getByLabel('Theme', { exact: true }).selectOption('balatro');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'balatro');
   await page.emulateMedia({ colorScheme: 'light' });
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'balatro');
+  await page.getByLabel('Theme', { exact: true }).selectOption('balatro-dark');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'balatro-dark');
   await page.getByLabel('Theme', { exact: true }).selectOption('system');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await page.emulateMedia({ colorScheme: 'dark' });
@@ -52,38 +63,41 @@ test('discover supports search, categories, details, navigation and themes', asy
   expect(errors).toEqual([]);
 });
 
-test('Balatro theme stays readable and contained across pages, dialogs and narrow layouts', async ({
-  page,
-}) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await page.getByLabel('Theme', { exact: true }).selectOption('balatro');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'balatro');
-  await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark');
-  await page.evaluate(() => document.fonts.ready);
-  expect(await page.evaluate(() => document.fonts.check('700 20px "Modatro Pixel"'))).toBe(true);
-  await page.getByRole('button', { name: 'Discover', exact: true }).click();
-  await page.screenshot({ path: 'test-results/balatro-discover.png', fullPage: true });
-  const trigger = page.getByRole('button', { name: 'Details for Steamodded' });
-  await trigger.click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await page.screenshot({ path: 'test-results/balatro-dialog.png' });
-  await page.keyboard.press('Escape');
-  await expect(trigger).toBeFocused();
-  for (const width of [1320, 650, 390]) {
-    await page.setViewportSize({ width, height: 900 });
-    for (const name of ['Discover', 'Prerequisites', 'Settings']) {
-      await page.getByRole('button', { name, exact: true }).click();
-      expect(
-        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-      ).toBe(true);
+for (const theme of ['balatro', 'balatro-dark'] as const) {
+  test(`${theme} stays readable and contained across pages, dialogs and narrow layouts`, async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByLabel('Theme', { exact: true }).selectOption(theme);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark');
+    await page.evaluate(() => document.fonts.ready);
+    expect(await page.evaluate(() => document.fonts.check('700 20px "Modatro Pixel"'))).toBe(true);
+    await page.getByRole('button', { name: 'Discover', exact: true }).click();
+    await page.screenshot({ path: `test-results/${theme}-discover.png`, fullPage: true });
+    const trigger = page.getByRole('button', { name: 'Details for Steamodded' });
+    await trigger.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.screenshot({ path: `test-results/${theme}-dialog.png` });
+    await page.keyboard.press('Escape');
+    await expect(trigger).toBeFocused();
+    for (const width of [1320, 650, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const name of ['Discover', 'Prerequisites', 'Settings']) {
+        await page.getByRole('button', { name, exact: true }).click();
+        expect(
+          await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+        ).toBe(true);
+      }
     }
-  }
-  await page.screenshot({ path: 'test-results/balatro-settings-mobile.png', fullPage: true });
-  await page.getByLabel('Theme', { exact: true }).selectOption('light');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await expect(page.locator('html')).toHaveCSS('color-scheme', 'light');
-});
+    await page.screenshot({ path: `test-results/${theme}-settings-mobile.png`, fullPage: true });
+    await page.getByLabel('Theme', { exact: true }).selectOption('light');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await expect(page.locator('html')).toHaveCSS('color-scheme', 'light');
+  });
+}
+
 test('long navigation labels shrink to fit, including the active marker and loaded pixel font', async ({
   page,
 }) => {
