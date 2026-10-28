@@ -484,6 +484,7 @@ async function mockDesktop(
         }
       };
       const api: ModatroApi = {
+        initialTheme: state.settings.theme,
         releaseOptions: (id) =>
           call('releaseOptions', {
             id,
@@ -1197,6 +1198,33 @@ test('failed setup saves keep the setup dialog open and restore its controls', a
   await page.getByRole('button', { name: 'Start exploring' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
+
+for (const theme of ['light', 'balatro', 'system'] as const) {
+  test(`startup keeps ${theme} while library loading is pending or fails`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'light' });
+    const state = fixture();
+    state.settings.theme = theme;
+    const expected = theme === 'system' ? 'light' : theme;
+    await mockDesktop(page, state, { snapshot: 'hold' });
+    await expect(page.getByRole('heading', { name: 'Loading Modatro…' })).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', expected);
+    await page.evaluate(() => window.requestsTest.reject('snapshot'));
+    await expect(page.getByRole('heading', { name: 'Modatro could not load' })).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', expected);
+    await closeError(page);
+    if (theme === 'system') {
+      await page.emulateMedia({ colorScheme: 'dark' });
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+      await page.emulateMedia({ colorScheme: 'light' });
+    }
+    await page.evaluate(() => {
+      window.requestsTest.behavior.snapshot = 'success';
+    });
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.getByRole('heading', { name: 'Make the game your own.' })).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', expected);
+  });
+}
 
 test('initial service failures show an explicit state and allow retry', async ({ page }) => {
   await mockDesktop(page, fixture(), { snapshot: 'hold' });

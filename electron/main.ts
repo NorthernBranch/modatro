@@ -4,6 +4,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeTheme,
   net,
   protocol,
   session,
@@ -74,17 +75,22 @@ function handle<T>(channel: string, schema: z.ZodType<T>, work: (arg: T) => Prom
   });
 }
 async function createWindow() {
+  const theme = application.storage.state.settings.theme;
+  const resolved =
+    theme === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : theme;
   window = new BrowserWindow({
     width: 1320,
     height: 900,
     minWidth: 920,
     minHeight: 640,
     title: 'Modatro',
-    backgroundColor: '#141c1b',
+    show: false,
+    backgroundColor: { dark: '#141b1a', light: '#f3f5f0', balatro: '#174b43' }[resolved],
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 20, y: 20 },
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
+      additionalArguments: [`--modatro-theme=${theme}`],
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -92,6 +98,7 @@ async function createWindow() {
       devTools: development,
     },
   });
+  window.once('ready-to-show', () => window?.show());
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event) => event.preventDefault());
   window.webContents.on('will-attach-webview', (event) => event.preventDefault());
