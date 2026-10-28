@@ -58,6 +58,7 @@ for (const theme of ['light', 'balatro', 'system'] as const) {
         )
         .toBe(true);
     } finally {
+      await application.evaluate(({ app }) => app.exit());
       await application.close();
       await fs.rm(data, { recursive: true, force: true });
     }
