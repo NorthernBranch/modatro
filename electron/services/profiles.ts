@@ -13,8 +13,8 @@ import { selection } from '../../src/shared/profile-selection';
 import { evaluateDependency, externalLoaderRequirement } from '../../src/shared/dependencies';
 import type { InstallationRecord, Prerequisite, Snapshot } from '../../src/shared/model';
 import { thunderstoreId } from '../../src/shared/thunderstore';
-import { dependencyId } from './metadata';
-import { stageCopy, fileBatches, hashFile, safeDestination } from './files';
+import { dependencyId, inspectMetadata, parseLuaHeader } from './metadata';
+import { stageCopy, fileBatches, hashFile, readPrefix, safeDestination } from './files';
 import { ModInstaller } from './installer';
 import { Storage } from './storage';
 import { UserError } from './errors';
@@ -44,6 +44,7 @@ export function enabledPrerequisites(
   records: InstallationRecord[],
   desired: Selection,
   observed: Prerequisite[],
+  disabledVersions: ReadonlyMap<string, string> = new Map(),
 ): Prerequisite[] {
   const identities = records.map(recordPrerequisite);
   const enabled = records
@@ -66,7 +67,7 @@ export function enabledPrerequisites(
         ...p,
         installedVersion: !record.disabled
           ? (actual?.installedVersion ?? p.installedVersion)
-          : p.installedVersion,
+          : (disabledVersions.get(record.modId) ?? p.installedVersion),
       };
     });
   return [
@@ -146,6 +147,43 @@ export class ProfileService {
   async readPlan(id: string, snapshot: Snapshot) {
     return this.build(id, false, snapshot);
   }
+  private async disabledVersions(records: InstallationRecord[], snapshot: Snapshot) {
+    const entries = await fileBatches(
+      records.filter((record) => record.disabled),
+      async (record) => {
+        if (snapshot.localMods.find((mod) => mod.id === record.modId)?.problems.length)
+          return undefined;
+        try {
+          const relative = `${record.modId}/${record.folderName}`;
+          const location = await safeDestination(this.installer.roots().disabled, relative);
+          const ownedEntries = new Set(
+            record.files
+              .filter(
+                (file) => file.root === 'disabled' && path.posix.dirname(file.path) === relative,
+              )
+              .map((file) => path.posix.basename(file.path)),
+          );
+          const metadata = record.files.some(
+            (file) =>
+              file.root === 'disabled' && file.path === relative && relative.endsWith('.lua'),
+          )
+            ? parseLuaHeader(await readPrefix(location))
+            : await inspectMetadata(location, ownedEntries);
+          if (
+            metadata?.version &&
+            dependencyId(metadata.id ?? '').toLowerCase() ===
+              dependencyId(record.metadataId ?? record.modId).toLowerCase()
+          )
+            return [record.modId, metadata.version] as const;
+        } catch {
+          // Missing or ambiguous metadata cannot establish a runtime version.
+          // The normal integrity/dependency checks explain and block unsafe plans.
+        }
+        return undefined;
+      },
+    );
+    return new Map(entries.flatMap((entry) => (entry ? [entry] : [])));
+  }
   private async build(
     id: string,
     guard = true,
@@ -186,10 +224,16 @@ export class ProfileService {
         retained.push(record.modId);
         warnings.push(`${record.title} is a shared game prerequisite and will remain installed.`);
       }
+    const disabledVersions = await this.disabledVersions(records, snapshot);
     let changed = true;
     while (changed) {
       changed = false;
-      const future = enabledPrerequisites(records, desired, snapshot.prerequisites);
+      const future = enabledPrerequisites(
+        records,
+        desired,
+        snapshot.prerequisites,
+        disabledVersions,
+      );
       for (const record of records.filter((r) => desired.find((e) => e.id === r.modId)!.enabled))
         for (const requirement of record.dependencies.filter((d) => d.required)) {
           const status = evaluateDependency(requirement, future);
@@ -211,7 +255,7 @@ export class ProfileService {
           }
         }
     }
-    const future = enabledPrerequisites(records, desired, snapshot.prerequisites);
+    const future = enabledPrerequisites(records, desired, snapshot.prerequisites, disabledVersions);
     for (const record of records.filter((r) => desired.find((e) => e.id === r.modId)!.enabled))
       for (const requirement of record.dependencies.filter((d) => d.required)) {
         const matches = records.filter((r) => {

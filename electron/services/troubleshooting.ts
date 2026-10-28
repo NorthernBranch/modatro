@@ -245,6 +245,7 @@ export function supportReport(
 }
 export class TroubleshootingService {
   private approved = new Map<string, { file: string; source: string; picked: boolean }>();
+  private readonly sessionStartedAt = Date.now();
   constructor(
     private storage: Storage,
     private transactions: TransactionEngine,
@@ -375,7 +376,33 @@ export class TroubleshootingService {
             log.excerpt = redact(read.text, this.privacy());
             if (read.truncated)
               log.excerpt = '[Excerpt limited to the last 8,000 characters]\n' + log.excerpt;
-            if (/\b(?:error|crash|stack traceback|exception|failed)\b/i.test(read.text)) {
+            if (entry.source === 'Modatro') {
+              let failures = 0;
+              for (const line of log.excerpt.split('\n').reverse()) {
+                try {
+                  const event = JSON.parse(line);
+                  if (
+                    typeof event.time !== 'string' ||
+                    !Number.isFinite(Date.parse(event.time)) ||
+                    Date.parse(event.time) < this.sessionStartedAt ||
+                    typeof event.event !== 'string' ||
+                    !/\b(?:error|crash|exception|failed)\b/i.test(event.event)
+                  )
+                    continue;
+                  findings.push({
+                    kind: 'possible',
+                    observed: `${log.name}: ${event.event} at ${event.time}${typeof event.details?.channel === 'string' ? ` (${event.details.channel})` : ''}.`,
+                    why: 'Modatro logged a failed operation during this application session. The current setup checks show whether a problem is still present.',
+                    next: 'Review the entry timestamp and selected excerpt for details.',
+                    action: 'logs',
+                  });
+                  if (++failures === 3) break;
+                } catch {
+                  // Historical or unstructured app-log text remains in the
+                  // selected excerpt, without presenting it as a current fault.
+                }
+              }
+            } else if (/\b(?:error|crash|stack traceback|exception|failed)\b/i.test(read.text)) {
               const evidence = log.excerpt
                 .split('\n')
                 .filter((line) =>

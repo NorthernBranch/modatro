@@ -46,7 +46,9 @@ and groups warnings and blockers before the confirmation controls.
 
 Managed mods absent from the saved profile are previewed for disabling where safe.
 Already installed required dependencies are retained or enabled; missing dependencies
-are never downloaded by switching. Missing mods, incompatible or unknown versions,
+are never downloaded by switching. Compatibility checks use the complete selection,
+including runtime metadata from disabled dependencies being enabled in the same switch.
+Missing mods, incompatible or unknown versions,
 ambiguous identities, external changes and unsafe destinations block the switch.
 Follow **Review Prerequisites** or **Review Installed mods**, then use Discover or
 the normal installation workflow to resolve missing packages. Review a fresh preview
