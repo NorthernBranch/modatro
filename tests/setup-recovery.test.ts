@@ -15,6 +15,7 @@ vi.mock('node:fs/promises', async (original) => ({
 const roots: string[] = [];
 afterEach(async () => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   for (const root of roots.splice(0)) await fs.rm(root, { recursive: true, force: true });
 });
 async function fixture(checkpoint?: (phase: string, index?: number) => Promise<void>) {
@@ -196,8 +197,14 @@ it('repairs a missing default Mods folder and rejects arbitrary missing override
   await fs.unlink(path.join(f.mods, record.files[0]!.path));
   await fs.rmdir(path.join(f.mods, record.folderName));
   await fs.rmdir(f.mods);
+  // This fixture uses the Windows detector on every host. Keep its default
+  // independent of the runner's APPDATA (which is absent on Linux/macOS).
+  vi.stubEnv('APPDATA', undefined);
+  const defaultMods = vi
+    .spyOn(GameDetectionService.prototype, 'defaultModsPath')
+    .mockReturnValue(path.join(f.root, 'default', 'Mods'));
   await expect(f.recovery.review('missing')).rejects.toThrow('custom Mods folder is missing');
-  vi.spyOn(GameDetectionService.prototype, 'defaultModsPath').mockReturnValue(f.mods);
+  defaultMods.mockReturnValue(f.mods);
   const review = await f.recovery.review('missing');
   expect(await exists(f.mods)).toBe(false);
   await f.recovery.apply(review.plan.token);
