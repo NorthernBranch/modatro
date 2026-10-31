@@ -43,6 +43,7 @@ import { SaveBackupNotice } from './components/CreatorSettings';
 import { VersionsDialog } from './components/VersionsDialog';
 import { RemovedModsPanel } from './components/RemovedModsPanel';
 import { NavigationLabel } from './components/NavigationLabel';
+import { SetupRecoveryDialog } from './components/SetupRecoveryDialog';
 import type {
   AppError,
   ConflictDecision,
@@ -115,6 +116,7 @@ export function App() {
   const [operationReport, setOperationReport] = useState<OperationReport>();
   const [setup, setSetup] = useState(false);
   const [about, setAbout] = useState(false);
+  const [setupRecoveryOpen, setSetupRecoveryOpen] = useState(false);
   const [inspectedPlan, setInspectedPlan] = useState<InstallPlan>();
   useEffect(() => setInspectedPlan(undefined), [selected?.id]);
   const [confirmation, setConfirmation] = useState<{
@@ -725,6 +727,7 @@ export function App() {
           )}
           {snapshot && (page === 'installed' || page === 'updates') && (
             <InstalledPage
+              onRecovery={api.setupRecovery ? () => setSetupRecoveryOpen(true) : undefined}
               recovery={
                 page === 'installed' && api.restoreMod ? (
                   <RemovedModsPanel
@@ -781,6 +784,7 @@ export function App() {
           )}
           {page === 'troubleshooting' && (
             <TroubleshootingPage
+              onRecovery={api.setupRecovery ? () => setSetupRecoveryOpen(true) : undefined}
               snapshot={snapshot}
               requests={requests}
               navigate={setPage}
@@ -789,6 +793,7 @@ export function App() {
           )}
           {snapshot && page === 'settings' && (
             <SettingsPage
+              onRecovery={api.setupRecovery ? () => setSetupRecoveryOpen(true) : undefined}
               snapshot={snapshot}
               gameReady={gameReady}
               callSnapshot={callSnapshot}
@@ -812,10 +817,23 @@ export function App() {
           )}
         </main>
       </div>
+      {snapshot && setupRecoveryOpen && api.setupRecovery && (
+        <SetupRecoveryDialog
+          snapshot={snapshot}
+          requests={requests}
+          changed={setSnapshot}
+          onClose={() => setSetupRecoveryOpen(false)}
+          onDiscover={() => {
+            setSetupRecoveryOpen(false);
+            setPage('discover');
+          }}
+        />
+      )}
       <CreatorAnnouncement
         ready={
           !!snapshot &&
           !snapshot.preview &&
+          !setupRecoveryOpen &&
           (snapshot.settings.setupComplete || setupOpened.current) &&
           !setup &&
           !loadFailed &&

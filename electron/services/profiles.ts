@@ -208,7 +208,12 @@ export class ProfileService {
           `${entry.id} is no longer installed. Install it through Discover or save an updated selection; switching will not download it.`,
         );
     for (const local of snapshot.localMods.filter((m) => m.managed))
-      for (const problem of local.problems) blockers.push(`${local.title}: ${problem}`);
+      for (const problem of local.problems.length > 3
+        ? [
+            `${local.problems.length} managed files need attention. Review Installed or use setup recovery.`,
+          ]
+        : local.problems)
+        blockers.push(`${local.title}: ${problem}`);
     if (snapshot.localMods.some((m) => !m.managed))
       warnings.push(
         'Unmanaged mods remain untouched and may still load. They can affect gameplay; use Installed to review or adopt them.',

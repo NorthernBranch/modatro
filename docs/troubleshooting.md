@@ -269,6 +269,36 @@ recorded or author-supplied SHA-256. Existing files are untouched. Compare the e
 and received hashes in the error details and consult the author or report the change.
 Do not clear integrity history merely to dismiss the warning.
 
+## Installed lists mods whose files are missing
+
+Reinstalling Modatro keeps its saved installation records and backups. If mod files
+were deleted or moved separately, the old entries can remain while Prerequisites
+correctly reports them missing. Check the game and Mods locations in Settings first.
+
+Choose **Repair or reset setup** in Installed, Troubleshooting, or Settings:
+
+- **Clear missing installation entries** removes all fully missing managed entries
+  and their profile references together. Existing files are left alone.
+- **Back up and reset mod setup** clears the reviewed Mods folder, disabled copies
+  and identified Lovely libraries, including Windows `winmm.dll` and legacy
+  `version.dll`. It includes external mods and mod configuration.
+
+Close Balatro and review the locations and file list before confirming. Recovery
+copies are verified before removal; failed operations roll back. Saves, base game
+files, application settings, creator projects and existing backups are preserved.
+A DLL using a Lovely filename must be identified before removal. Links and
+unsupported game-file replacements block a reset.
+The default Mods folder can be recreated if missing; moved custom folders must be
+selected again in Settings.
+
+**Open backups** shows the local copy under `backups/setup-resets/`. Its `files/`
+tree mirrors the previous locations and its manifest preserves installation records
+and original-file backups for manual recovery. These copies remain until removed
+manually, separately from Recently uninstalled retention. Files already missing
+before recovery cannot be recovered from the new copy.
+
+![Setup recovery preview with representative paths and Lovely libraries](images/setup-recovery.png)
+
 ## Uninstall reports changed files
 
 A recorded file has changed since installation. Review each conflict before choosing:

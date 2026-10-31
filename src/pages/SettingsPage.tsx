@@ -9,6 +9,7 @@ import { PageHeading, PaletteIcon, SettingsRow } from '../components/PageElement
 import type { Reply, Settings, Snapshot } from '../shared/model';
 
 interface Props {
+  onRecovery?: () => void;
   snapshot?: Snapshot;
   gameReady: boolean;
   callSnapshot: (
@@ -23,6 +24,7 @@ interface Props {
   setAbout: Dispatch<SetStateAction<boolean>>;
 }
 export function SettingsPage({
+  onRecovery,
   snapshot,
   gameReady,
   callSnapshot,
@@ -278,6 +280,20 @@ export function SettingsPage({
                 <ArrowUpRight size={14} />
               </AsyncButton>
             </SettingsRow>
+            {onRecovery && (
+              <SettingsRow
+                title="Repair or reset mod setup"
+                description="Clear entries for missing mods, or start fresh with a verified recovery copy. Saves and creator projects are preserved."
+              >
+                <button
+                  className="button button-secondary"
+                  disabled={configuring}
+                  onClick={onRecovery}
+                >
+                  Repair or reset setup
+                </button>
+              </SettingsRow>
+            )}
             <SettingsRow
               title="Diagnostics"
               description="Local logs help explain what happened. Personal file contents are never logged."

@@ -1,6 +1,77 @@
 @import url('/fonts.css');
 @import './themes/balatro.css';
 
+.recovery-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.recovery-choice input {
+  margin-top: 4px;
+}
+.recovery-choice span {
+  display: grid;
+  gap: 6px;
+}
+.recovery-choice small {
+  color: var(--muted);
+  line-height: 1.6;
+}
+.recovery-backup-path {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 12px;
+  background: var(--panel);
+}
+.recovery-file-list {
+  max-height: 220px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+.recovery-banner {
+  margin-bottom: 24px;
+}
+.setup-recovery-content {
+  font-size: 13px;
+}
+.setup-recovery-content .recovery-choice strong {
+  font-size: 14px;
+}
+.setup-recovery-content .recovery-choice small {
+  font-size: 12px;
+}
+.setup-recovery-content > p {
+  margin: 14px 0;
+  line-height: 1.65;
+}
+.setup-recovery-content > details {
+  padding: 10px 0;
+}
+.setup-recovery-content .dialog-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.setup-recovery-content .checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  line-height: 1.65;
+}
+.setup-recovery-content .checkbox-row input {
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+
 .save-notice {
   display: flex;
   align-items: flex-start;

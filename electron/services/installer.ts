@@ -160,7 +160,7 @@ export class ModInstaller {
       disabled: this.storage.file('disabled'),
     };
   }
-  async guard() {
+  async guard(allowMissingDefaultMods = false) {
     this.storage.assertSafe();
     await this.launch.assertClosed();
     const settings = this.storage.state.settings;
@@ -181,6 +181,22 @@ export class ModInstaller {
         validation.problems.map((p) => p.message).join(' ') ||
           'The Balatro folder has moved. Select it again.',
       );
+    if (allowMissingDefaultMods && !(await exists(settings.modsPath))) {
+      if (
+        path.resolve(settings.modsPath) !==
+        path.resolve(this.detection.defaultModsPath(settings.gamePath))
+      )
+        throw new UserError(
+          'Your custom Mods folder is missing. Choose its current location in Settings before recovery.',
+        );
+      let ancestor = path.dirname(settings.modsPath);
+      while (!(await exists(ancestor))) ancestor = path.dirname(ancestor);
+      await safeDestination(
+        ancestor,
+        path.relative(ancestor, settings.modsPath).split(path.sep).join('/'),
+      );
+      return;
+    }
     if (
       (await this.detection.validateMods(settings.modsPath, settings.gamePath)) !==
       settings.modsPath

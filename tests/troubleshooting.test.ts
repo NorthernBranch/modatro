@@ -175,6 +175,28 @@ it('labels current application failures with the event timestamp and operation, 
     'Fixture request failed',
   );
 });
+it('groups hundreds of missing files so reports retain history and selected log evidence', async () => {
+  const f = await fixture();
+  f.snapshot.localMods = [
+    {
+      id: 'library',
+      title: 'Library',
+      state: 'broken',
+      managed: true,
+      folderName: 'library',
+      canAdopt: false,
+      problems: Array.from({ length: 373 }, (_, index) => `library/${index}.lua is missing.`),
+    },
+  ];
+  await put(path.join(f.mods, 'lovely/log/recent.log'), 'ERROR: useful recent evidence');
+  const before = await f.service.inspect({ logIds: [] });
+  const log = before.logs.find((log) => log.name === 'recent.log')!;
+  const selected = await f.service.inspect({ logIds: [log.id] });
+  expect(selected.report).toContain('373 managed files are missing');
+  expect(selected.report).toContain('## Recent operations');
+  expect(selected.report).toContain('useful recent evidence');
+  expect(selected.report.length).toBeLessThan(20000);
+});
 it('bounds log reads and handles malformed and binary content, missing folders and invalid selections', async () => {
   const f = await fixture(),
     log = path.join(f.root, 'large.txt');

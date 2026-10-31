@@ -128,6 +128,10 @@ See [catalogue and installation coverage](catalogue-verification.md) and
 
 ## Profiles, reports and creator acceptance
 
+`setup-recovery.test.ts` also covers missing entries, backed-up resets, Lovely filenames,
+original backups, rollback, stale confirmations and unsafe or concurrent file changes.
+Browser tests check recovery review, confirmation, retry and refreshed results.
+
 Profile tests cover migration backups, active/inactive install selections, required
 loader retention, repeated switching without duplicates, external edits, stale
 tokens and rollback. They also verify uninstall cleanup across all profiles and

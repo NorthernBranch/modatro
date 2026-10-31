@@ -79,25 +79,31 @@ export class InstalledModsService {
       mods: LocalMod[] = [],
       detected = new Map<string, { version?: string; installed: boolean }>();
     const integrity = new Map<string, string[]>();
+    const missing = new Map<string, number>();
     const verified = await fileBatches(
       state.installations.flatMap((record) =>
         record.files.map((file) => ({ id: record.modId, file })),
       ),
       async ({ id, file }) => {
         let problem: string | undefined;
+        let absent = false;
         try {
           const dest = await safeDestination(roots[file.root], file.path);
-          if (!(await exists(dest))) problem = `${file.path} is missing.`;
-          else if ((await hashFile(dest)) !== file.installedHash)
+          if (!(await exists(dest))) {
+            problem = `${file.path} is missing.`;
+            absent = true;
+          } else if ((await hashFile(dest)) !== file.installedHash)
             problem = `${file.path} has changed outside Modatro.`;
         } catch {
           problem = `${file.path} cannot be verified.`;
         }
-        return { id, problem };
+        return { id, problem, absent };
       },
     );
-    for (const { id, problem } of verified)
+    for (const { id, problem, absent } of verified) {
       if (problem) integrity.set(id, [...(integrity.get(id) ?? []), problem]);
+      if (absent) missing.set(id, (missing.get(id) ?? 0) + 1);
+    }
     for (const record of state.installations) {
       const problems = integrity.get(record.modId) ?? [];
       const latest = catalogue.find((m) => m.id === record.modId);
@@ -132,6 +138,7 @@ export class InstalledModsService {
         title: record.title,
         version: record.packageVersion ?? record.modVersion,
         managed: true,
+        filesMissing: missing.get(record.modId) === record.files.length,
         folderName: record.folderName,
         canAdopt: false,
         packageVersionUnknown:

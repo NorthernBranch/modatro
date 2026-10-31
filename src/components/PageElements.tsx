@@ -104,7 +104,11 @@ export function LocalRow({
           {local.title}
         </button>
         <p>
-          {local.version ? `Installed ${local.version}` : 'Version unknown'}
+          {local.filesMissing
+            ? `Files missing · Recorded version ${local.version ?? 'unknown'}`
+            : local.version
+              ? `${local.state === 'broken' ? 'Recorded' : 'Installed'} ${local.version}`
+              : 'Version unknown'}
           {local.state === 'update-available' && mod ? ` → Latest ${mod.version}` : ''}
           <span>·</span>
           {local.managed ? 'Managed by Modatro' : 'Installed externally'}
@@ -179,7 +183,7 @@ export function LocalRow({
         {local.problems.length > 0 && (
           <details>
             <summary>
-              {local.problems.length} file {local.problems.length === 1 ? 'needs' : 'need'}{' '}
+              {local.problems.length} {local.problems.length === 1 ? 'file needs' : 'files need'}{' '}
               attention
             </summary>
             <ul>
@@ -270,7 +274,7 @@ export function LocalRow({
         {onOpenFolder && (
           <AsyncButton
             className="text-button"
-            disabled={working}
+            disabled={working || local.filesMissing}
             pending={folderPending}
             pendingLabel="Opening folder…"
             onClick={onOpenFolder}
