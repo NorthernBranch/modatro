@@ -13,11 +13,13 @@ import {
 } from '../shared/features';
 
 export function TroubleshootingPage({
+  onRecovery,
   requests,
   navigate,
   profiles,
   snapshot,
 }: {
+  onRecovery?: () => void;
   requests: Requests;
   navigate: (page: 'prerequisites' | 'installed') => void;
   profiles: () => void;
@@ -115,6 +117,11 @@ export function TroubleshootingPage({
           >
             Generate support report
           </button>
+          {onRecovery && (
+            <button className="button button-secondary" disabled={busy} onClick={onRecovery}>
+              Repair or reset setup
+            </button>
+          )}
           <span className="muted">
             {data ? `Checked ${new Date(data.generatedAt).toLocaleString()}` : 'Checking setup…'}
           </span>

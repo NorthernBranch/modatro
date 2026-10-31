@@ -18,6 +18,7 @@ import { ModId, RelativePath, RootSchema, SettingsUpdateSchema } from '../src/sh
 import { allowedExternalLink } from '../src/shared/trust';
 import { CreatorRequestSchema } from '../src/shared/creator';
 import { ProfileTransferRequestSchema } from '../src/shared/profile-transfer';
+import { SetupRecoveryRequestSchema } from '../src/shared/setup-recovery';
 import { ModatroApplication } from './application';
 import { errorReply, UserError } from './services/errors';
 import { contained, exists, safeDestination } from './services/files';
@@ -223,6 +224,9 @@ void app
       return result;
     });
     handle('snapshot', z.undefined(), () => application.snapshot());
+    handle('setupRecovery', SetupRecoveryRequestSchema, (request) =>
+      application.recoverSetup(request),
+    );
     handle('profileOperation', ProfileOperationSchema, (request) =>
       application.profileOperation(request),
     );

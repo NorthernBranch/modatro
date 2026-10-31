@@ -12,6 +12,101 @@ import { defaultContent, type ContentType } from '../src/shared/creator-content'
 import { generateLua } from '../src/shared/creator-lua';
 
 type Behavior = 'success' | 'hold' | 'reject' | 'error';
+test('setup recovery reviews missing entries and reset files before confirmation, keeps pending work open and refreshes Installed', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.localMods = [
+    {
+      id: 'missing',
+      title: 'Missing library',
+      version: '1.0.0',
+      managed: true,
+      state: 'broken',
+      filesMissing: true,
+      folderName: 'missing',
+      canAdopt: false,
+      problems: ['a.lua is missing.', 'b.lua is missing.'],
+    },
+  ];
+  await mockDesktop(page, state, { 'setupRecovery:review': 'hold', 'setupRecovery:apply': 'hold' });
+  await page.getByRole('button', { name: 'Installed', exact: true }).click();
+  await expect(page.getByText('2 files need attention', { exact: true })).toBeVisible();
+  await expect(page.getByText('Files missing · Recorded version 1.0.0')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open mod folder', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Repair or reset setup', exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByText('Checking files and saved installation entries…')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.evaluate(() => window.requestsTest.finish('setupRecovery:review'));
+  await expect(
+    page.getByRole('button', { name: 'Clear missing entries', exact: true }),
+  ).toBeEnabled();
+  await page.getByRole('radio', { name: /Back up and reset mod setup/ }).check();
+  await page.evaluate(() => window.requestsTest.finish('setupRecovery:review'));
+  await page.getByText('Files to remove (2)', { exact: true }).click();
+  await expect(page.getByText('game/version.dll', { exact: true })).toBeVisible();
+  await expect(page.getByText('game/winmm.dll', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.requestsTest.calls['setupRecovery:apply'] ?? 0)).toBe(0);
+  await page.getByRole('checkbox', { name: /I understand that all reviewed mod files/ }).check();
+  await page.screenshot({ path: 'test-results/setup-recovery.png' });
+  for (const width of [650, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(
+      await page.getByRole('dialog').evaluate((dialog) => dialog.scrollWidth <= dialog.clientWidth),
+    ).toBe(true);
+  }
+  await page.screenshot({ path: 'test-results/setup-recovery-mobile.png' });
+  await page.setViewportSize({ width: 1320, height: 900 });
+  await page.getByRole('button', { name: 'Back up and reset', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByLabel('Close dialog')).toBeDisabled();
+  await page.evaluate(() => window.requestsTest.finish('setupRecovery:apply'));
+  await expect(page.getByRole('heading', { name: 'Your setup is ready' })).toBeVisible();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(page.locator('.local-row')).toHaveCount(0);
+});
+test('missing installation entries can be cleared with one reviewed confirmation', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.localMods = [
+    {
+      id: 'missing',
+      title: 'Missing mod',
+      managed: true,
+      state: 'broken',
+      filesMissing: true,
+      folderName: 'missing',
+      canAdopt: false,
+      problems: ['main.lua is missing.'],
+    },
+  ];
+  await mockDesktop(page, state);
+  await page.getByRole('button', { name: 'Installed', exact: true }).click();
+  await expect(page.getByText('1 file needs attention', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Repair or reset setup', exact: true }).click();
+  await expect(page.getByRole('dialog').getByRole('checkbox')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Clear missing entries', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Your setup is ready' })).toBeVisible();
+  expect(await page.evaluate(() => window.requestsTest.calls['setupRecovery:apply'])).toBe(1);
+});
+test('setup recovery offers an inline retry after a failed check without removing files', async ({
+  page,
+}) => {
+  await mockDesktop(page, fixture(), { 'setupRecovery:review': 'reject' });
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Repair or reset setup', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Checking your mod setup failed');
+  await page.evaluate(() => {
+    window.requestsTest.behavior['setupRecovery:review'] = 'success';
+  });
+  await page.getByRole('button', { name: 'Check again', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Back up and reset', exact: true })).toBeDisabled();
+  expect(await page.evaluate(() => window.requestsTest.calls['setupRecovery:apply'] ?? 0)).toBe(0);
+});
 test('profile sharing reviews downloads, shows progress, blocks dismissal during install and exports through its own flow', async ({
   page,
 }) => {
@@ -485,6 +580,34 @@ async function mockDesktop(
       };
       const api: ModatroApi = {
         initialTheme: state.settings.theme,
+        setupRecovery: (request) =>
+          request.operation === 'review'
+            ? call('setupRecovery:review', {
+                status: 'review' as const,
+                plan: {
+                  mode: request.mode,
+                  token: '22222222-2222-4222-8222-222222222222',
+                  gamePath: '/fixture/Balatro',
+                  modsPath: '/fixture/Mods',
+                  records: control.state.localMods
+                    .filter((mod) => mod.managed)
+                    .map((mod) => ({ id: mod.id, title: mod.title })),
+                  files:
+                    request.mode === 'reset'
+                      ? [
+                          { root: 'game' as const, path: 'version.dll', sizeBytes: 1024 },
+                          { root: 'game' as const, path: 'winmm.dll', sizeBytes: 1024 },
+                        ]
+                      : [],
+                  sizeBytes: request.mode === 'reset' ? 2048 : 0,
+                  warnings: [],
+                },
+              })
+            : call('setupRecovery:apply', {
+                status: 'complete' as const,
+                snapshot: { ...control.state, localMods: [] },
+                backupFolder: '/fixture/data/backups/setup-resets/example',
+              }),
         releaseOptions: (id) =>
           call('releaseOptions', {
             id,

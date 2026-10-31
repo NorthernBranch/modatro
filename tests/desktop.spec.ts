@@ -571,6 +571,38 @@ test('setup and theme saves preserve selected folders through validated desktop 
     );
     expect(savedImport.profiles.items.some((p: { id: string }) => p.id === active.id)).toBe(true);
     expect(savedImport.settings.dismissedAnnouncements).toContain('mod-creator-introduction');
+    const invalidRecovery = await page.evaluate(() =>
+      window.modatro!.setupRecovery!({
+        operation: 'review',
+        mode: 'reset',
+        path: '/untrusted',
+      } as never),
+    );
+    expect(invalidRecovery.ok).toBe(false);
+    const recovery = await page.evaluate(() =>
+      window.modatro!.setupRecovery!({ operation: 'review', mode: 'reset' }),
+    );
+    expect(recovery.ok && recovery.value.status === 'review').toBe(true);
+    if (recovery.ok && recovery.value.status === 'review') {
+      expect(
+        recovery.value.plan.files.some((file) => file.path === 'lovely/log/fixture-run.log'),
+      ).toBe(true);
+      const completed = await page.evaluate(
+        (token) => window.modatro!.setupRecovery!({ operation: 'apply', token }),
+        recovery.value.plan.token,
+      );
+      expect(completed.ok && completed.value.status === 'complete').toBe(true);
+      if (completed.ok && completed.value.status === 'complete') {
+        expect(completed.value.snapshot.localMods).toEqual([]);
+        expect(
+          await fs.readFile(
+            path.join(completed.value.backupFolder, 'files/mods/lovely/log/fixture-run.log'),
+            'utf8',
+          ),
+        ).toContain('Synthetic loader failure');
+      }
+      expect(await fs.stat(gamePath)).toBeTruthy();
+    }
   } finally {
     await closeApplication(application);
     await fs.rm(root, { recursive: true, force: true });

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { ModatroApi, Progress, Snapshot } from '../src/shared/model';
 const theme = process.argv.find((arg) => arg.startsWith('--modatro-theme='))?.split('=')[1];
 const api: ModatroApi = {
+  setupRecovery: (request) => ipcRenderer.invoke('modatro:setupRecovery', request),
   initialTheme:
     theme === 'light' || theme === 'balatro' || theme === 'balatro-dark' || theme === 'system'
       ? theme

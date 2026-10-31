@@ -13,6 +13,7 @@ import { EmptyState, LocalRow, PageHeading } from '../components/PageElements';
 import type { LocalMod, ModAction, ModDefinition } from '../shared/model';
 
 interface Props {
+  onRecovery?: () => void;
   recovery?: ReactNode;
   page: 'installed' | 'updates';
   installed: LocalMod[];
@@ -31,6 +32,7 @@ interface Props {
   projectPending?: (url: string) => boolean;
 }
 export function InstalledPage({
+  onRecovery,
   recovery,
   page,
   installed,
@@ -70,6 +72,19 @@ export function InstalledPage({
           </AsyncButton>
         }
       />
+      {page === 'installed' &&
+        installed.some((mod) => mod.managed && mod.state === 'broken') &&
+        onRecovery && (
+          <div className="feature-warning recovery-banner">
+            <p>
+              Some managed mod files are missing or need attention. You can clear missing entries or
+              back up and reset your mod setup.
+            </p>
+            <button className="button button-secondary" disabled={working} onClick={onRecovery}>
+              Repair or reset setup
+            </button>
+          </div>
+        )}
       {page === 'updates' && <ExistingInstallNotice />}
       {(page === 'installed' ? installed : updates).length ? (
         <div className="installed-list">

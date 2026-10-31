@@ -2,13 +2,7 @@ import { useState } from 'react';
 import type { Snapshot } from '../shared/model';
 import { AsyncButton } from './AsyncButton';
 import { Dialog } from './Dialog';
-
-function storageSize(bytes: number) {
-  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GiB`;
-  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
-  return `${bytes} B`;
-}
+import { storageSize } from '../shared/presentation';
 export function RemovedModsPanel({
   warning,
   items,

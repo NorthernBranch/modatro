@@ -126,7 +126,15 @@ export function diagnosticFindings(snapshot: Snapshot): Finding[] {
       action: 'prerequisites',
     });
   for (const mod of snapshot.localMods) {
-    for (const problem of mod.problems)
+    const missing = mod.problems.filter((problem) => problem.endsWith(' is missing.'));
+    const problems =
+      missing.length > 3
+        ? [
+            `${missing.length} managed files are missing.`,
+            ...mod.problems.filter((problem) => !problem.endsWith(' is missing.')),
+          ]
+        : mod.problems;
+    for (const problem of problems)
       findings.push({
         kind: mod.managed && !problem.includes('cannot be verified') ? 'problem' : 'warning',
         observed: `${mod.title}: ${problem}`,
@@ -204,15 +212,27 @@ export function supportReport(
     ),
     '',
     '## Findings',
-    ...result.findings.map(
-      (f) => `- [${f.kind}] ${f.observed}\n  Why: ${f.why}\n  Next: ${f.next}`,
-    ),
+    ...result.findings
+      .slice(0, 100)
+      .map((f) => `- [${f.kind}] ${f.observed}\n  Why: ${f.why}\n  Next: ${f.next}`),
+    ...(result.findings.length > 100
+      ? [
+          `${result.findings.length - 100} further findings omitted; review them in Troubleshooting.`,
+        ]
+      : []),
     '',
     '## Recent operations',
     result.historyError ?? '',
-    ...result.history.map(
+    'Up to 20 recent operations; complete retained history is available in Troubleshooting.',
+    ...result.history.slice(-20).map(
       (h) =>
-        `- ${h.time} ${h.type}: ${h.outcome}; ${h.profile ?? ''}; ${h.ids.join(', ')}${h.versions.map((v) => `; ${h.outcome === 'success' ? '' : 'planned '}${v.id}: ${v.before ?? 'not installed'} → ${v.after ?? 'not installed'}`).join('')}`,
+        `- ${h.time} ${h.type}: ${h.outcome}; ${h.profile ?? ''}; ${h.ids.slice(0, 10).join(', ')}${h.ids.length > 10 ? ` (+${h.ids.length - 10} more)` : ''}${h.versions
+          .slice(0, 10)
+          .map(
+            (v) =>
+              `; ${h.outcome === 'success' ? '' : 'planned '}${v.id}: ${v.before ?? 'not installed'} → ${v.after ?? 'not installed'}`,
+          )
+          .join('')}`,
     ),
     '',
     '## Selected log excerpts',

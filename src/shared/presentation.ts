@@ -2,6 +2,12 @@ import { canAcceptUnverified, evaluateDependencies, hasUpdate } from './dependen
 import type { DependencyStatus, ModDefinition, Progress, Snapshot } from './model';
 import { automationReason } from './trust';
 import { resolveDependencyGraph } from './dependency-graph';
+export function storageSize(bytes: number) {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GiB`;
+  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+  return `${bytes} B`;
+}
 export function installationProgressLabel(progress: Progress): string {
   const labels: Record<Progress['phase'], string> = {
     downloading: 'Downloading files',

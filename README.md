@@ -70,7 +70,8 @@ and macOS may block opening them. Check the release notes and
 - **Profiles:** save and switch managed selections, or export/import profiles for
   backup and sharing. Versions and mod settings are shared across profiles.
 - **Troubleshooting:** check your setup and prepare an editable support report,
-  with log excerpts included only when you select them.
+  with log excerpts included only when you select them. Clear missing installation
+  entries or back up and reset a mod setup while preserving saves and creator projects.
 - **Mod Creator (experimental):** build Jokers, Decks and Vouchers or write Custom
   Lua, choose artwork, and export local mods. Enable it in Settings after
   acknowledging the risks.

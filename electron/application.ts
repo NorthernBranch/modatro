@@ -22,6 +22,8 @@ import { GameDetectionService, LaunchService } from './services/detection';
 import { UserError } from './services/errors';
 import { contained, readSmall, safeDestination } from './services/files';
 import { ModInstaller } from './services/installer';
+import { SetupRecoveryService } from './services/setup-recovery';
+import type { SetupRecoveryRequest, SetupRecoveryResult } from '../src/shared/setup-recovery';
 import { InstalledModsService } from './services/local-mods';
 import { remoteJson } from './services/network';
 import { Logger, Storage } from './services/storage';
@@ -70,6 +72,7 @@ export class ModatroApplication {
   readonly transactions: TransactionEngine;
   readonly installer: ModInstaller;
   readonly profiles: ProfileService;
+  readonly setupRecovery: SetupRecoveryService;
   readonly profileTransfer: ProfileTransferService;
   readonly troubleshooting: TroubleshootingService;
   readonly creator: CreatorService;
@@ -142,6 +145,7 @@ export class ModatroApplication {
       async () => (await this.snapshot()).localMods,
     );
     this.profiles = new ProfileService(this.storage, this.installer, () => this.snapshot());
+    this.setupRecovery = new SetupRecoveryService(this.storage, this.installer);
     this.profileTransfer = new ProfileTransferService(
       this.storage,
       this.installer,
@@ -169,6 +173,10 @@ export class ModatroApplication {
   async profileOperation(request: ProfileOperation) {
     await this.profiles.operation(request);
     return this.snapshot();
+  }
+  async recoverSetup(request: SetupRecoveryRequest): Promise<SetupRecoveryResult> {
+    if (request.operation === 'review') return this.setupRecovery.review(request.mode);
+    return { ...(await this.setupRecovery.apply(request.token)), snapshot: await this.snapshot() };
   }
   async switchProfile(request: { profileId: string; token: string }) {
     await this.profiles.switch(request.profileId, request.token);

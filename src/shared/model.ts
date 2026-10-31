@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ModIndexUrl } from './mod-index';
 import { CreatorOriginSchema, type CreatorRequest, type CreatorResponse } from './creator';
 import type { ProfileTransferRequest, ProfileTransferResult } from './profile-transfer';
+import type { SetupRecoveryRequest, SetupRecoveryResult } from './setup-recovery';
 import {
   ProfilesSchema,
   type ProfileSummary,
@@ -374,6 +375,7 @@ export type ModState =
   | 'broken'
   | 'unmanaged';
 export interface LocalMod {
+  filesMissing?: boolean;
   declaredConflicts?: DependencyRequirement[];
   disabled?: boolean;
   id: string;
@@ -521,6 +523,7 @@ export interface InstallPlan {
 }
 export interface ModatroApi {
   readonly initialTheme?: Settings['theme'];
+  setupRecovery?(request: SetupRecoveryRequest): Promise<Reply<SetupRecoveryResult>>;
   releaseOptions?(id: string): Promise<Reply<ReleaseOptions>>;
   restoreMod?(id: string, token?: string): Promise<Reply<Snapshot>>;
   deleteRemovedBackup?(
