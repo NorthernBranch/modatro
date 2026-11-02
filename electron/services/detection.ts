@@ -241,14 +241,25 @@ export class GameDetectionService {
   }
 }
 export class LaunchService {
+  constructor(
+    private platform: NodeJS.Platform = process.platform,
+    private run = exec,
+  ) {}
   async assertClosed(): Promise<void> {
     try {
       const { stdout } =
-        process.platform === 'win32'
-          ? await exec('tasklist.exe', ['/FO', 'CSV', '/NH'], { timeout: 5000, windowsHide: true })
-          : await exec('/bin/ps', ['-axo', 'comm='], { timeout: 5000 });
+        this.platform === 'win32'
+          ? await this.run(
+              'tasklist.exe',
+              ['/FO', 'CSV', '/NH', '/FI', 'IMAGENAME eq Balatro.exe'],
+              {
+                timeout: 15000,
+                windowsHide: true,
+              },
+            )
+          : await this.run('/bin/ps', ['-axo', 'comm='], { timeout: 5000 });
       if (
-        process.platform === 'win32'
+        this.platform === 'win32'
           ? /"Balatro\.exe"/i.test(stdout)
           : /Balatro\.app\/Contents\/MacOS\/love|(?:^|\/)Balatro(?:\.exe)?(?:\s|$)/im.test(stdout)
       )
@@ -260,10 +271,23 @@ export class LaunchService {
         );
     } catch (e) {
       if (e instanceof UserError) throw e;
+      const failure = e as NodeJS.ErrnoException & {
+        stderr?: string;
+        killed?: boolean;
+        signal?: string;
+      };
       throw new UserError(
         'Modatro could not check whether Balatro is running. File changes are paused; try again.',
         undefined,
-        String(e),
+        [
+          String(e),
+          failure.code !== undefined ? `Code: ${failure.code}` : '',
+          failure.killed ? 'Process check was terminated (possibly timed out).' : '',
+          failure.signal ? `Signal: ${failure.signal}` : '',
+          failure.stderr?.trim(),
+        ]
+          .filter(Boolean)
+          .join('\n'),
         { retryable: true },
       );
     }

@@ -355,3 +355,9 @@ operation was interrupted and whether any files were edited afterward.
 Close the game, then use **Check again** to retry the requested operation. Game
 launch and mod changes share an operation lock, so wait for an active installation
 to finish before launching.
+
+If Modatro says it **could not check whether Balatro is running**, the process check
+failed; it does not mean the game is open. On Windows, Modatro checks only
+`Balatro.exe` and allows up to 15 seconds. Retry with **Check again**. If it keeps
+failing, include the expanded **Technical details** in your report; file changes
+remain paused until the check succeeds.
