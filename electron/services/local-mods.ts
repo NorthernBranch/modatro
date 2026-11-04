@@ -207,6 +207,13 @@ export class InstalledModsService {
               : undefined;
           if (owner && meta) {
             const managed = mods.find((mod) => mod.managed && mod.id === owner!.modId);
+            if (
+              managed?.state === 'broken' &&
+              meta.id &&
+              owner.metadataId &&
+              dependencyId(meta.id).toLowerCase() === dependencyId(owner.metadataId).toLowerCase()
+            )
+              managed.detectedVersion = meta.version;
             if (managed && !managed.problems.length) managed.declaredConflicts = meta.conflicts;
           }
           // Older registry installs omitted manifest.json. A fully verified

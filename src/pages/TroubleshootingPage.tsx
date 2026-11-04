@@ -421,6 +421,7 @@ export function TroubleshootingPage({
                 pending={requests.isPending('copy-report')}
                 onClick={async () => {
                   const reply = await requests.run('copy-report', 'Copying report', async () => {
+                    if (api.copyText) return api.copyText(report);
                     await navigator.clipboard.writeText(report);
                     return { ok: true, value: undefined };
                   });

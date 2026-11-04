@@ -13,7 +13,7 @@ import { EmptyState, LocalRow, PageHeading } from '../components/PageElements';
 import type { LocalMod, ModAction, ModDefinition } from '../shared/model';
 
 interface Props {
-  onRecovery?: () => void;
+  onRecovery?: (id?: string) => void;
   recovery?: ReactNode;
   page: 'installed' | 'updates';
   installed: LocalMod[];
@@ -77,10 +77,14 @@ export function InstalledPage({
         onRecovery && (
           <div className="feature-warning recovery-banner">
             <p>
-              Some managed mod files are missing or need attention. You can clear missing entries or
-              back up and reset your mod setup.
+              Some managed mod files need attention. Repair an updated mod, back up and uninstall
+              one mod, or review setup recovery options.
             </p>
-            <button className="button button-secondary" disabled={working} onClick={onRecovery}>
+            <button
+              className="button button-secondary"
+              disabled={working}
+              onClick={() => onRecovery()}
+            >
               Repair or reset setup
             </button>
           </div>
@@ -96,6 +100,7 @@ export function InstalledPage({
                 (m) => m.id === (local.catalogueId ?? local.id) && m.permissions?.display !== false,
               )}
               working={working}
+              onRepair={onRecovery ? () => onRecovery(local.id) : undefined}
               onDetails={(mod) => setSelected(mod)}
               onAction={(action, mod) => requestAction(local.id, action, local.title, mod)}
               onOpenFolder={openModFolder ? () => void openModFolder(local.id) : undefined}

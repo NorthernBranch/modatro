@@ -375,6 +375,7 @@ export type ModState =
   | 'broken'
   | 'unmanaged';
 export interface LocalMod {
+  detectedVersion?: string;
   filesMissing?: boolean;
   declaredConflicts?: DependencyRequirement[];
   disabled?: boolean;
@@ -537,6 +538,7 @@ export interface ModatroApi {
   troubleshoot?(request: DiagnosticRequest): Promise<Reply<Troubleshooting>>;
   chooseDiagnosticLog?(): Promise<Reply<string | undefined>>;
   exportReport?(request: { text: string }): Promise<Reply<boolean>>;
+  copyText?(text: string): Promise<Reply<void>>;
   checkAppUpdates?(): Promise<Reply<Snapshot>>;
   githubStars?(): Promise<Reply<Record<string, number>>>;
   snapshot(): Promise<Reply<Snapshot>>;

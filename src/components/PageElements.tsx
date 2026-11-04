@@ -79,10 +79,12 @@ export function LocalRow({
   onOpenProject,
   folderPending,
   projectPending,
+  onRepair,
 }: {
   local: LocalMod;
   mod?: ModDefinition;
   working: boolean;
+  onRepair?: () => void;
   onDetails: (mod: ModDefinition) => void;
   onAction: (action: ModAction, mod?: ModDefinition) => void;
   onOpenFolder?: () => void;
@@ -116,6 +118,11 @@ export function LocalRow({
           {local.deprecated ? ' · Deprecated' : ''}
         </p>
         {local.availabilityReason && <p className="muted-text">{local.availabilityReason}</p>}
+        {local.detectedVersion && (
+          <p className="muted-text">
+            Detected on disk {local.detectedVersion} · Repair mod to review and adopt these files.
+          </p>
+        )}
         {local.packageVersionUnknown && (
           <p className="muted-text">
             The installed Thunderstore package version is unknown. Review the catalogue release
@@ -226,6 +233,15 @@ export function LocalRow({
           )}
         {local.managed ? (
           <>
+            {local.state === 'broken' &&
+              !local.filesMissing &&
+              local.canDisable !== false &&
+              !local.provenance?.creator &&
+              onRepair && (
+                <button className="button button-secondary" disabled={working} onClick={onRepair}>
+                  Repair mod
+                </button>
+              )}
             <button
               className="button button-secondary"
               disabled={
@@ -257,7 +273,7 @@ export function LocalRow({
               disabled={working}
               onClick={() => onAction('uninstall')}
             >
-              Uninstall
+              {local.filesMissing ? 'Remove missing entry' : 'Uninstall'}
             </button>
           </>
         ) : local.canAdopt ? (

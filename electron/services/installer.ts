@@ -1029,7 +1029,62 @@ export class ModInstaller {
       }
     });
   }
-  private async assertNotRequired(record: InstallationRecord) {
+  async externalRepairWarnings(record: InstallationRecord): Promise<string[]> {
+    if (record.disabled) return [];
+    const packageId =
+      record.provenance?.namespace && record.provenance.packageName
+        ? thunderstoreId(record.provenance.namespace, record.provenance.packageName)
+        : undefined;
+    const identity = dependencyId(record.metadataId ?? record.modId);
+    const future = (await this.getPrerequisites()).filter(
+      (entry) =>
+        entry.id.toLowerCase() !== identity.toLowerCase() &&
+        (!packageId || entry.packageId !== packageId),
+    );
+    future.push({
+      id: identity,
+      displayName: record.title,
+      installed: true,
+      installedVersion: record.modVersion,
+      packageId,
+      sourceUrl: record.provenance?.repositoryUrl ?? 'https://github.com/NorthernBranch/modatro',
+    });
+    const own = evaluateDependencies(record.dependencies, future)
+      .filter((status) => status.required && status.state !== 'satisfied')
+      .map((status) => status.reason);
+    const installed =
+      (await this.getInstalledMods?.()) ??
+      this.storage.state.installations
+        .filter((item) => !item.disabled)
+        .map((item) => ({
+          id: item.modId,
+          title: item.title,
+          dependencies: item.dependencies,
+          declaredConflicts: item.declaredConflicts,
+        }));
+    const affected = affectedCompatibility(
+      [
+        {
+          id: record.modId,
+          metadataId: identity,
+          source: packageId ? { provider: 'external', externalId: packageId } : undefined,
+        },
+      ],
+      installed.filter(
+        (mod) =>
+          !this.storage.state.installations.some((item) => item.modId === mod.id && item.disabled),
+      ),
+      future,
+    );
+    return [
+      ...own,
+      ...evaluateDependencies(record.declaredConflicts ?? [], future)
+        .filter((status) => ['satisfied', 'unknown'].includes(status.state))
+        .map((status) => `${record.title} declares a conflict with ${status.displayName}.`),
+      ...affected.map((conflict) => `${conflict.title}: ${conflict.requirement.reason}`),
+    ];
+  }
+  async assertNotRequired(record: InstallationRecord) {
     const source = record.provenance?.downloadUrl ?? record.source;
     const registry = source
       ? /^https:\/\/thunderstore\.io\/package\/download\/([A-Za-z0-9_]+)\/([A-Za-z0-9_]+)\//.exec(

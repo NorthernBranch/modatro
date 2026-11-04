@@ -154,6 +154,15 @@ test('desktop has an isolated renderer, working preload and validated IPC', asyn
     }
     const reply = await page.evaluate(() => window.modatro!.snapshot());
     expect(reply.ok).toBe(true);
+    const copied = await page.evaluate(() =>
+      window.modatro!.copyText!('Modatro support report\nClipboard fixture'),
+    );
+    expect(copied.ok).toBe(true);
+    expect(await application.evaluate(async ({ clipboard }) => await clipboard.readText())).toBe(
+      'Modatro support report\nClipboard fixture',
+    );
+    const oversizedCopy = await page.evaluate(() => window.modatro!.copyText!('x'.repeat(100001)));
+    expect(oversizedCopy.ok).toBe(false);
     if (reply.ok) {
       expect(reply.value.preview).toBeUndefined();
       expect(reply.value.settings.gamePath).toBeUndefined();
@@ -481,17 +490,17 @@ test('setup and theme saves preserve selected folders through validated desktop 
     await page.evaluate(() =>
       Object.defineProperty(navigator, 'clipboard', {
         value: {
-          writeText: async (text: string) => {
-            (globalThis as Record<string, unknown>).copiedFixtureReport = text;
+          writeText: async () => {
+            throw new Error('Browser clipboard access denied');
           },
         },
       }),
     );
     await page.getByRole('button', { name: 'Copy report', exact: true }).click();
     await expect(page.getByRole('status').filter({ hasText: 'Report copied.' })).toBeVisible();
-    expect(
-      await page.evaluate(() => (globalThis as Record<string, unknown>).copiedFixtureReport),
-    ).toBe('Reviewed synthetic support report');
+    expect(await application.evaluate(async ({ clipboard }) => await clipboard.readText())).toBe(
+      'Reviewed synthetic support report',
+    );
     const exported = path.join(root, 'reviewed-report.md');
     await application.evaluate(({ dialog }, destination) => {
       dialog.showSaveDialog = (async () => ({

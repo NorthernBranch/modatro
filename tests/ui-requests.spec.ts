@@ -12,6 +12,139 @@ import { defaultContent, type ContentType } from '../src/shared/creator-content'
 import { generateLua } from '../src/shared/creator-lua';
 
 type Behavior = 'success' | 'hold' | 'reject' | 'error';
+test('a deleted mod can be removed individually without nonexistent-file decisions', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.localMods = [
+    {
+      id: 'missing',
+      title: 'Deleted mod',
+      managed: true,
+      state: 'broken',
+      filesMissing: true,
+      canDisable: true,
+      canAdopt: false,
+      folderName: 'missing',
+      problems: ['main.lua is missing.'],
+    },
+  ];
+  await mockDesktop(page, state);
+  await page.getByRole('button', { name: 'Installed', exact: true }).click();
+  await page.getByRole('button', { name: 'Remove missing entry', exact: true }).click();
+  await expect(
+    page.getByText(
+      'All recorded files are already missing. Remove this saved entry and its references in profiles.',
+    ),
+  ).toBeVisible();
+  await expect(page.getByRole('dialog').getByRole('checkbox')).toHaveCount(0);
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Remove missing entry', exact: true })
+    .click();
+  await expect(
+    page.getByText('The missing installation entry and its profile references have been removed.'),
+  ).toBeVisible();
+});
+test('an externally updated mod has a direct adoption review and a single backed-up uninstall confirmation', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.localMods = [
+    {
+      id: 'updated',
+      title: 'Updated mod',
+      version: '1.0.0',
+      detectedVersion: '2.0.0',
+      managed: true,
+      state: 'broken',
+      folderName: 'updated',
+      canAdopt: false,
+      canDisable: true,
+      problems: Array.from(
+        { length: 167 },
+        (_, i) => `updated/file${i}.lua has changed outside Modatro.`,
+      ),
+    },
+  ];
+  await mockDesktop(page, state, { 'setupRecovery:review': 'hold', 'setupRecovery:apply': 'hold' });
+  await page.getByRole('button', { name: 'Installed', exact: true }).click();
+  await expect(page.getByText(/Detected on disk 2.0.0/)).toBeVisible();
+  await page.getByRole('button', { name: 'Repair mod', exact: true }).click();
+  await page.evaluate(() =>
+    window.requestsTest.finish('setupRecovery:review', {
+      ok: true,
+      value: {
+        status: 'review',
+        plan: {
+          mode: 'repair',
+          token: '22222222-2222-4222-8222-222222222222',
+          gamePath: '/fixture/Balatro',
+          modsPath: '/fixture/Mods',
+          records: [{ id: 'updated', title: 'Updated mod' }],
+          files: [{ root: 'mods', path: 'updated/main.lua', sizeBytes: 2048 }],
+          sizeBytes: 2048,
+          warnings: ['Current files will be tracked after backup.'],
+          detectedVersion: '2.0.0',
+          detectedFolder: 'updated',
+        },
+      },
+    }),
+  );
+  await expect(page.getByText('Detected version 2.0.0', { exact: true })).toBeVisible();
+  await expect(page.getByRole('radio', { name: /Back up and reset mod setup/ })).toHaveCount(0);
+  await page.screenshot({ path: 'test-results/mod-repair.png' });
+  for (const width of [650, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(
+      await page.getByRole('dialog').evaluate((dialog) => dialog.scrollWidth <= dialog.clientWidth),
+    ).toBe(true);
+  }
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.getByRole('button', { name: 'Uninstall', exact: true }).click();
+  await expect(page.getByRole('radio', { name: /Back up and uninstall one mod/ })).toBeChecked();
+  await page.evaluate(() => window.requestsTest.finish('setupRecovery:review'));
+  await expect(page.getByRole('dialog').getByRole('checkbox')).toHaveCount(1);
+  await expect(
+    page.getByRole('button', { name: 'Back up and uninstall', exact: true }),
+  ).toBeDisabled();
+  await page.getByRole('checkbox', { name: /I understand that all reviewed/ }).check();
+  await page.getByRole('button', { name: 'Back up and uninstall', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.evaluate(() => window.requestsTest.finish('setupRecovery:apply'));
+  await expect(
+    page.getByText('The reviewed mod files and its entries in your profiles have been removed.'),
+  ).toBeVisible();
+});
+
+test('support reports use the desktop clipboard when browser clipboard access is denied', async ({
+  page,
+}) => {
+  await mockDesktop(page);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
+        writeText: async () => {
+          throw new Error('Permission denied');
+        },
+      },
+    });
+    window.modatro!.copyText = async (text) => {
+      (window as unknown as { copiedReport: string }).copiedReport = text;
+      return { ok: true, value: undefined };
+    };
+  });
+  await page.getByRole('button', { name: 'Troubleshooting', exact: true }).click();
+  await page.getByRole('button', { name: 'Generate support report', exact: true }).click();
+  await page.getByLabel('Editable support report').fill('Edited support report');
+  await page.getByRole('button', { name: 'Copy report', exact: true }).click();
+  await expect(page.getByText('Report copied.', { exact: true })).toBeVisible();
+  expect(
+    await page.evaluate(() => (window as unknown as { copiedReport: string }).copiedReport),
+  ).toBe('Edited support report');
+});
+
 test('setup recovery reviews missing entries and reset files before confirmation, keeps pending work open and refreshes Installed', async ({
   page,
 }) => {
@@ -598,7 +731,11 @@ async function mockDesktop(
                           { root: 'game' as const, path: 'version.dll', sizeBytes: 1024 },
                           { root: 'game' as const, path: 'winmm.dll', sizeBytes: 1024 },
                         ]
-                      : [],
+                      : request.mode === 'remove' &&
+                          !control.state.localMods.find((mod) => mod.id === request.modId)
+                            ?.filesMissing
+                        ? [{ root: 'mods' as const, path: 'updated/main.lua', sizeBytes: 2048 }]
+                        : [],
                   sizeBytes: request.mode === 'reset' ? 2048 : 0,
                   warnings: [],
                 },

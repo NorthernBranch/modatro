@@ -117,6 +117,8 @@ export function App() {
   const [setup, setSetup] = useState(false);
   const [about, setAbout] = useState(false);
   const [setupRecoveryOpen, setSetupRecoveryOpen] = useState(false);
+  const [recoveryModId, setRecoveryModId] = useState<string>();
+  const [recoveryMode, setRecoveryMode] = useState<'repair' | 'remove'>('repair');
   const [inspectedPlan, setInspectedPlan] = useState<InstallPlan>();
   useEffect(() => setInspectedPlan(undefined), [selected?.id]);
   const [confirmation, setConfirmation] = useState<{
@@ -416,6 +418,22 @@ export function App() {
     if (reply?.ok) setNotification('Balatro is launching. Enjoy your run.');
   }
   function requestAction(id: string, action: ModAction, title: string, mod?: ModDefinition) {
+    if (
+      action === 'uninstall' &&
+      api.setupRecovery &&
+      snapshot?.localMods.some(
+        (local) =>
+          local.id === id &&
+          local.state === 'broken' &&
+          local.canDisable !== false &&
+          !local.provenance?.creator,
+      )
+    ) {
+      setRecoveryModId(id);
+      setRecoveryMode('remove');
+      setSetupRecoveryOpen(true);
+      return;
+    }
     if (configuring || !snapshot) return;
     if (action === 'uninstall') setConfirmation({ id, action, title, mod });
     else if (action === 'adopt') setConfirmation({ id, action, title });
@@ -727,7 +745,15 @@ export function App() {
           )}
           {snapshot && (page === 'installed' || page === 'updates') && (
             <InstalledPage
-              onRecovery={api.setupRecovery ? () => setSetupRecoveryOpen(true) : undefined}
+              onRecovery={
+                api.setupRecovery
+                  ? (id) => {
+                      setRecoveryModId(id);
+                      setRecoveryMode('repair');
+                      setSetupRecoveryOpen(true);
+                    }
+                  : undefined
+              }
               recovery={
                 page === 'installed' && api.restoreMod ? (
                   <RemovedModsPanel
@@ -821,10 +847,18 @@ export function App() {
         <SetupRecoveryDialog
           snapshot={snapshot}
           requests={requests}
+          initialModId={recoveryModId}
+          initialMode={recoveryMode}
           changed={setSnapshot}
-          onClose={() => setSetupRecoveryOpen(false)}
+          onClose={() => {
+            setSetupRecoveryOpen(false);
+            setRecoveryModId(undefined);
+            setRecoveryMode('repair');
+          }}
           onDiscover={() => {
             setSetupRecoveryOpen(false);
+            setRecoveryModId(undefined);
+            setRecoveryMode('repair');
             setPage('discover');
           }}
         />
