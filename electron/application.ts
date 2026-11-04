@@ -23,6 +23,8 @@ import { UserError } from './services/errors';
 import { contained, readSmall, safeDestination } from './services/files';
 import { ModInstaller } from './services/installer';
 import { SetupRecoveryService } from './services/setup-recovery';
+import { StorageMaintenance } from './services/storage-maintenance';
+import type { StorageMaintenanceRequest } from '../src/shared/storage-maintenance';
 import type { SetupRecoveryRequest, SetupRecoveryResult } from '../src/shared/setup-recovery';
 import { InstalledModsService } from './services/local-mods';
 import { remoteJson } from './services/network';
@@ -73,6 +75,7 @@ export class ModatroApplication {
   readonly installer: ModInstaller;
   readonly profiles: ProfileService;
   readonly setupRecovery: SetupRecoveryService;
+  private maintenance?: StorageMaintenance;
   readonly profileTransfer: ProfileTransferService;
   readonly troubleshooting: TroubleshootingService;
   readonly creator: CreatorService;
@@ -182,19 +185,47 @@ export class ModatroApplication {
       );
     return { ...(await this.setupRecovery.apply(request.token)), snapshot: await this.snapshot() };
   }
+  async maintainStorage(request: StorageMaintenanceRequest) {
+    const maintenance = this.maintenance;
+    if (!maintenance) throw new UserError('Storage checks are still starting. Try again shortly.');
+    if (request.operation === 'inspect')
+      return this.transactions.inspectLocked(() => maintenance.inspect());
+    return this.transactions.locked(async () => {
+      if (request.operation === 'delete') return maintenance.cleanup(request.id);
+      await this.installer.pruneDownloads();
+      return maintenance.cleanup();
+    });
+  }
   async switchProfile(request: { profileId: string; token: string }) {
     await this.profiles.switch(request.profileId, request.token);
     return this.snapshot();
   }
   async initialize() {
     await this.storage.initialize();
-    await this.installer.pruneDownloads();
     await this.appUpdates.loadCache();
     await this.trust.initialize();
     if (!this.storage.safetyError) await this.transactions.recover();
     await this.storage.migrateProfiles();
-    if (!this.storage.safetyError)
-      await this.transactions.locked(() => this.installer.removed.prune());
+    this.maintenance = new StorageMaintenance(this.storage, this.transactions.backup, this.logger);
+    this.setupRecovery.afterRecovery = async () => {
+      const result = await this.maintenance!.cleanup();
+      if (result.warnings.length)
+        await this.logger.log('storage.cleanup.deferred', result.warnings);
+    };
+    if (!this.storage.safetyError) {
+      await this.transactions.locked(async () => {
+        await this.installer.removed.prune();
+        await this.maintenance!.scheduled(true).catch((error) =>
+          this.logger.log('storage.cleanup.deferred', String(error)),
+        );
+        await this.installer
+          .pruneDownloads()
+          .catch((error) => this.logger.log('downloads.cleanup.deferred', String(error)));
+      });
+      this.transactions.afterOperation = async () => {
+        if (await this.maintenance!.scheduled()) await this.installer.pruneDownloads();
+      };
+    }
     await this.repository.loadCache();
     try {
       this.unavailableSources =

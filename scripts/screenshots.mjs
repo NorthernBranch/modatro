@@ -232,6 +232,26 @@ try {
         error: { message: 'Documentation capture is read-only.' },
       });
       window.modatro = {
+        storageMaintenance: async (request) =>
+          request.operation === 'inspect'
+            ? {
+                ok: true,
+                value: {
+                  sizeBytes: 24 * 1024 ** 2,
+                  warnings: [],
+                  snapshots: [
+                    {
+                      id: '66666666-6666-4666-8666-666666666666',
+                      createdAt: '2026-11-01T12:00:00Z',
+                      mode: 'reset',
+                      sizeBytes: 24 * 1024 ** 2,
+                      protected: false,
+                      complete: true,
+                    },
+                  ],
+                },
+              }
+            : unavailable(),
         profileTransfer: async () => ({
           ok: true,
           value: {
@@ -414,6 +434,13 @@ try {
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('heading', { name: 'Just the way you like it.', exact: true }).waitFor();
   await page.screenshot({ path: path.join(output, 'settings.png'), animations: 'disabled' });
+  const storage = page
+    .locator('details')
+    .filter({ has: page.locator('summary').filter({ hasText: 'Storage and recovery copies' }) });
+  await storage.locator('summary').click();
+  await storage.getByText('24.0 MiB in 1 checked setup recovery copy.').waitFor();
+  await storage.screenshot({ path: path.join(output, 'storage.png'), animations: 'disabled' });
+  await storage.locator('summary').click();
   await page.getByRole('button', { name: 'Updates', exact: true }).click();
   await page.getByRole('heading', { name: 'Keep your next run fresh.', exact: true }).waitFor();
   await page.screenshot({ path: path.join(output, 'updates.png'), animations: 'disabled' });
@@ -509,7 +536,7 @@ try {
   if (issues.length) throw new Error('App layout overflow: ' + JSON.stringify(issues));
   console.log('Layout review passed on all seven pages at 1440, 1024, 768 and 375 pixels.');
   console.log(
-    'Saved twelve app views, including all three Creator builders and styled description, to docs/images/.',
+    'Saved app views, including storage controls and all three Creator builders, to docs/images/.',
   );
 } finally {
   try {

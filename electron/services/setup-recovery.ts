@@ -76,6 +76,7 @@ function observedRecord(
 }
 
 export class SetupRecoveryService {
+  afterRecovery?: () => Promise<void>;
   private pending?: {
     mode: SetupRecoveryMode;
     modId?: string;
@@ -570,6 +571,13 @@ export class SetupRecoveryService {
             'The setup changed while backing up. Your files remain unchanged; review a fresh preview.',
           );
         await this.commit(plan, pending.mode, verifyBackup, pending.hash);
+        // Only completed operations are eligible for automatic retention. Failed
+        // or interrupted recovery copies stay available for investigation.
+        await this.storage
+          .write(`${prefix}/manifest.json`, { ...manifest, completed: true })
+          .catch(() => {});
+        // Run immediately after a new copy, even within the hourly maintenance window.
+        await this.afterRecovery?.().catch(() => {});
         return {
           status: 'complete' as const,
           backupFolder: this.storage.file(prefix),

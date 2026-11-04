@@ -90,6 +90,8 @@ test('desktop has an isolated renderer, working preload and validated IPC', asyn
   // On macOS/Windows, "cache" aliases "Cache" and used to abort startup.
   await fs.mkdir(path.join(data, 'Cache'));
   await fs.writeFile(path.join(data, 'Cache', 'chromium-sentinel'), 'browser cache');
+  await fs.mkdir(path.join(data, 'staging', 'install-Abc123'), { recursive: true });
+  await fs.writeFile(path.join(data, 'staging', 'install-Abc123', 'leftover.lua'), 'scratch');
   const env: Record<string, string> = {
     ...Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== undefined)),
     MODATRO_TEST_DATA: data,
@@ -114,6 +116,7 @@ test('desktop has an isolated renderer, working preload and validated IPC', asyn
       'browser cache',
     );
     expect((await fs.stat(path.join(data, 'catalogue-cache'))).isDirectory()).toBe(true);
+    await expect(fs.stat(path.join(data, 'staging', 'install-Abc123'))).rejects.toThrow();
     const isolation = await page.evaluate(() => ({
       node: typeof (globalThis as Record<string, unknown>).require,
       bridge: typeof window.modatro?.snapshot,
@@ -177,6 +180,17 @@ test('desktop has an isolated renderer, working preload and validated IPC', asyn
     }
     const invalidLink = await page.evaluate(() => window.modatro!.openLink('file:///etc/passwd'));
     expect(invalidLink.ok).toBe(false);
+    const storageStatus = await page.evaluate(() =>
+      window.modatro!.storageMaintenance!({ operation: 'inspect' }),
+    );
+    expect(storageStatus).toEqual({
+      ok: true,
+      value: { snapshots: [], sizeBytes: 0, warnings: [] },
+    });
+    const invalidDeletion = await page.evaluate(() =>
+      window.modatro!.storageMaintenance!({ operation: 'delete', id: '../data' }),
+    );
+    expect(invalidDeletion.ok).toBe(false);
     const unsupportedConsent = await page.evaluate(() =>
       window.modatro!.action('fixture', 'install', undefined, undefined, [
         { id: 'Talisman', versionConstraint: '>=1.0.0' },

@@ -12,6 +12,59 @@ import { defaultContent, type ContentType } from '../src/shared/creator-content'
 import { generateLua } from '../src/shared/creator-lua';
 
 type Behavior = 'success' | 'hold' | 'reject' | 'error';
+test('storage controls show pending checks, sizes, protected copies and confirmed deletion', async ({
+  page,
+}) => {
+  await mockDesktop(page);
+  await page.evaluate(() => {
+    const item = {
+      id: '11111111-1111-4111-8111-111111111111',
+      createdAt: '2026-11-01T12:00:00Z',
+      mode: 'reset',
+      sizeBytes: 2048,
+      complete: true,
+      protected: false,
+    };
+    const protectedCopy = { ...item, id: '22222222-2222-4222-8222-222222222222', protected: true };
+    window.modatro!.storageMaintenance = async (request) => {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      const snapshots = request.operation === 'delete' ? [protectedCopy] : [item, protectedCopy];
+      return {
+        ok: true,
+        value: {
+          snapshots,
+          sizeBytes: snapshots.length * 2048,
+          warnings:
+            request.operation === 'delete'
+              ? ['Copies containing referenced originals were retained.']
+              : [],
+        },
+      };
+    };
+  });
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByText('Storage and recovery copies', { exact: true }).click();
+  await expect(page.getByText('Checking recovery copies…', { exact: true })).toBeVisible();
+  await expect(page.getByText('4.0 KiB in 2 checked setup recovery copies.')).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Delete recovery copy', exact: true }).nth(0),
+  ).toBeDisabled();
+  await page.getByRole('button', { name: 'Clear setup recovery copies' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByText(/will no longer be available/)).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(page.getByText('4.0 KiB in 2 checked setup recovery copies.')).toBeVisible();
+  await page.getByRole('button', { name: 'Clear setup recovery copies' }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Delete recovery copies', exact: true })
+    .click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByText('2.0 KiB in 1 checked setup recovery copy.')).toBeVisible();
+  await expect(
+    page.getByText('Copies containing referenced originals were retained.'),
+  ).toBeVisible();
+});
 test('fresh recovery inspection can adopt a renamed update despite missing recorded paths', async ({
   page,
 }) => {

@@ -28,7 +28,7 @@ async function fixture() {
     .spyOn(DownloadService.prototype, 'download')
     .mockImplementation(async (url) => {
       const mod = mods.find((m) => m.downloadUrl === url)!;
-      const file = path.join(f.root, `${randomUUID()}.zip`);
+      const file = f.storage.file(`downloads/${randomUUID()}.download`);
       await fs.writeFile(
         file,
         zip([
@@ -60,6 +60,9 @@ it('reuses reviewed downloads and removes them after committing', async () => {
   const f = await fixture();
   const pending = await review(f);
   expect(f.storage.state.installations).toEqual([]);
+  // Housekeeping must leave archives that belong to the pending confirmation.
+  for (const file of f.files) await fs.utimes(file, new Date(0), new Date(0));
+  await f.installer.pruneDownloads();
   await f.installer.installMany(f.mods, pending.token);
   expect(f.download).toHaveBeenCalledTimes(2);
   expect(f.storage.state.installations).toHaveLength(2);

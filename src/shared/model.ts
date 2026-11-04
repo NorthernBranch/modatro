@@ -3,6 +3,7 @@ import { ModIndexUrl } from './mod-index';
 import { CreatorOriginSchema, type CreatorRequest, type CreatorResponse } from './creator';
 import type { ProfileTransferRequest, ProfileTransferResult } from './profile-transfer';
 import type { SetupRecoveryRequest, SetupRecoveryResult } from './setup-recovery';
+import type { StorageMaintenanceRequest, StorageMaintenanceStatus } from './storage-maintenance';
 import {
   ProfilesSchema,
   type ProfileSummary,
@@ -525,6 +526,7 @@ export interface InstallPlan {
 export interface ModatroApi {
   readonly initialTheme?: Settings['theme'];
   setupRecovery?(request: SetupRecoveryRequest): Promise<Reply<SetupRecoveryResult>>;
+  storageMaintenance?(request: StorageMaintenanceRequest): Promise<Reply<StorageMaintenanceStatus>>;
   releaseOptions?(id: string): Promise<Reply<ReleaseOptions>>;
   restoreMod?(id: string, token?: string): Promise<Reply<Snapshot>>;
   deleteRemovedBackup?(

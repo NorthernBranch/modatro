@@ -142,19 +142,66 @@ export class Storage {
   }
 }
 export class Logger {
+  private pending: Promise<void> = Promise.resolve();
+  private prunePending = true;
   constructor(
     private storage: Storage,
     private home: string,
   ) {}
-  async log(event: string, details?: unknown) {
+  log(event: string, details?: unknown) {
+    const write = this.pending.then(() => this.write(event, details));
+    this.pending = write;
+    return write;
+  }
+  private async write(event: string, details?: unknown) {
     try {
-      const clean = JSON.stringify({ time: new Date().toISOString(), event, details })
+      let clean = JSON.stringify({ time: new Date().toISOString(), event, details })
         .replaceAll(this.home, '~')
         .replace(/([A-Z]:\\Users\\)[^\\" ]+/gi, '$1<user>');
+      if (Buffer.byteLength(clean) > 64 * 1024)
+        clean = JSON.stringify({
+          time: new Date().toISOString(),
+          event,
+          truncated: true,
+          sample: clean.slice(0, 12000),
+        });
       const file = await safeDestination(this.storage.root, 'logs/modatro.log');
-      if ((await exists(file)) && (await fs.stat(file)).size > 5 * 1024 * 1024)
-        await fs.rename(file, this.storage.file(`logs/modatro-${Date.now()}.log`));
+      if (
+        (await exists(file)) &&
+        (await fs.stat(file)).size + Buffer.byteLength(clean) + 1 > 5 * 1024 * 1024
+      ) {
+        await fs.rename(
+          file,
+          await safeDestination(
+            this.storage.root,
+            `logs/modatro-${Date.now()}-${randomUUID()}.log`,
+          ),
+        );
+        this.prunePending = true;
+      }
       await fs.appendFile(file, `${clean}\n`, { mode: 0o600 });
+      if (!this.prunePending) return;
+      const archived = (await fs.readdir(this.storage.file('logs'), { withFileTypes: true }))
+        .filter(
+          (entry) => entry.isFile() && /^modatro-\d+(?:-[a-f0-9-]{36})?\.log$/.test(entry.name),
+        )
+        .map((entry) => ({
+          name: entry.name,
+          time: Number(entry.name.split('-')[1]!.split('.')[0]),
+        }))
+        .sort((a, b) => b.time - a.time || b.name.localeCompare(a.name));
+      let kept = 0,
+        bytes = 0;
+      for (const entry of archived) {
+        const archivedFile = await safeDestination(this.storage.root, `logs/${entry.name}`);
+        const size = (await fs.stat(archivedFile)).size;
+        if (kept >= 5 || bytes + size > 25 * 1024 ** 2) await fs.rm(archivedFile);
+        else {
+          kept++;
+          bytes += size;
+        }
+      }
+      this.prunePending = false;
     } catch {
       /* Logging failure must not interrupt rollback. */
     }

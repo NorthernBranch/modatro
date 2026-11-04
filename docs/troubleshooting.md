@@ -299,8 +299,12 @@ folder can be recreated; reselect moved custom folders in Settings.
 
 Adoption and whole-setup recovery keep a copy under `backups/setup-resets/` for manual
 recovery. Expand **Recovery location** to see its path and use **Open backups** to
-open the backups folder. These copies need manual
-cleanup. Per-mod uninstalls use the retained snapshots described below.
+open the backups folder. **Settings → Storage and recovery copies** shows checked
+copies and their sizes, with confirmed deletion and cleanup controls. Completed copies
+are pruned oldest first towards 20 copies and 1 GiB. The newest copy survives even
+if oversized. Referenced originals, incomplete operations, older unmarked copies and
+unreadable records are retained, with warnings when cleanup cannot reach its target.
+Per-mod uninstalls use the snapshots described below.
 
 ![Setup recovery preview with representative paths and Lovely libraries](images/setup-recovery.png)
 
@@ -327,7 +331,7 @@ The panel shows storage used and offers **Delete backup**, **Clear all** and
 copies. Startup and uninstall prune the oldest eligible snapshots above 20 copies
 or 1 GiB. A single larger snapshot may be removed immediately after uninstall.
 Referenced originals and unverified records are retained, with warnings if cleanup
-cannot finish. Adoption/reset copies and Balatro saves need separate management.
+cannot finish. Adoption/reset copies have the separate retention policy above.
 
 ## Creator source or builds need attention
 

@@ -171,7 +171,10 @@ export function SetupRecoveryDialog({
               <summary>Recovery location</summary>
               <code className="recovery-backup-path">{backup}</code>
               {backupKind === 'setup' && (
-                <p>Setup recovery copies are kept until you remove them manually.</p>
+                <p>
+                  Manage copies in Settings → Storage and recovery copies. Automatic cleanup targets
+                  20 copies within 1 GiB, retaining the newest copy and required originals.
+                </p>
               )}
             </details>
             <div className="dialog-actions">
