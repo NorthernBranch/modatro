@@ -42,6 +42,7 @@ export function SettingsPage({
     const reply = await requests.run('diagnostics', 'Copying diagnostics', async () => {
       const result = await api.diagnostics();
       if (!result.ok) return result;
+      if (api.copyText) return api.copyText(result.value);
       try {
         await navigator.clipboard.writeText(result.value);
         return { ok: true, value: undefined } as const;

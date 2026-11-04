@@ -34,6 +34,19 @@
 }
 .recovery-banner {
   margin-bottom: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+.recovery-banner p {
+  flex: 1 1 320px;
+  margin: 0;
+}
+.recovery-mod-picker {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
 }
 .setup-recovery-content {
   font-size: 13px;

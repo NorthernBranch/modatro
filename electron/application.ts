@@ -175,7 +175,11 @@ export class ModatroApplication {
     return this.snapshot();
   }
   async recoverSetup(request: SetupRecoveryRequest): Promise<SetupRecoveryResult> {
-    if (request.operation === 'review') return this.setupRecovery.review(request.mode);
+    if (request.operation === 'review')
+      return this.setupRecovery.review(
+        request.mode,
+        'modId' in request ? request.modId : undefined,
+      );
     return { ...(await this.setupRecovery.apply(request.token)), snapshot: await this.snapshot() };
   }
   async switchProfile(request: { profileId: string; token: string }) {

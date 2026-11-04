@@ -127,6 +127,9 @@ export function diagnosticFindings(snapshot: Snapshot): Finding[] {
     });
   for (const mod of snapshot.localMods) {
     const missing = mod.problems.filter((problem) => problem.endsWith(' is missing.'));
+    const changed = mod.problems.filter((problem) =>
+      problem.endsWith(' has changed outside Modatro.'),
+    );
     const problems =
       missing.length > 3
         ? [
@@ -134,7 +137,14 @@ export function diagnosticFindings(snapshot: Snapshot): Finding[] {
             ...mod.problems.filter((problem) => !problem.endsWith(' is missing.')),
           ]
         : mod.problems;
-    for (const problem of problems)
+    const grouped =
+      changed.length > 3
+        ? [
+            `${changed.length} managed files have changed outside Modatro.`,
+            ...problems.filter((problem) => !problem.endsWith(' has changed outside Modatro.')),
+          ]
+        : problems;
+    for (const problem of grouped)
       findings.push({
         kind: mod.managed && !problem.includes('cannot be verified') ? 'problem' : 'warning',
         observed: `${mod.title}: ${problem}`,
@@ -143,7 +153,7 @@ export function diagnosticFindings(snapshot: Snapshot): Finding[] {
           : mod.managed
             ? 'The current files do not match the managed installation record.'
             : 'Unmanaged files cannot be verified against an installation record.',
-        next: 'Review this mod in Installed. Preserve external changes before reinstalling.',
+        next: 'Review this mod in Installed. Use Repair mod to adopt an identified external update or back up and uninstall this mod.',
         action: 'installed',
         modId: mod.id,
       });

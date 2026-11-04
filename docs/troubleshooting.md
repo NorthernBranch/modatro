@@ -269,7 +269,7 @@ recorded or author-supplied SHA-256. Existing files are untouched. Compare the e
 and received hashes in the error details and consult the author or report the change.
 Do not clear integrity history merely to dismiss the warning.
 
-## Installed lists mods whose files are missing
+## Installed reports changed or missing mod files
 
 Reinstalling Modatro keeps its saved installation records and backups. If mod files
 were deleted or moved separately, the old entries can remain while Prerequisites
@@ -277,11 +277,28 @@ correctly reports them missing. Check the game and Mods locations in Settings fi
 
 Choose **Repair or reset setup** in Installed, Troubleshooting, or Settings:
 
+- **Adopt updated files** identifies an in-game or external update by its mod metadata.
+  Review the detected version and files, then adopt the new file record after backup.
+  Profile selections are kept. The detected runtime version replaces the old record;
+  the previous download's package version and hash no longer describe these files.
+- **Back up and uninstall one mod** removes only the selected entry and reviewed
+  files, including changed files. Available files can be restored from **Recently
+  uninstalled**. Files already missing cannot be reconstructed.
 - **Clear missing installation entries** removes all fully missing managed entries
   and their profile references together. Existing files are left alone.
 - **Back up and reset mod setup** clears the reviewed Mods folder, disabled copies
   and identified Lovely libraries, including Windows `winmm.dll` and legacy
   `version.dll`. It includes external mods and mod configuration.
+
+Each affected mod also has **Repair mod** in Installed. Adoption requires a unique
+matching identity and readable version, including when the update renamed its folder.
+Duplicate copies, unsafe paths or overlapping ownership need attention first.
+Review any dependency warnings; adopting files does not verify gameplay compatibility.
+If all recorded files were deleted, **Remove missing entry** clears that mod and its
+profile references directly. Partially missing mods use one backup-and-uninstall
+confirmation, with an optional file list.
+
+![Reviewing an identified external mod update](images/mod-repair.png)
 
 Close Balatro and review the locations and file list before confirming. Recovery
 copies are verified before removal; failed operations roll back. Saves, base game

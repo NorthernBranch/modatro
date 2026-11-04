@@ -1,5 +1,6 @@
 import {
   app,
+  clipboard,
   BrowserWindow,
   dialog,
   ipcMain,
@@ -259,6 +260,13 @@ void app
       if (result.canceled || !result.filePath) return false;
       await application.troubleshooting.export(result.filePath, request.text);
       return true;
+    });
+    handle('copyText', z.string().max(100000), async (text) => {
+      await clipboard.writeText(text);
+      if ((await clipboard.readText()) !== text)
+        throw new UserError(
+          'The clipboard could not be updated. Select and copy the report text, or use Export report.',
+        );
     });
     handle('refresh', z.undefined(), () => application.refresh());
     handle('detect', z.undefined(), () => application.detect());

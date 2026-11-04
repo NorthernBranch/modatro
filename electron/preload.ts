@@ -18,6 +18,7 @@ const api: ModatroApi = {
   troubleshoot: (request) => ipcRenderer.invoke('modatro:troubleshoot', request),
   chooseDiagnosticLog: () => ipcRenderer.invoke('modatro:chooseDiagnosticLog'),
   exportReport: (request) => ipcRenderer.invoke('modatro:exportReport', request),
+  copyText: (text) => ipcRenderer.invoke('modatro:copyText', text),
   snapshot: () => ipcRenderer.invoke('modatro:snapshot'),
   refresh: () => ipcRenderer.invoke('modatro:refresh'),
   detect: () => ipcRenderer.invoke('modatro:detect'),
