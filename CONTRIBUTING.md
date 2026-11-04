@@ -138,6 +138,9 @@ your game files. Review the images and commit them with any relevant documentati
 changes. The screenshot data comes from the checked-in catalogue sample and does
 not claim to be a live catalogue or your own installed collection.
 
+Recovery-dialog screenshots come from the focused tests in `ui-requests.spec.ts`.
+Review `test-results/mod-repair.png` before copying it to `docs/images/mod-repair.png`.
+
 ## Catalogue contributions
 
 Follow the [catalogue submission rules](catalogue/README.md) and

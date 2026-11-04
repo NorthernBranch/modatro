@@ -27,7 +27,9 @@ export function SetupRecoveryDialog({
 }) {
   const broken = snapshot.localMods.filter(
     (mod) =>
-      mod.managed && mod.state === 'broken' && mod.canDisable !== false && !mod.provenance?.creator,
+      mod.managed &&
+      mod.state === 'broken' &&
+      (mod.filesMissing || (mod.canDisable !== false && !mod.provenance?.creator)),
   );
   const [modId, setModId] = useState(initialModId ?? broken[0]?.id ?? '');
   const [mode, setMode] = useState<SetupRecoveryMode>(
@@ -42,16 +44,23 @@ export function SetupRecoveryDialog({
   const [plan, setPlan] = useState<SetupRecoveryPlan>();
   const [failure, setFailure] = useState<string>();
   const [backup, setBackup] = useState<string>();
+  const [backupKind, setBackupKind] = useState<'setup' | 'uninstall'>('setup');
+  const [inspection, setInspection] = useState<{
+    id: string;
+    canAdopt: boolean;
+    empty: boolean;
+  }>();
   const [acknowledged, setAcknowledged] = useState(false);
   const [visibleFiles, setVisibleFiles] = useState(100);
   const pending = requests.isPending('setup-recovery');
   const started = useRef(false);
   const removingMissing = mode === 'remove' && plan?.files.length === 0;
   const selectedMod = broken.find((mod) => mod.id === modId);
-  const deleted = !!selectedMod?.filesMissing || removingMissing;
+  const deleted = inspection?.id === modId ? inspection.empty : !!selectedMod?.filesMissing;
   const hasMissing = snapshot.localMods.some((mod) => mod.managed && mod.filesMissing);
-  async function review(next = mode, selected = modId) {
-    setMode(next);
+  async function review(next: SetupRecoveryMode | 'inspect' = mode, selected = modId) {
+    if (next !== 'inspect') setMode(next);
+    if (next === 'inspect' || selected !== modId) setInspection(undefined);
     setPlan(undefined);
     setFailure(undefined);
     setAcknowledged(false);
@@ -61,7 +70,7 @@ export function SetupRecoveryDialog({
       'Checking your mod setup',
       () =>
         api.setupRecovery!(
-          next === 'repair' || next === 'remove'
+          next === 'inspect' || next === 'repair' || next === 'remove'
             ? { operation: 'review', mode: next, modId: selected }
             : { operation: 'review', mode: next },
         ),
@@ -69,6 +78,13 @@ export function SetupRecoveryDialog({
     );
     if (reply?.ok && reply.value.status === 'review') {
       setPlan(reply.value.plan);
+      setMode(reply.value.plan.mode);
+      if (selected)
+        setInspection({
+          id: selected,
+          canAdopt: reply.value.plan.canAdopt ?? reply.value.plan.mode === 'repair',
+          empty: !reply.value.plan.files.length && reply.value.plan.mode === 'remove',
+        });
       setFailure(undefined);
     } else
       setFailure(
@@ -80,20 +96,23 @@ export function SetupRecoveryDialog({
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    void review();
+    void review(modId ? (initialModId && initialMode === 'remove' ? 'remove' : 'inspect') : mode);
   }, []);
   async function apply() {
     if (!plan) return;
     setFailure(undefined);
     const reply = await requests.run(
       'setup-recovery',
-      'Backing up and repairing your setup',
+      plan.files.length
+        ? 'Backing up and repairing your setup'
+        : 'Clearing saved installation entries',
       () => api.setupRecovery!({ operation: 'apply', token: plan.token }),
       { group: 'configuration', reportError: false },
     );
     if (reply?.ok && reply.value.status === 'complete') {
       changed(reply.value.snapshot);
       setBackup(reply.value.backupFolder);
+      setBackupKind(reply.value.backupKind ?? 'setup');
     } else {
       setPlan(undefined);
       setFailure(
@@ -105,7 +124,18 @@ export function SetupRecoveryDialog({
   }
   return (
     <Dialog
-      title={backup ? 'Your setup is ready' : 'Repair or reset mod setup'}
+      title={
+        backup
+          ? {
+              repair: 'Mod record updated',
+              remove: removingMissing ? 'Missing entry removed' : 'Mod uninstalled',
+              missing: 'Missing entries cleared',
+              reset: 'Setup reset complete',
+            }[mode]
+          : initialModId
+            ? `Review ${selectedMod?.title ?? 'mod recovery'}`
+            : 'Repair or reset mod setup'
+      }
       onClose={onClose}
       dismissible={!pending}
       wide
@@ -125,13 +155,25 @@ export function SetupRecoveryDialog({
                     : 'Mod files and Lovely have been removed from the reviewed locations. You can start again in Discover.'}
             </p>
             <p>Balatro saves, application settings and editable creator projects were preserved.</p>
-            <p>
-              {plan?.files.length
-                ? 'A recovery copy of the previous records and available files is kept here.'
-                : 'A copy of the removed installation records is kept here.'}
-            </p>
-            <code className="recovery-backup-path">{backup}</code>
-            <p className="muted">Already-missing files cannot be recovered from this copy.</p>
+            {backupKind === 'uninstall' ? (
+              <p>
+                Review available recovery copies in Installed → Recently uninstalled. Automatic
+                cleanup keeps up to 20 copies within 1 GiB, preserving protected backups.
+              </p>
+            ) : (
+              <p>
+                {plan?.files.length
+                  ? 'A recovery copy of the previous records and available files is kept here.'
+                  : 'A copy of the removed installation records is kept here.'}
+              </p>
+            )}
+            <details>
+              <summary>Recovery location</summary>
+              <code className="recovery-backup-path">{backup}</code>
+              {backupKind === 'setup' && (
+                <p>Setup recovery copies are kept until you remove them manually.</p>
+              )}
+            </details>
             <div className="dialog-actions">
               <AsyncButton
                 className="button button-secondary"
@@ -145,17 +187,26 @@ export function SetupRecoveryDialog({
               >
                 Open backups
               </AsyncButton>
-              <button className="button button-primary" onClick={onDiscover}>
-                Go to Discover
-              </button>
-              <button className="button button-secondary" onClick={onClose}>
+              {mode !== 'repair' && (
+                <button className="button button-primary" onClick={onDiscover}>
+                  Go to Discover
+                </button>
+              )}
+              <button
+                className={mode === 'repair' ? 'button button-primary' : 'button button-secondary'}
+                onClick={onClose}
+              >
                 Done
               </button>
             </div>
           </>
         ) : (
           <>
-            <p>Close Balatro, then review the selected mod or choose whole-setup recovery.</p>
+            <p>
+              {initialModId
+                ? 'Close Balatro, then review the recovery options for this mod.'
+                : 'Close Balatro, then review the selected mod or choose whole-setup recovery.'}
+            </p>
             {!initialModId && (
               <label className="recovery-mod-picker">
                 Choose what to recover
@@ -165,47 +216,39 @@ export function SetupRecoveryDialog({
                   onChange={(event) => {
                     const id = event.target.value;
                     setModId(id);
-                    const selected = broken.find((mod) => mod.id === id);
-                    void review(
-                      id
-                        ? selected?.filesMissing
-                          ? 'remove'
-                          : 'repair'
-                        : hasMissing
-                          ? 'missing'
-                          : 'reset',
-                      id,
-                    );
+                    void review(id ? 'inspect' : hasMissing ? 'missing' : 'reset', id);
                   }}
                 >
                   {broken.map((mod) => (
                     <option key={mod.id} value={mod.id}>
-                      {mod.title} · {mod.filesMissing ? 'Files missing' : 'Files changed'}
+                      {mod.title} ·{' '}
+                      {mod.filesMissing ? 'Recorded files missing' : 'Needs attention'}
                     </option>
                   ))}
                   <option value="">Whole setup</option>
                 </select>
               </label>
             )}
-            {initialModId && <h3>{selectedMod?.title ?? 'Selected mod'}</h3>}
-            {!!modId && !deleted && (
+            {!!modId && !!inspection && !deleted && (
               <>
-                <label className="recovery-choice">
-                  <input
-                    type="radio"
-                    name="setup-recovery-mode"
-                    checked={mode === 'repair'}
-                    disabled={pending}
-                    onChange={() => void review('repair')}
-                  />
-                  <span>
-                    <strong>Adopt updated files</strong>
-                    <small>
-                      Identify an externally updated mod, review its detected version and track its
-                      current files after backup.
-                    </small>
-                  </span>
-                </label>
+                {inspection.canAdopt && (
+                  <label className="recovery-choice">
+                    <input
+                      type="radio"
+                      name="setup-recovery-mode"
+                      checked={mode === 'repair'}
+                      disabled={pending}
+                      onChange={() => void review('repair')}
+                    />
+                    <span>
+                      <strong>Adopt updated files</strong>
+                      <small>
+                        Identify an externally updated mod, review its detected version and track
+                        its current files after backup.
+                      </small>
+                    </span>
+                  </label>
+                )}
                 <label className="recovery-choice">
                   <input
                     type="radio"
@@ -324,11 +367,13 @@ export function SetupRecoveryDialog({
                     references in profiles.
                   </p>
                 )}
-                <p>
-                  {plan.files.length
-                    ? 'A local recovery copy is verified before file changes. Balatro saves and editable creator projects are preserved.'
-                    : 'This clears saved installation entries and their profile references. Already-deleted files cannot be recovered.'}
-                </p>
+                {!removingMissing && (
+                  <p>
+                    {plan.files.length
+                      ? 'A local recovery copy is verified before file changes. Balatro saves and editable creator projects are preserved.'
+                      : 'This clears saved installation entries and their profile references. Already-deleted files cannot be recovered.'}
+                  </p>
+                )}
                 {plan.records.length > 0 && (
                   <details>
                     <summary>Installation entries ({plan.records.length})</summary>
@@ -369,12 +414,19 @@ export function SetupRecoveryDialog({
                     {warning}
                   </p>
                 ))}
+                {plan.adoptionReason && <p role="status">{plan.adoptionReason}</p>}
+                {plan.removalBlocker && (
+                  <p role="alert" className="feature-warning">
+                    {plan.removalBlocker}
+                  </p>
+                )}
                 {!plan.records.length && !plan.files.length ? (
                   <p role="status">
                     Nothing needs clearing in this mode. If a mod still has files, choose Adopt
                     updated files or Back up and uninstall one mod.
                   </p>
-                ) : mode === 'reset' || (mode === 'remove' && !removingMissing) ? (
+                ) : !plan.removalBlocker &&
+                  (mode === 'reset' || (mode === 'remove' && !removingMissing)) ? (
                   <label className="checkbox-row">
                     <input
                       type="checkbox"
@@ -410,6 +462,7 @@ export function SetupRecoveryDialog({
                   pending={pending}
                   pendingLabel="Applying recovery…"
                   disabled={
+                    !!plan.removalBlocker ||
                     ((mode === 'reset' || (mode === 'remove' && !removingMissing)) &&
                       !acknowledged) ||
                     (!plan.records.length && !plan.files.length)

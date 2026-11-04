@@ -425,8 +425,7 @@ export function App() {
         (local) =>
           local.id === id &&
           local.state === 'broken' &&
-          local.canDisable !== false &&
-          !local.provenance?.creator,
+          (local.filesMissing || (local.canDisable !== false && !local.provenance?.creator)),
       )
     ) {
       setRecoveryModId(id);

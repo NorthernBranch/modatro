@@ -26,7 +26,8 @@ cannot safely be disabled through profiles; review their normal uninstall workfl
 Successful installs automatically save the installed mods and any newly installed
 dependencies as enabled in the active profile. Each new managed mod is also recorded
 as disabled in every inactive profile; existing choices in those profiles are preserved.
-Adopting an external mod follows the same rule. File changes and the saved install
+First adopting an external mod follows the same rule. Repairing an externally
+updated managed mod keeps its existing profile choices. File changes and the saved install
 selections commit together, so a failed installation cannot leave a partially updated
 profile. Uninstalling removes the mod from every saved selection, whether enabled
 or disabled, in the same transaction as its files. A failed uninstall preserves both.

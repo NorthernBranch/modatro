@@ -12,6 +12,112 @@ import { defaultContent, type ContentType } from '../src/shared/creator-content'
 import { generateLua } from '../src/shared/creator-lua';
 
 type Behavior = 'success' | 'hold' | 'reject' | 'error';
+test('fresh recovery inspection can adopt a renamed update despite missing recorded paths', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.localMods = [
+    {
+      id: 'renamed',
+      title: 'Renamed update',
+      version: '1.0.0',
+      managed: true,
+      state: 'broken',
+      filesMissing: true,
+      canDisable: true,
+      canAdopt: false,
+      folderName: 'old',
+      problems: ['old/main.lua is missing.'],
+    },
+  ];
+  await mockDesktop(page, state, { 'setupRecovery:review': 'hold' });
+  await page.getByRole('button', { name: 'Installed', exact: true }).click();
+  await page.getByRole('button', { name: 'Repair or reset setup', exact: true }).click();
+  await expect(page.getByRole('radio')).toHaveCount(0);
+  await page.evaluate(() =>
+    window.requestsTest.finish('setupRecovery:review', {
+      ok: true,
+      value: {
+        status: 'review',
+        plan: {
+          mode: 'repair',
+          canAdopt: true,
+          token: '22222222-2222-4222-8222-222222222222',
+          gamePath: '/fixture/Balatro',
+          modsPath: '/fixture/Mods',
+          records: [{ id: 'renamed', title: 'Renamed update' }],
+          files: [{ root: 'mods', path: 'new/main.lua', sizeBytes: 1024 }],
+          sizeBytes: 1024,
+          warnings: [],
+          detectedVersion: '2.0.0',
+          detectedFolder: 'new',
+        },
+      },
+    }),
+  );
+  await expect(page.getByRole('radio', { name: /Adopt updated files/ })).toBeChecked();
+  await expect(
+    page.getByRole('button', { name: 'Adopt updated files', exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByText('Detected version 2.0.0', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('dialog').getByRole('button', { name: 'Remove missing entry', exact: true }),
+  ).toHaveCount(0);
+});
+
+test('blocked removal keeps adoption available without asking for a destructive confirmation', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.localMods = [
+    {
+      id: 'required',
+      title: 'Required mod',
+      version: '1.0.0',
+      managed: true,
+      state: 'broken',
+      canDisable: true,
+      canAdopt: false,
+      folderName: 'required',
+      problems: ['required/main.lua has changed outside Modatro.'],
+    },
+  ];
+  await mockDesktop(page, state, { 'setupRecovery:review': 'hold' });
+  await page.getByRole('button', { name: 'Installed', exact: true }).click();
+  await page.getByRole('button', { name: 'Repair mod', exact: true }).click();
+  await page.evaluate(() => window.requestsTest.finish('setupRecovery:review'));
+  await page.getByRole('radio', { name: /Back up and uninstall one mod/ }).check();
+  await page.evaluate(() =>
+    window.requestsTest.finish('setupRecovery:review', {
+      ok: true,
+      value: {
+        status: 'review',
+        plan: {
+          mode: 'remove',
+          canAdopt: true,
+          removalBlocker: 'Required mod is required by Another mod.',
+          token: '22222222-2222-4222-8222-222222222222',
+          gamePath: '/fixture/Balatro',
+          modsPath: '/fixture/Mods',
+          records: [{ id: 'required', title: 'Required mod' }],
+          files: [{ root: 'mods', path: 'required/main.lua', sizeBytes: 1024 }],
+          sizeBytes: 1024,
+          warnings: [],
+        },
+      },
+    }),
+  );
+  await expect(page.getByRole('alert')).toContainText('required by Another mod');
+  await expect(
+    page.getByRole('button', { name: 'Back up and uninstall', exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByRole('dialog').getByRole('checkbox')).toHaveCount(0);
+  await page.getByRole('radio', { name: /Adopt updated files/ }).check();
+  await page.evaluate(() => window.requestsTest.finish('setupRecovery:review'));
+  await expect(
+    page.getByRole('button', { name: 'Adopt updated files', exact: true }),
+  ).toBeEnabled();
+});
 test('setup recovery offers only entry removal for a deleted mod and separates whole-setup actions', async ({
   page,
 }) => {
@@ -38,6 +144,7 @@ test('setup recovery offers only entry removal for a deleted mod and separates w
     page.getByRole('dialog').getByRole('button', { name: 'Remove missing entry', exact: true }),
   ).toBeEnabled();
   await expect(page.getByText('Files to back up and remove', { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: 'test-results/missing-entry-recovery.png' });
   await page.getByLabel('Choose what to recover').selectOption('');
   await expect(
     page.getByRole('radio', { name: /Clear missing installation entries/ }),
@@ -58,7 +165,7 @@ test('a deleted mod can be removed individually without nonexistent-file decisio
       managed: true,
       state: 'broken',
       filesMissing: true,
-      canDisable: true,
+      canDisable: false,
       canAdopt: false,
       folderName: 'missing',
       problems: ['main.lua is missing.'],
@@ -137,8 +244,8 @@ test('an externally updated mod has a direct adoption review and a single backed
   }
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.getByRole('button', { name: 'Uninstall', exact: true }).click();
-  await expect(page.getByRole('radio', { name: /Back up and uninstall one mod/ })).toBeChecked();
   await page.evaluate(() => window.requestsTest.finish('setupRecovery:review'));
+  await expect(page.getByRole('radio', { name: /Back up and uninstall one mod/ })).toBeChecked();
   await expect(page.getByRole('dialog').getByRole('checkbox')).toHaveCount(1);
   await expect(
     page.getByRole('button', { name: 'Back up and uninstall', exact: true }),
@@ -234,7 +341,7 @@ test('setup recovery reviews missing entries and reset files before confirmation
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByLabel('Close dialog')).toBeDisabled();
   await page.evaluate(() => window.requestsTest.finish('setupRecovery:apply'));
-  await expect(page.getByRole('heading', { name: 'Your setup is ready' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Setup reset complete' })).toBeVisible();
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.locator('.local-row')).toHaveCount(0);
 });
@@ -261,7 +368,7 @@ test('missing installation entries can be cleared with one reviewed confirmation
   await page.getByLabel('Choose what to recover').selectOption('');
   await expect(page.getByRole('dialog').getByRole('checkbox')).toHaveCount(0);
   await page.getByRole('button', { name: 'Clear missing entries', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Your setup is ready' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Missing entries cleared' })).toBeVisible();
   expect(await page.evaluate(() => window.requestsTest.calls['setupRecovery:apply'])).toBe(1);
 });
 test('setup recovery offers an inline retry after a failed check without removing files', async ({
@@ -751,38 +858,49 @@ async function mockDesktop(
       };
       const api: ModatroApi = {
         initialTheme: state.settings.theme,
-        setupRecovery: (request) =>
-          request.operation === 'review'
-            ? call('setupRecovery:review', {
-                status: 'review' as const,
-                plan: {
-                  mode: request.mode,
-                  token: '22222222-2222-4222-8222-222222222222',
-                  gamePath: '/fixture/Balatro',
-                  modsPath: '/fixture/Mods',
-                  records: control.state.localMods
-                    .filter((mod) => mod.managed)
-                    .map((mod) => ({ id: mod.id, title: mod.title })),
-                  files:
-                    request.mode === 'reset'
-                      ? [
-                          { root: 'game' as const, path: 'version.dll', sizeBytes: 1024 },
-                          { root: 'game' as const, path: 'winmm.dll', sizeBytes: 1024 },
-                        ]
-                      : request.mode === 'remove' &&
-                          !control.state.localMods.find((mod) => mod.id === request.modId)
-                            ?.filesMissing
-                        ? [{ root: 'mods' as const, path: 'updated/main.lua', sizeBytes: 2048 }]
-                        : [],
-                  sizeBytes: request.mode === 'reset' ? 2048 : 0,
-                  warnings: [],
-                },
-              })
-            : call('setupRecovery:apply', {
-                status: 'complete' as const,
-                snapshot: { ...control.state, localMods: [] },
-                backupFolder: '/fixture/data/backups/setup-resets/example',
-              }),
+        setupRecovery: (request) => {
+          if (request.operation === 'review') {
+            const selected =
+              'modId' in request
+                ? control.state.localMods.find((mod) => mod.id === request.modId)
+                : undefined;
+            const mode =
+              request.mode === 'inspect'
+                ? selected?.filesMissing
+                  ? 'remove'
+                  : 'repair'
+                : request.mode;
+            return call('setupRecovery:review', {
+              status: 'review' as const,
+              plan: {
+                mode,
+                canAdopt: !!selected && !selected.filesMissing,
+                token: '22222222-2222-4222-8222-222222222222',
+                gamePath: '/fixture/Balatro',
+                modsPath: '/fixture/Mods',
+                records: control.state.localMods
+                  .filter((mod) => mod.managed)
+                  .map((mod) => ({ id: mod.id, title: mod.title })),
+                files:
+                  mode === 'reset'
+                    ? [
+                        { root: 'game' as const, path: 'version.dll', sizeBytes: 1024 },
+                        { root: 'game' as const, path: 'winmm.dll', sizeBytes: 1024 },
+                      ]
+                    : (mode === 'remove' || mode === 'repair') && !selected?.filesMissing
+                      ? [{ root: 'mods' as const, path: 'updated/main.lua', sizeBytes: 2048 }]
+                      : [],
+                sizeBytes: request.mode === 'reset' ? 2048 : 0,
+                warnings: [],
+              },
+            });
+          }
+          return call('setupRecovery:apply', {
+            status: 'complete' as const,
+            snapshot: { ...control.state, localMods: [] },
+            backupFolder: '/fixture/data/backups/setup-resets/example',
+          });
+        },
         releaseOptions: (id) =>
           call('releaseOptions', {
             id,

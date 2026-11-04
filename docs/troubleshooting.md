@@ -76,12 +76,8 @@ For profile blockers, shared versions, unsaved changes and interrupted switches,
 
 ## Modatro will not start
 
-If an earlier build reports **“A file resolves outside its approved location.”** on
-startup, install the corrected build. The startup fix separates the catalogue cache
-from Electron's `Cache` folder and accepts filesystem case aliases. Keep your existing
-application data; deleting it removes installation records and backups.
-
-If startup still fails, include the full error, Modatro version and operating system
+Install the latest build and keep your application data, which contains installation
+records and backups. If startup fails, include the full error, version and operating system
 in a [bug report](https://github.com/NorthernBranch/modatro/issues). Application data is
 normally under `%APPDATA%\Modatro` on Windows or
 `~/Library/Application Support/Modatro` on macOS. Development builds may use the
@@ -89,11 +85,6 @@ lowercase folder name `modatro`. Linux uses Electron's application-data director
 under `$XDG_CONFIG_HOME` or `~/.config/`, normally `modatro` or `Modatro`.
 
 ## macOS says Modatro is damaged
-
-Earlier preview packages could retain an incomplete Electron signature after
-packaging. The app could start in a development smoke test while failing macOS's
-signature checks once downloaded. Updated builds sign the complete app, including
-nested frameworks and helper apps, and verify that signature before publication.
 
 Download a newly built DMG from the project's Releases page, choose the correct
 architecture, quit Modatro and replace the app in Applications. Keep application
@@ -275,78 +266,68 @@ Reinstalling Modatro keeps its saved installation records and backups. If mod fi
 were deleted or moved separately, the old entries can remain while Prerequisites
 correctly reports them missing. Check the game and Mods locations in Settings first.
 
-Choose **Repair or reset setup** in Installed, Troubleshooting, or Settings:
+Close Balatro and choose **Repair mod** beside the affected entry, or **Repair or
+reset setup** in Installed, Troubleshooting or Settings. Select the mod at the top.
+Modatro inspects the current files before offering actions.
 
-Select the affected mod first. Deleted mods offer removal of their saved entry;
-mods with files offer adoption or backed-up removal. Select **Whole setup** to
-review bulk cleanup or reset options.
+- **Adopt updated files** records an identified external update after backup,
+  including a uniquely renamed folder. It requires matching metadata and a readable
+  version. Profile selections are kept. The previous download's package version and
+  hash are cleared because they no longer describe the installed files.
+- **Back up and uninstall one mod** removes the selected mod's reviewed files and
+  profile references with one confirmation. The file list is optional. Available
+  files go to **Recently uninstalled**, subject to the retention limits below.
+- **Remove missing entry** clears the saved entry and profile references when no
+  files remain. Deleted files cannot be backed up or reconstructed.
 
-- **Adopt updated files** identifies an in-game or external update by its mod metadata.
-  Review the detected version and files, then adopt the new file record after backup.
-  Profile selections are kept. The detected runtime version replaces the old record;
-  the previous download's package version and hash no longer describe these files.
-- **Back up and uninstall one mod** removes only the selected entry and reviewed
-  files, including changed files. Available files can be restored from **Recently
-  uninstalled**. Files already missing cannot be reconstructed.
-- **Clear missing installation entries** removes all fully missing managed entries
-  and their profile references together. Existing files are left alone.
-- **Back up and reset mod setup** clears the reviewed Mods folder, disabled copies
-  and identified Lovely libraries, including Windows `winmm.dll` and legacy
-  `version.dll`. It includes external mods and mod configuration.
-
-Each affected mod also has **Repair mod** in Installed. Adoption requires a unique
-matching identity and readable version, including when the update renamed its folder.
-Duplicate copies, unsafe paths or overlapping ownership need attention first.
-Review any dependency warnings; adopting files does not verify gameplay compatibility.
-If all recorded files were deleted, **Remove missing entry** clears that mod and its
-profile references directly. Partially missing mods use one backup-and-uninstall
-confirmation, with an optional file list.
+Duplicate identities, unsafe paths and overlapping ownership require attention
+first. Dependency warnings describe metadata compatibility, which cannot establish
+gameplay compatibility. A blocked uninstall explains which mod still needs it.
 
 ![Reviewing an identified external mod update](images/mod-repair.png)
 
-Close Balatro and review the locations and file list before confirming. Recovery
-copies are verified before removal; failed operations roll back. Saves, base game
-files, application settings, creator projects and existing backups are preserved.
-A DLL using a Lovely filename must be identified before removal. Links and
-unsupported game-file replacements block a reset.
-The default Mods folder can be recreated if missing; moved custom folders must be
-selected again in Settings.
+Select **Whole setup** for bulk recovery. **Clear missing installation entries**
+clears fully missing entries together. **Back up and reset mod setup** removes the
+reviewed Mods folder, disabled copies and identified Lovely libraries, including
+`winmm.dll`, legacy `version.dll` and `liblovely.dylib`. It includes external mods,
+configuration and loader logs. Review the locations before confirming.
 
-**Open backups** shows the local copy under `backups/setup-resets/`. Its `files/`
-tree mirrors the previous locations and its manifest preserves installation records
-and original-file backups for manual recovery. These copies remain until removed
-manually, separately from Recently uninstalled retention. Files already missing
-before recovery cannot be recovered from the new copy.
+Recovery verifies backups before file changes and rolls back failed transactions.
+Saves, base game files and editable creator projects are preserved. Unknown libraries,
+links and unsupported game-file replacements block a reset. A missing default Mods
+folder can be recreated; reselect moved custom folders in Settings.
+
+Adoption and whole-setup recovery keep a copy under `backups/setup-resets/` for manual
+recovery. Expand **Recovery location** to see its path and use **Open backups** to
+open the backups folder. These copies need manual
+cleanup. Per-mod uninstalls use the retained snapshots described below.
 
 ![Setup recovery preview with representative paths and Lovely libraries](images/setup-recovery.png)
 
 ## Uninstall reports changed files
 
-A recorded file has changed since installation. Review each conflict before choosing:
+A changed ordinary mod uses the single-mod recovery review above. Mods that replace
+original files use conflict review so the original can be restored:
 
 - **Keep** preserves the current file and removes Modatro's ownership of it.
 - **Restore** overwrites a changed replacement with its verified original backup.
   This choice is available only when an original can be restored.
 
-Keep is selected by default. After uninstall, the report lists preserved edits and
-untracked files from that mod; these are no longer managed. Empty-directory cleanup
-problems are reported separately. Uninstall also removes the mod from every profile.
+Keep is the default. The uninstall report lists preserved edits, untracked files and
+any empty-directory cleanup failures. Successful removal clears all profile references.
 
-Required originals remain under **Settings → Open backups** while referenced by
-installation or recovery records. Unused transaction backups are pruned automatically.
-Before uninstalling, Modatro also saves the recorded mod files and installation
-metadata. If that backup fails, uninstall stops. Use **Installed → Recently uninstalled →
-Review restore** to check and restore a copy without downloading it again. Changed
-destinations and incompatible requirements block restoration; install missing dependencies
-first. Recovery copies are temporary: startup and uninstall remove the oldest eligible
-copies above 20 backups or 1 GiB. A copy larger than 1 GiB may be cleaned up immediately
-after uninstall. The panel shows sizes and provides **Delete backup** and **Clear all**
-with confirmation; deletion ends recovery from those copies. Required originals remain
-protected, including during Clear all. Warnings explain retained or unreadable records
-and any storage above the limits; **Refresh backups** rereads the list. If deletion fails,
-check permissions and retry. If removal was interrupted, retained files may be incomplete;
-keep them for investigation. This cannot recover mods removed before uninstall backups
-were introduced. Balatro saves need a separate backup.
+## Restore an uninstalled mod
+
+Use **Installed → Recently uninstalled → Review restore** to restore available files
+without downloading them again. Changed destinations or incompatible requirements
+block restoration. Backup failure stops uninstall before removal.
+
+The panel shows storage used and offers **Delete backup**, **Clear all** and
+**Refresh backups**. Deletion requires confirmation and ends recovery from those
+copies. Startup and uninstall prune the oldest eligible snapshots above 20 copies
+or 1 GiB. A single larger snapshot may be removed immediately after uninstall.
+Referenced originals and unverified records are retained, with warnings if cleanup
+cannot finish. Adoption/reset copies and Balatro saves need separate management.
 
 ## Creator source or builds need attention
 

@@ -26,6 +26,7 @@ archives, filesystem access and repository retrieval run in the main process.
 | Installation strategies                                | Mod-root detection, standalone Lua files and explicit game-file mappings               |
 | `CreatorService`                                       | Local projects, source history, collision checks, PNG atlases and immutable build ZIPs |
 | `ModInstaller`                                         | Staging, dependency checks, file plans and installation records                        |
+| `SetupRecoveryService`                                 | Live inspection, external-update adoption, missing entries and reviewed setup resets   |
 | `TransactionEngine` and `BackupService`                | Backups, commits, rollback and startup recovery                                        |
 
 `ConfiguredModIndex` supplies the optional user-configured source, `GitHubStars`
@@ -175,8 +176,7 @@ rollback rather than being overwritten.
 After startup recovery and settled file operations, completed journals are retired
 and unreferenced `.original` files and abandoned backup-copy temporaries are pruned.
 Originals referenced by installed records or validated state-upgrade snapshots remain;
-blocked or uncertain recovery
-prevents cleanup. Unknown backup entries, creator history/builds and Balatro saves
+blocked or uncertain recovery prevents cleanup. Unknown backup entries, creator history/builds and Balatro saves
 are outside this cleanup. Compact operation history retains the last 100 outcomes.
 
 Uninstall snapshots use the existing verified backup copies under
@@ -344,5 +344,12 @@ startup recovery reconciles known journal outcomes. History failures do not inte
 rollback; backup cleanup is handled separately by the transaction engine. It contains
 identities, timestamps and version transitions rather than raw journals or file paths.
 Reports redact common secrets and approved root paths, exclude unselected logs, and
-remain editable before explicit clipboard copying or native-save export. Nothing is
-uploaded automatically.
+remain editable before copying through Electron's native clipboard or exporting
+through a save dialog.
+
+Recovery previews inspect current files and identity metadata under the operation
+lock. Single-use tokens cover state and file hashes. Adoption records the observed
+version and requirements, clears stale download provenance and keeps profile choices.
+Per-mod removal uses `RemovedMods` snapshots and its count/size retention. Adoption
+and whole-setup resets keep separate manual-recovery copies in `backups/setup-resets`.
+Original-file replacements and creator projects retain their specialized recovery paths.

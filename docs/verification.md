@@ -18,35 +18,21 @@ successful installer build alone does not establish real-game compatibility.
 
 ## Automated coverage
 
-| Area                         | Behavior checked                                                                                                                                                  | Principal suites                                                                                |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Game discovery               | Steam libraries, platform validation, separate game/Mods roots and Balatro archive version detection                                                              | `detection.test.ts`, `application.test.ts`, `launch.test.ts`                                    |
-| Discovery sources            | Live Thunderstore, validated caches, optional GitHub indexes, deduplication and unsupported manager filtering                                                     | `catalogue.test.ts`, `mod-index.test.ts`, `thunderstore.test.ts`                                |
-| Dependencies                 | Package/runtime version separation, Steamodded beta/date formats, Balatro letter versions, recursive shared dependencies and explicit consent for unknown loaders | `dependencies.test.ts`, `source-migration.test.ts`, `unverified-prerequisites.test.ts`          |
-| Archive layouts              | Nested roots, wrapper error patches, patch-only mods, malformed metadata, ambiguous archives and safe managed repair                                              | `archive.test.ts`, `wrapped-mods.test.ts`, `installer.test.ts`                                  |
-| File management              | Ownership, original backups, changed files, updates, disable/enable, uninstall and external adoption                                                              | `installer.test.ts`, `external-mods.test.ts`, `local-mods.test.ts`                              |
-| Recovery                     | Atomic batches, rollback, protected edits, commit-marker recovery and safe pruning of unused backups                                                              | `recovery.test.ts`, `backup-maintenance.test.ts`, `storage.test.ts`, `source-migration.test.ts` |
-| Lovely                       | Library evidence, supported platform assets, version verification, conflicting injectors and protected game-file plans                                            | `lovely.test.ts`, `local-mods.test.ts`, `launch.test.ts`                                        |
-| Downloads and trust          | HTTPS/redirect boundaries, checksums, immutable releases, independent restrictions and author-manifest validation                                                 | `download.test.ts`, `trust.test.ts`, `thunderstore.test.ts`                                     |
-| GitHub limits and popularity | Shared cooldowns, fresh API metadata reuse, uncached raw policies, star counts and persisted request budgets                                                      | `github-requests.test.ts`, `github-stars.test.ts`                                               |
-| App updates                  | Quiet release notices, validated platform assets, cached metadata and explicit download actions                                                                   | `app-updates.test.ts`, `ui-requests.spec.ts`                                                    |
-| Creator and artwork          | Scoring/retrigger guards, styled localization, migrations, stable IDs, deterministic ZIPs, artwork, source preservation and rollback                              | `creator-generation.test.ts`, `creator.test.ts`, `ui-requests.spec.ts`, `desktop.spec.ts`       |
-| Releases                     | Baseline version assignment, unique beta tags, all-platform assets, checksums, draft retries and signing reports                                                  | `build-version.test.mjs`, `release.test.mjs`, `signing.test.mjs`                                |
-| Interface and isolation      | Search, categories, details, themes, dependency confirmations, error handling, focus and isolated Electron startup                                                | `ui.spec.ts`, `ui-requests.spec.ts`, `desktop.spec.ts`                                          |
-
-Compatibility/recovery regressions in `compatibility-recovery.test.ts` cover conflicting
-add-on requirements, complete compatible plans, unchanged files after rejection,
-external and disabled dependants, development retries after installed mods change,
-older provider versions, unavailable sources, backup failure and offline restoration
-of a removed development build. Browser tests cover reopening version choices,
-preserving a selection through file review and the restore action. These are fixture
-checks, not a verified run of the reporter's full in-game mod set; undeclared runtime
-incompatibilities remain unknown.
-
-`removed-mods.test.ts` covers count/size retention, oversized uninstalls, protected
-originals, invalid/unreadable records, deletion failures, startup cleanup and refreshed
-storage totals. Browser tests cover deletion confirmation, pending/error/empty states,
-protected copies and immediate profile-switch progress with retry after failed checks.
+| Area                         | Behavior checked                                                                                                                                                  | Principal suites                                                                                   |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Game discovery               | Steam libraries, platform validation, process safety checks, separate roots and game versions                                                                     | `detection.test.ts`, `application.test.ts`, `process-check.test.ts`, `launch.test.ts`              |
+| Discovery sources            | Live Thunderstore, validated caches, optional GitHub indexes, deduplication and unsupported manager filtering                                                     | `catalogue.test.ts`, `mod-index.test.ts`, `thunderstore.test.ts`                                   |
+| Dependencies                 | Package/runtime version separation, Steamodded beta/date formats, Balatro letter versions, recursive shared dependencies and explicit consent for unknown loaders | `dependencies.test.ts`, `source-migration.test.ts`, `unverified-prerequisites.test.ts`             |
+| Archive layouts              | Nested roots, wrapper error patches, patch-only mods, malformed metadata, ambiguous archives and safe managed repair                                              | `archive.test.ts`, `wrapped-mods.test.ts`, `installer.test.ts`                                     |
+| File management              | Ownership, original backups, changed files, updates, disable/enable, uninstall and external adoption                                                              | `installer.test.ts`, `external-mods.test.ts`, `local-mods.test.ts`                                 |
+| Recovery                     | Atomic batches, rollback, live mod inspection, external updates, missing entries and protected backups                                                            | `recovery.test.ts`, `setup-recovery.test.ts`, `mod-recovery.test.ts`, `backup-maintenance.test.ts` |
+| Lovely                       | Library evidence, supported platform assets, version verification, conflicting injectors and protected game-file plans                                            | `lovely.test.ts`, `local-mods.test.ts`, `launch.test.ts`                                           |
+| Downloads and trust          | HTTPS/redirect boundaries, checksums, immutable releases, independent restrictions and author-manifest validation                                                 | `download.test.ts`, `trust.test.ts`, `thunderstore.test.ts`                                        |
+| GitHub limits and popularity | Shared cooldowns, fresh API metadata reuse, uncached raw policies, star counts and persisted request budgets                                                      | `github-requests.test.ts`, `github-stars.test.ts`                                                  |
+| App updates                  | Quiet release notices, validated platform assets, cached metadata and explicit download actions                                                                   | `app-updates.test.ts`, `ui-requests.spec.ts`                                                       |
+| Creator and artwork          | Scoring/retrigger guards, styled localization, migrations, stable IDs, deterministic ZIPs, artwork, source preservation and rollback                              | `creator-generation.test.ts`, `creator.test.ts`, `ui-requests.spec.ts`, `desktop.spec.ts`          |
+| Releases                     | Baseline version assignment, unique beta tags, all-platform assets, checksums, draft retries and signing reports                                                  | `build-version.test.mjs`, `release.test.mjs`, `signing.test.mjs`                                   |
+| Interface and isolation      | Search, categories, details, themes, dependency confirmations, error handling, focus and isolated Electron startup                                                | `ui.spec.ts`, `ui-requests.spec.ts`, `desktop.spec.ts`                                             |
 
 Test counts change with the implementation. Use the output of the current run and
 its CI logs as evidence; older totals are not a record of the current checkout.
@@ -128,38 +114,22 @@ See [catalogue and installation coverage](catalogue-verification.md) and
 
 ## Profiles, reports and creator acceptance
 
-`setup-recovery.test.ts` also covers missing entries, backed-up resets, Lovely filenames,
-original backups, rollback, stale confirmations and unsafe or concurrent file changes.
-Browser tests check recovery review, confirmation, retry and refreshed results.
+Recovery suites cover missing entries, renamed external updates, stale previews,
+backup failure, rollback, Lovely filenames and protected originals. `removed-mods`
+tests cover count/size retention, invalid records and deletion failures. Browser
+tests check context-appropriate actions and confirmation, pending, failure and empty
+states. Electron tests exercise native clipboard copying and reviewed report export.
 
-Profile tests cover migration backups, active/inactive install selections, required
-loader retention, repeated switching without duplicates, external edits, stale
-tokens and rollback. They also verify uninstall cleanup across all profiles and
-profile sharing: checksums, source references, unique names, dependency-first
-installation, confirmation, cancellation and restoration. Diagnostic tests cover read-only checks, bounded opt-in log
-excerpts, honest unknown states, redaction and reviewed export. Actual desktop IPC
-is tested with disposable fixtures beneath the real home so production path rules
-still apply. Real personal logs, games and saves remain excluded.
+Profile tests cover migration, selection updates across all profiles, dependency
+retention, repeated switching, rollback and portable imports/exports. Compatibility
+tests cover complete installation plans, published-version selection, development
+retries and restoration of unavailable builds.
 
-Creator tests cover the three guided builders and separate Custom Lua workspace
-against Steamodded 26.1002.0 documentation and tagged source. A test-only Lua VM
-checks ordered effects, context guards, setup and redemption contracts. Tests also
-verify migration backups, all fifteen artwork choices, JSON/Lua escaping, atlas
-sizes, alpha, deterministic hashes, private-file exclusion and optimistic save
-conflicts. The real installer stages two revisions, restores an older build and
-rolls back an injected replacement failure while preserving drafts and both ZIPs.
-Uninstall and project archiving have separate fixture coverage. Custom Lua with
-runtime actions is parsed without executing it.
+Creator suites check generation against Steamodded 26.1002.0 contracts, migrations,
+artwork, source preservation, exports and installation rollback. A test-only Lua VM
+checks generated effects. User-written Lua is parsed without execution. Electron
+tests cover acknowledgement, project editing, native dialogs and unsaved-work
+protection. See [Mod Creator](mod-creator.md) for feature-specific limits.
 
-Electron coverage includes first-use acknowledgement, persisted preferences, the
-save reminder, project creation, unsaved navigation/window protection, custom-source
-preservation before regeneration and building without installation. Native dialogs
-use controlled responses. Announcement tests check dismissal persistence, onboarding
-and navigation without enabling the creator. Screenshot capture checks the main
-pages at 1440, 1024, 768 and 375 pixels; the website checks all four screenshot modals.
-
-**No representative in-game creator acceptance run is recorded.** Static validation
-does not prove game behaviour, code safety or compatibility with other mods.
-Before release, test each builder with backed-up saves and the declared loader
-versions, recording exact versions and actual outcomes. See [Mod Creator](mod-creator.md)
-for builder semantics, resource limits, custom-code restrictions and restoration.
+**No representative in-game creator acceptance run is recorded.** Before release,
+test each builder with backed-up saves and record loader versions and outcomes.

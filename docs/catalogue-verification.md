@@ -37,6 +37,7 @@ index inclusion are not labelled as explicit Modatro author approval.
 | Paths and archives      | Sender/input validation, HTTPS redirects, canonical roots, symlink rejection, traversal/case checks, ZIP CRC and resource limits                                   | `desktop.spec.ts`, `download.test.ts`, `archive.test.ts`                 |
 | Ownership and integrity | File records, original backups, SHA-256 history and immutable-release checks protect managed and external files                                                    | `installer.test.ts`, `trust.test.ts`, `thunderstore.test.ts`             |
 | Atomic changes          | Journalled batch commits, verified before-images, rollback, startup recovery and preserved external edits                                                          | `recovery.test.ts`, `storage.test.ts`, `source-migration.test.ts`        |
+| Managed repair          | Live identity inspection, external-update adoption, missing-entry cleanup and retained per-mod uninstall backups                                                   | `mod-recovery.test.ts`, `setup-recovery.test.ts`, `ui-requests.spec.ts`  |
 
 Publisher thumbnails or approved images can render with neutral local icon fallback.
 Descriptions have recorded provenance; the app does not scrape full mod READMEs.
