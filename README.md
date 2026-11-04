@@ -70,16 +70,15 @@ and macOS may block opening them. Check the release notes and
 - **Profiles:** save and switch managed selections, or export/import profiles for
   backup and sharing. Versions and mod settings are shared across profiles.
 - **Troubleshooting:** check your setup and prepare an editable support report,
-  with log excerpts included only when you select them. Clear missing installation
-  entries or back up and reset a mod setup while preserving saves and creator projects.
+  with optional log excerpts. Adopt an identified external update, remove a deleted
+  mod's saved entry, or back up and uninstall one mod. Whole-setup recovery is also
+  available.
 - **Mod Creator (experimental):** build Jokers, Decks and Vouchers or write Custom
   Lua, choose artwork, and export local mods. Enable it in Settings after
   acknowledging the risks.
 - **Application settings:** choose Modatro Light, Modatro Dark, Balatro Light or
-  Balatro Dark under **Settings → Appearance → Theme**. Match system switches between
-  the Modatro themes. Both Balatro themes add pixel typography, raised controls and
-  card-table colours, with a bundled font that works offline.
-  App updates appear as a quiet notice; downloading and installing them remains your choice.
+  Balatro Dark under **Settings → Appearance → Theme**. Match system uses the Modatro
+  themes. App update notices link to a download you choose to install.
 
 ## Get started
 

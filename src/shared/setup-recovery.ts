@@ -8,7 +8,7 @@ export const SetupRecoveryRequestSchema = z.union([
   z
     .object({
       operation: z.literal('review'),
-      mode: z.enum(['repair', 'remove']),
+      mode: z.enum(['inspect', 'repair', 'remove']),
       modId: z.string().min(1).max(300),
     })
     .strict(),
@@ -26,7 +26,15 @@ export interface SetupRecoveryPlan {
   warnings: string[];
   detectedVersion?: string;
   detectedFolder?: string;
+  canAdopt?: boolean;
+  removalBlocker?: string;
+  adoptionReason?: string;
 }
 export type SetupRecoveryResult =
   | { status: 'review'; plan: SetupRecoveryPlan }
-  | { status: 'complete'; snapshot: Snapshot; backupFolder: string };
+  | {
+      status: 'complete';
+      snapshot: Snapshot;
+      backupFolder: string;
+      backupKind?: 'uninstall' | 'setup';
+    };

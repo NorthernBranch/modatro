@@ -88,50 +88,21 @@ or notarization checks.
 
 ## Windows and Linux
 
-Windows EXE installers can be distributed unsigned, but SmartScreen can warn or block
-them and show an unknown publisher. A trusted Authenticode signature is recommended
-for public releases. Certificate or cloud-signing setup is separate from Apple's
-process; signing alone does not guarantee immediate SmartScreen reputation. The
-current workflow does not configure a Windows publisher-signing service.
+Windows builds are unsigned because no publisher certificate or signing service is
+configured. SmartScreen can warn or block them. A signing integration must sign and
+timestamp both `Modatro.exe` and the NSIS installer, verify their Authenticode
+signatures before upload, and report the actual signing status in release notes.
 
-### Setting up trusted Windows signing
+Possible integrations include Microsoft's
+[Artifact Signing](https://learn.microsoft.com/en-us/azure/artifact-signing/quickstart)
+or an application to [SignPath Foundation](https://signpath.org/apply.html).
+Check each service's eligibility and release requirements before configuring it.
+Credentials must be restricted to trusted release jobs. Microsoft's
+[SmartScreen guidance](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation)
+explains why signing does not immediately establish download reputation.
 
-Microsoft [Artifact Signing](https://learn.microsoft.com/en-us/azure/artifact-signing/quickstart)
-provides cloud-managed Authenticode certificates, so a private signing key does not
-need to be stored in GitHub. It requires an Azure subscription, successful identity
-validation and a **Public Trust** certificate profile. A Private Trust or Public Trust
-Test profile does not provide normal public distribution trust. Check Microsoft's
-current regional and identity-validation eligibility before creating paid resources;
-organization and individual-developer eligibility differ.
-
-Once an account is approved, the Windows packaging job can use electron-builder's
-`win.azureSignOptions` with the account's endpoint, signing account name, certificate
-profile name and exact publisher name. Prefer GitHub-to-Azure OIDC authentication,
-restricted to this repository's release workflow, and grant only the certificate
-profile signing role. Signing credentials must never be exposed to pull-request builds.
-An existing certificate from a trusted certificate authority is another option;
-hardware-backed certificates require a compatible token or cloud integration.
-
-Both the packaged `Modatro.exe` and the NSIS installer must be signed and timestamped.
-The Windows runner should verify their Authenticode signatures before uploading, and
-the release must report its actual signing status. No signing account or certificate
-is configured yet, so current builds remain unsigned. A successful build or checksum
-does not establish a trusted publisher.
-
-Open-source projects can also [apply to SignPath Foundation](https://signpath.org/apply.html)
-for free signing. Acceptance is discretionary and its
-[project and release requirements](https://signpath.org/terms.html) apply. Modatro has
-no SignPath integration configured, so this is an option to evaluate rather than a
-claim that current Windows downloads are signed.
-
-Microsoft [explains SmartScreen reputation](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation):
-trusted signing identifies the publisher and protects against tampering, but does not
-guarantee that a new download immediately avoids all SmartScreen warnings.
-
-Linux AppImage and directly downloaded DEB packages do not require an Apple-style
-notarization service. A future signed package repository or detached release signature
-can provide additional publisher verification. Current Linux downloads have release
-checksums and do not claim a publisher signature.
+Linux downloads include release checksums. No package-repository or detached
+publisher signature is currently configured.
 
 See [Apple's Developer ID guidance](https://developer.apple.com/help/account/certificates/create-developer-id-certificates/),
 [Electron's macOS signing guidance](https://www.electronjs.org/docs/latest/tutorial/code-signing#signing--notarizing-macos-builds)

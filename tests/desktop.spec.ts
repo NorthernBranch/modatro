@@ -56,7 +56,13 @@ for (const theme of ['light', 'balatro', 'balatro-dark', 'system'] as const) {
         background: BrowserWindow.getAllWindows()[0]!.getBackgroundColor().toLowerCase(),
       }));
       const expected = theme === 'system' ? (native.dark ? 'dark' : 'light') : theme;
-      await expect.poll(() => page.evaluate(() => window.modatro?.initialTheme)).toBe(theme);
+      // A cold packaged renderer can take longer than the default five-second
+      // assertion budget on shared Windows runners. Wait for the bridge first,
+      // then assert the saved value so an incorrect theme fails immediately.
+      await page.waitForFunction(() => typeof window.modatro?.snapshot === 'function', null, {
+        timeout: 20000,
+      });
+      expect(await page.evaluate(() => window.modatro!.initialTheme)).toBe(theme);
       await expect(page.locator('html')).toHaveAttribute('data-theme', expected);
       expect(
         native.background.endsWith(

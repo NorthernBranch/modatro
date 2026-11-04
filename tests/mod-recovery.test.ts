@@ -90,6 +90,7 @@ it('backs up and uninstalls a partially missing externally updated mod without r
   expect(await fs.readFile(path.join(f.mods, 'other/main.lua'), 'utf8')).toBe('other mod');
   const removed = await f.installer.removed.list();
   expect(removed).toHaveLength(1);
+  expect(await exists(f.storage.file('backups/setup-resets'))).toBe(false);
   expect(removed[0]?.record.modVersion).toBe('2.0.0');
   const restore = await f.installer.restore(removed[0]!.id).catch(errorReply);
   expect(restore).toHaveProperty('confirmation');
@@ -163,7 +164,10 @@ it('can remove a deleted entry even when another installed mod refers to it', as
   await f.update();
   const repair = await f.recovery.review('repair', f.record.modId);
   expect(repair.plan.warnings.some((warning) => warning.includes('Dependent'))).toBe(true);
-  await expect(f.recovery.review('remove', f.record.modId)).rejects.toThrow('required by');
+  const blockedRemoval = await f.recovery.review('remove', f.record.modId);
+  expect(blockedRemoval.plan.removalBlocker).toContain('required by');
+  expect(blockedRemoval.plan.canAdopt).toBe(true);
+  await expect(f.recovery.apply(blockedRemoval.plan.token)).rejects.toThrow('required by');
   await fs.rm(f.folder, { recursive: true });
   const remove = await f.recovery.review('remove', f.record.modId);
   expect(remove.plan.files).toHaveLength(0);
@@ -206,4 +210,50 @@ it('adopts a standalone Lua mod through its declared identity', async () => {
     folderName: 'single.lua',
     files: [{ path: 'single.lua', installedHash: await hashFile(file) }],
   });
+});
+it('live inspection finds a renamed update even when every recorded path is missing', async () => {
+  const f = await fixture();
+  await f.update();
+  await fs.rename(f.folder, path.join(f.mods, 'renamed'));
+  expect(
+    (await new InstalledModsService(f.storage, f.logger).scan([])).mods.find((mod) => mod.managed)
+      ?.filesMissing,
+  ).toBe(true);
+  const review = await f.recovery.review('inspect', f.record.modId);
+  expect(review.plan).toMatchObject({
+    mode: 'repair',
+    canAdopt: true,
+    detectedFolder: 'renamed',
+    detectedVersion: '2.0.0',
+  });
+  await f.recovery.apply(review.plan.token);
+  expect(f.storage.state.installations[0]?.folderName).toBe('renamed');
+});
+it('offers recorded-file removal without adoption when metadata has been deleted', async () => {
+  const f = await fixture();
+  await fs.unlink(path.join(f.folder, 'mod.json'));
+  await put(path.join(f.folder, 'extra.lua'), 'unrecorded content');
+  const review = await f.recovery.review('inspect', f.record.modId);
+  expect(review.plan).toMatchObject({
+    mode: 'remove',
+    canAdopt: false,
+    adoptionReason: expect.any(String),
+  });
+  expect(review.plan.files).toHaveLength(1);
+  await f.recovery.apply(review.plan.token);
+  expect(await fs.readFile(path.join(f.folder, 'extra.lua'), 'utf8')).toBe('unrecorded content');
+  expect(await exists(path.join(f.folder, 'main.lua'))).toBe(false);
+});
+it('clears a missing native-library entry without offering adoption or file backup', async () => {
+  const f = await fixture();
+  await f.storage.save({
+    ...f.storage.state,
+    installations: [
+      { ...f.record, files: [{ ...f.record.files[0]!, root: 'game', path: 'winmm.dll' }] },
+    ],
+  });
+  const review = await f.recovery.review('inspect', f.record.modId);
+  expect(review.plan).toMatchObject({ mode: 'remove', canAdopt: false, files: [] });
+  await f.recovery.apply(review.plan.token);
+  expect(f.storage.state.installations).toHaveLength(0);
 });

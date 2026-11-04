@@ -158,8 +158,7 @@ For one release, append `{ "modId": "author/mod-slug", "version": "1.4.2",
 to `blocked-releases.json` and increase that feed's revision. Registry removals and
 release blocks can also include `packageId` to retain restrictions across name changes.
 For registry blocks, `version` is the package version, not the loader's runtime version.
-Publish a separate safe
-version rather than replacing a flagged artifact. Existing user files are unaffected.
+Publish a separate safe version rather than replacing a flagged artifact.
 
 Catalogue signatures are not implemented. Current checks use HTTPS, schema validation,
 recorded permissions and saved restriction revisions; they do not establish a
