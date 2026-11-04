@@ -12,6 +12,41 @@ import { defaultContent, type ContentType } from '../src/shared/creator-content'
 import { generateLua } from '../src/shared/creator-lua';
 
 type Behavior = 'success' | 'hold' | 'reject' | 'error';
+test('setup recovery offers only entry removal for a deleted mod and separates whole-setup actions', async ({
+  page,
+}) => {
+  const state = fixture();
+  state.localMods = [
+    {
+      id: 'missing',
+      title: 'Deleted mod',
+      managed: true,
+      state: 'broken',
+      filesMissing: true,
+      canDisable: true,
+      canAdopt: false,
+      folderName: 'missing',
+      problems: ['main.lua is missing.'],
+    },
+  ];
+  await mockDesktop(page, state);
+  await page.getByRole('button', { name: 'Installed', exact: true }).click();
+  await page.getByRole('button', { name: 'Repair or reset setup', exact: true }).click();
+  await expect(page.getByLabel('Choose what to recover')).toHaveValue('missing');
+  await expect(page.getByRole('radio')).toHaveCount(0);
+  await expect(
+    page.getByRole('dialog').getByRole('button', { name: 'Remove missing entry', exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByText('Files to back up and remove', { exact: true })).toHaveCount(0);
+  await page.getByLabel('Choose what to recover').selectOption('');
+  await expect(
+    page.getByRole('radio', { name: /Clear missing installation entries/ }),
+  ).toBeVisible();
+  await expect(page.getByRole('radio', { name: /Adopt updated files/ })).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Clear missing entries', exact: true }),
+  ).toBeEnabled();
+});
 test('a deleted mod can be removed individually without nonexistent-file decisions', async ({
   page,
 }) => {
@@ -173,6 +208,8 @@ test('setup recovery reviews missing entries and reset files before confirmation
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.evaluate(() => window.requestsTest.finish('setupRecovery:review'));
+  await page.getByLabel('Choose what to recover').selectOption('');
+  await page.evaluate(() => window.requestsTest.finish('setupRecovery:review'));
   await expect(
     page.getByRole('button', { name: 'Clear missing entries', exact: true }),
   ).toBeEnabled();
@@ -221,6 +258,7 @@ test('missing installation entries can be cleared with one reviewed confirmation
   await page.getByRole('button', { name: 'Installed', exact: true }).click();
   await expect(page.getByText('1 file needs attention', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Repair or reset setup', exact: true }).click();
+  await page.getByLabel('Choose what to recover').selectOption('');
   await expect(page.getByRole('dialog').getByRole('checkbox')).toHaveCount(0);
   await page.getByRole('button', { name: 'Clear missing entries', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Your setup is ready' })).toBeVisible();
