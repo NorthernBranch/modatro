@@ -5,6 +5,8 @@
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
+  /* Keep the pixel lettering, with clearer system-font numerals. */
+  unicode-range: U+0000-002F, U+003A-10FFFF;
 }
 
 :root:is([data-theme='balatro'], [data-theme='balatro-dark']) {
@@ -22,7 +24,7 @@
   --red: #ffb4a8;
   --amber: #ffda8a;
   --table-edge: #14272e;
-  --display-font: 'Modatro Pixel', ui-monospace, monospace;
+  --display-font: 'Modatro Pixel', var(--body-font);
   background: var(--bg);
 }
 

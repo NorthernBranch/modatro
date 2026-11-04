@@ -20,6 +20,7 @@ import { allowedExternalLink } from '../src/shared/trust';
 import { CreatorRequestSchema } from '../src/shared/creator';
 import { ProfileTransferRequestSchema } from '../src/shared/profile-transfer';
 import { SetupRecoveryRequestSchema } from '../src/shared/setup-recovery';
+import { StorageMaintenanceRequest } from '../src/shared/storage-maintenance';
 import { ModatroApplication } from './application';
 import { errorReply, UserError } from './services/errors';
 import { contained, exists, safeDestination } from './services/files';
@@ -225,6 +226,9 @@ void app
       return result;
     });
     handle('snapshot', z.undefined(), () => application.snapshot());
+    handle('storageMaintenance', StorageMaintenanceRequest, (request) =>
+      application.maintainStorage(request),
+    );
     handle('setupRecovery', SetupRecoveryRequestSchema, (request) =>
       application.recoverSetup(request),
     );

@@ -78,7 +78,7 @@ export function PrerequisitesPage({
                         ? 'The modding framework behind a world of new Balatro content.'
                         : 'Big-number support for mods that push your score a little further.'}
                   </p>
-                  <dl className="version-facts">
+                  <dl className="version-facts numeric-value">
                     <div>
                       <dt>{packageVersion ? 'Installed package version' : 'Installed version'}</dt>
                       <dd>

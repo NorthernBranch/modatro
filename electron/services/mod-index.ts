@@ -137,12 +137,15 @@ export function normalizeIndexEntry(id: string, data: unknown, url: string): Mod
   return mod;
 }
 
-const Cache = z.object({
+export const IndexCache = z.object({
   url: z.string(),
   fetchedAt: z.iso.datetime(),
   mods: z.array(ModSchema),
   rejected: z.number(),
 });
+export function indexCachePath(value: string) {
+  return `catalogue-cache/index-${createHash('sha256').update(indexLocation(value).url).digest('hex')}.json`;
+}
 export class ConfiguredModIndex {
   catalogue: Catalogue = { mods: [], stale: true, refreshing: false, rejected: 0 };
   readonly location;
@@ -154,11 +157,11 @@ export class ConfiguredModIndex {
     private download: (url: string) => Promise<{ id: string; data: unknown }[]> = readRemoteIndex,
   ) {
     this.location = indexLocation(value);
-    this.cachePath = `catalogue-cache/index-${createHash('sha256').update(this.location.url).digest('hex')}.json`;
+    this.cachePath = indexCachePath(this.location.url);
   }
   async loadCache() {
     try {
-      const cache = await this.storage.read(this.cachePath, Cache);
+      const cache = await this.storage.read(this.cachePath, IndexCache);
       if (
         cache &&
         cache.url === this.location.url &&

@@ -128,6 +128,7 @@ export class BackupService {
   }
 }
 export class TransactionEngine {
+  afterOperation?: () => Promise<void>;
   private busy = false;
   private maintenancePending = true;
   readonly backup: BackupService;
@@ -162,6 +163,10 @@ export class TransactionEngine {
           }
         }
       } finally {
+        if (!this.storage.safetyError && this.afterOperation)
+          await this.afterOperation().catch((error) =>
+            this.logger.log('storage.cleanup.deferred', String(error)),
+          );
         this.busy = false;
       }
     }

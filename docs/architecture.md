@@ -196,6 +196,20 @@ unreadable sizes are shown as a lower bound. Individual deletion and Clear all r
 confirmation and never remove protected copies. Transaction scratch pruning does not
 touch these snapshots, and this cleanup does not touch saves or creator files.
 
+`StorageMaintenance` runs under the operation lock after startup recovery and at
+most hourly after settled operations. Recognised abandoned staging directories are
+removed at startup. Downloads expire after 24 hours or above a combined 512 MiB,
+preserving active review downloads. Inactive, validated mod-index caches are removed
+while the configured index and main offline catalogue remain available. Logs are
+serialized, bounded to 5 MiB per file and five archives, with oversized events truncated.
+
+Completed setup-recovery copies have separate 20-copy / 1 GiB targets, pruned
+oldest first after recovery and during maintenance. The newest copy is always kept
+automatically, including oversized copies. Incomplete, legacy unmarked and unreadable
+copies are retained. Settings exposes checked sizes, cleanup warnings and confirmed
+deletion, using the shared original-reference protection. Creator source, artwork,
+build history, migration records and disabled profile content are retained.
+
 Independent preflight/backup reads and disposable staging copies run in bounded
 batches. Scratch staging does not fsync each file; rollback backups, final writes
 and state still use durable atomic copies. Mutation order, path checks, hash

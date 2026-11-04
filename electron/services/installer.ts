@@ -107,11 +107,20 @@ export class ModInstaller {
     await Promise.all(files.map(({ file }) => fs.rm(file, { force: true })));
   }
   async pruneDownloads() {
+    const retained = new Set([...this.reviewDownloads.values()].map(({ file }) => file));
+    const files: { file: string; size: number; modified: number }[] = [];
     for (const entry of await fs.readdir(this.storage.file('downloads'), { withFileTypes: true })) {
       if (!entry.isFile() || !/^[a-f0-9-]{36}\.(?:download|part)$/.test(entry.name)) continue;
       const file = await safeDestination(this.storage.root, `downloads/${entry.name}`);
-      if ((await fs.stat(file)).mtimeMs < Date.now() - 24 * 60 * 60 * 1000)
-        await fs.rm(file, { force: true });
+      const stat = await fs.stat(file);
+      files.push({ file, size: stat.size, modified: stat.mtimeMs });
+    }
+    let bytes = files.reduce((total, file) => total + file.size, 0);
+    for (const file of files.sort((a, b) => a.modified - b.modified)) {
+      if (retained.has(file.file)) continue;
+      if (file.modified >= Date.now() - 24 * 60 * 60 * 1000 && bytes <= 512 * 1024 ** 2) continue;
+      await fs.rm(file.file);
+      bytes -= file.size;
     }
   }
   private async assertInstalledDependants(

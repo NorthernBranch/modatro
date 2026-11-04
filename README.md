@@ -78,7 +78,9 @@ and macOS may block opening them. Check the release notes and
   acknowledging the risks.
 - **Application settings:** choose Modatro Light, Modatro Dark, Balatro Light or
   Balatro Dark under **Settings → Appearance → Theme**. Match system uses the Modatro
-  themes. App update notices link to a download you choose to install.
+  themes, with clearer numerals in the Balatro styles. **Storage and recovery copies**
+  shows setup-backup usage and cleanup controls. App update notices link to a download
+  you choose to install.
 
 ## Get started
 
@@ -122,7 +124,8 @@ for builders, Custom Lua, artwork, source history, restoration and export.
 
 These screenshots use representative selections and synthetic diagnostics.
 Additional screenshots: [switch preview](docs/images/profile-switch.png),
-[Settings](docs/images/settings.png) and [Updates](docs/images/updates.png).
+[Settings](docs/images/settings.png), [storage cleanup](docs/images/storage.png) and
+[Updates](docs/images/updates.png).
 Open profiles beside **Launch**, and **Troubleshooting** in the sidebar.
 
 | Guide                                      | Covers                                                                |

@@ -4,6 +4,7 @@ import { api } from '../api';
 import { AsyncButton } from '../components/AsyncButton';
 import { ModIndexSettings } from '../components/ModIndexSettings';
 import { CreatorSettings } from '../components/CreatorSettings';
+import { StorageSettings } from '../components/StorageSettings';
 import type { Requests } from '../hooks/useRequests';
 import { PageHeading, PaletteIcon, SettingsRow } from '../components/PageElements';
 import type { Reply, Settings, Snapshot } from '../shared/model';
@@ -72,7 +73,11 @@ export function SettingsPage({
           <section className="settings-section">
             <h2>Application updates</h2>
             <SettingsRow
-              title={`Modatro Beta · ${snapshot.appVersion}`}
+              title={
+                <>
+                  Modatro Beta · <span className="numeric-value">{snapshot.appVersion}</span>
+                </>
+              }
               description={
                 snapshot.appUpdate?.version
                   ? `Version ${snapshot.appUpdate.version} is available. Downloads start only when you choose.`
@@ -269,7 +274,7 @@ export function SettingsPage({
             </SettingsRow>
             <SettingsRow
               title="Original file backups"
-              description="Mod files preserved for recovery and uninstall, never automatically deleted. These do not include Balatro saves."
+              description="Required originals are preserved. Temporary uninstall and setup-recovery copies have automatic retention limits."
             >
               <AsyncButton
                 className="text-button"
@@ -318,6 +323,7 @@ export function SettingsPage({
               </AsyncButton>
             </SettingsRow>
           </section>
+          <StorageSettings />
           <details className="settings-section advanced-settings">
             <summary>
               Advanced
@@ -348,7 +354,7 @@ export function SettingsPage({
               title="About Modatro"
               description="Independent. Community-built. Made for your next run."
             >
-              <button className="text-button" onClick={() => setAbout(true)}>
+              <button className="text-button numeric-value" onClick={() => setAbout(true)}>
                 Version {snapshot.appVersion}
                 <ArrowUpRight size={14} />
               </button>
