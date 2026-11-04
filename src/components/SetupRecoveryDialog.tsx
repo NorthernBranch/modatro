@@ -31,12 +31,12 @@ export function SetupRecoveryDialog({
   );
   const [modId, setModId] = useState(initialModId ?? broken[0]?.id ?? '');
   const [mode, setMode] = useState<SetupRecoveryMode>(
-    initialModId
-      ? initialMode
-      : broken.some((mod) => !mod.filesMissing)
-        ? 'repair'
+    (initialModId ? broken.find((mod) => mod.id === initialModId) : broken[0])?.filesMissing
+      ? 'remove'
+      : initialModId
+        ? initialMode
         : broken.length
-          ? 'missing'
+          ? 'repair'
           : 'reset',
   );
   const [plan, setPlan] = useState<SetupRecoveryPlan>();
@@ -47,6 +47,9 @@ export function SetupRecoveryDialog({
   const pending = requests.isPending('setup-recovery');
   const started = useRef(false);
   const removingMissing = mode === 'remove' && plan?.files.length === 0;
+  const selectedMod = broken.find((mod) => mod.id === modId);
+  const deleted = !!selectedMod?.filesMissing || removingMissing;
+  const hasMissing = snapshot.localMods.some((mod) => mod.managed && mod.filesMissing);
   async function review(next = mode, selected = modId) {
     setMode(next);
     setPlan(undefined);
@@ -122,7 +125,11 @@ export function SetupRecoveryDialog({
                     : 'Mod files and Lovely have been removed from the reviewed locations. You can start again in Discover.'}
             </p>
             <p>Balatro saves, application settings and editable creator projects were preserved.</p>
-            <p>A recovery copy of the previous records and available files is kept here:</p>
+            <p>
+              {plan?.files.length
+                ? 'A recovery copy of the previous records and available files is kept here.'
+                : 'A copy of the removed installation records is kept here.'}
+            </p>
             <code className="recovery-backup-path">{backup}</code>
             <p className="muted">Already-missing files cannot be recovered from this copy.</p>
             <div className="dialog-actions">
@@ -148,11 +155,40 @@ export function SetupRecoveryDialog({
           </>
         ) : (
           <>
-            <p>
-              Close Balatro, then choose how you want to recover. Review the locations before
-              confirming.
-            </p>
-            {!!broken.length && !(initialModId && removingMissing) && (
+            <p>Close Balatro, then review the selected mod or choose whole-setup recovery.</p>
+            {!initialModId && (
+              <label className="recovery-mod-picker">
+                Choose what to recover
+                <select
+                  value={modId}
+                  disabled={pending}
+                  onChange={(event) => {
+                    const id = event.target.value;
+                    setModId(id);
+                    const selected = broken.find((mod) => mod.id === id);
+                    void review(
+                      id
+                        ? selected?.filesMissing
+                          ? 'remove'
+                          : 'repair'
+                        : hasMissing
+                          ? 'missing'
+                          : 'reset',
+                      id,
+                    );
+                  }}
+                >
+                  {broken.map((mod) => (
+                    <option key={mod.id} value={mod.id}>
+                      {mod.title} · {mod.filesMissing ? 'Files missing' : 'Files changed'}
+                    </option>
+                  ))}
+                  <option value="">Whole setup</option>
+                </select>
+              </label>
+            )}
+            {initialModId && <h3>{selectedMod?.title ?? 'Selected mod'}</h3>}
+            {!!modId && !deleted && (
               <>
                 <label className="recovery-choice">
                   <input
@@ -186,45 +222,28 @@ export function SetupRecoveryDialog({
                     </small>
                   </span>
                 </label>
-                {!initialModId && (mode === 'repair' || mode === 'remove') && (
-                  <label className="recovery-mod-picker">
-                    Mod to recover
-                    <select
-                      value={modId}
-                      disabled={pending}
-                      onChange={(event) => {
-                        setModId(event.target.value);
-                        void review(mode, event.target.value);
-                      }}
-                    >
-                      {broken.map((mod) => (
-                        <option key={mod.id} value={mod.id}>
-                          {mod.title} · recorded {mod.version ?? 'unknown'}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
               </>
             )}
-            {!initialModId && (
+            {!modId && (
               <>
-                <label className="recovery-choice">
-                  <input
-                    type="radio"
-                    name="setup-recovery-mode"
-                    checked={mode === 'missing'}
-                    disabled={pending}
-                    onChange={() => void review('missing')}
-                  />
-                  <span>
-                    <strong>Clear missing installation entries</strong>
-                    <small>
-                      Remove saved entries only when all their managed files are absent. Existing
-                      files stay untouched.
-                    </small>
-                  </span>
-                </label>
+                {hasMissing && (
+                  <label className="recovery-choice">
+                    <input
+                      type="radio"
+                      name="setup-recovery-mode"
+                      checked={mode === 'missing'}
+                      disabled={pending}
+                      onChange={() => void review('missing')}
+                    />
+                    <span>
+                      <strong>Clear missing installation entries</strong>
+                      <small>
+                        Remove saved entries only when all their managed files are absent. Existing
+                        files stay untouched.
+                      </small>
+                    </span>
+                  </label>
+                )}
                 <label className="recovery-choice">
                   <input
                     type="radio"
@@ -247,7 +266,9 @@ export function SetupRecoveryDialog({
               <p role="status">
                 <LoaderCircle className="spin" size={16} />{' '}
                 {plan
-                  ? 'Creating verified recovery copies and applying the reviewed changes. Keep Modatro open.'
+                  ? plan.files.length
+                    ? 'Creating verified recovery copies and applying the reviewed changes. Keep Modatro open.'
+                    : 'Clearing saved installation entries. Keep Modatro open.'
                   : 'Checking files and saved installation entries…'}
               </p>
             )}
@@ -259,7 +280,7 @@ export function SetupRecoveryDialog({
             {plan && (
               <>
                 <dl className="diagnostic-overview">
-                  {!initialModId && (
+                  {!modId && (
                     <>
                       <div>
                         <dt>Game folder</dt>
@@ -279,16 +300,18 @@ export function SetupRecoveryDialog({
                     </dt>
                     <dd>{plan.records.length}</dd>
                   </div>
-                  <div>
-                    <dt>
-                      {mode === 'repair'
-                        ? 'Files to back up and adopt'
-                        : 'Files to back up and remove'}
-                    </dt>
-                    <dd>
-                      {plan.files.length} · {storageSize(plan.sizeBytes)}
-                    </dd>
-                  </div>
+                  {!!plan.files.length && (
+                    <div>
+                      <dt>
+                        {mode === 'repair'
+                          ? 'Files to back up and adopt'
+                          : 'Files to back up and remove'}
+                      </dt>
+                      <dd>
+                        {plan.files.length} · {storageSize(plan.sizeBytes)}
+                      </dd>
+                    </div>
+                  )}
                 </dl>
                 {plan.detectedVersion && (
                   <p>
@@ -302,8 +325,9 @@ export function SetupRecoveryDialog({
                   </p>
                 )}
                 <p>
-                  Balatro saves, base game files, editable creator projects and existing backups
-                  stay safe. A local recovery copy is verified before anything is removed.
+                  {plan.files.length
+                    ? 'A local recovery copy is verified before file changes. Balatro saves and editable creator projects are preserved.'
+                    : 'This clears saved installation entries and their profile references. Already-deleted files cannot be recovered.'}
                 </p>
                 {plan.records.length > 0 && (
                   <details>

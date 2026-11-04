@@ -277,6 +277,10 @@ correctly reports them missing. Check the game and Mods locations in Settings fi
 
 Choose **Repair or reset setup** in Installed, Troubleshooting, or Settings:
 
+Select the affected mod first. Deleted mods offer removal of their saved entry;
+mods with files offer adoption or backed-up removal. Select **Whole setup** to
+review bulk cleanup or reset options.
+
 - **Adopt updated files** identifies an in-game or external update by its mod metadata.
   Review the detected version and files, then adopt the new file record after backup.
   Profile selections are kept. The detected runtime version replaces the old record;
