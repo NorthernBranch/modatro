@@ -14,7 +14,7 @@ const fixtureModule = path.join(root, 'test-results/screenshot-creator.cjs');
 await build({
   stdin: {
     contents:
-      "export { placeholderArtwork,cardArtwork } from './electron/services/creator-art'; export { generateLua } from './src/shared/creator-lua'; export {creatorIdentities} from './src/shared/creator'; export {defaultContent} from './src/shared/creator-content';",
+      "export { placeholderArtwork,cardArtwork } from './electron/services/creator-art'; export { generateLua } from './src/shared/creator-lua'; export {creatorIdentities} from './src/shared/creator'; export {defaultContent} from './src/shared/creator-content'; export {RevocationsSchema,sameRepository} from './src/shared/trust';",
     resolveDir: root,
   },
   outfile: fixtureModule,
@@ -23,8 +23,15 @@ await build({
   format: 'cjs',
   logLevel: 'silent',
 });
-const { placeholderArtwork, cardArtwork, generateLua, creatorIdentities, defaultContent } =
-  createRequire(import.meta.url)(fixtureModule);
+const {
+  placeholderArtwork,
+  cardArtwork,
+  generateLua,
+  creatorIdentities,
+  defaultContent,
+  RevocationsSchema,
+  sameRepository,
+} = createRequire(import.meta.url)(fixtureModule);
 const creatorId = '55555555-5555-4555-8555-555555555555';
 const creatorDraft = {
   name: 'Little Lucky',
@@ -59,34 +66,48 @@ const creatorProject = {
   previewUrl: `data:image/png;base64,${cardArtwork(placeholderArtwork(false), creatorDraft.crop, 2).toString('base64')}`,
 };
 const preview = JSON.parse(await readFile(path.join(root, 'src/preview-catalogue.json'), 'utf8'));
+const removals = RevocationsSchema.parse(
+  JSON.parse(await readFile(path.join(root, 'catalogue/revocations.json'), 'utf8')),
+);
 const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 const titles = new Set([
   'Steamodded',
   'Lovely',
-  'JokerDisplay',
   'Cryptid',
   'TargetedRerolls',
   'FoolsDisplay',
-  'PlayLog',
+  'OMEGATRO',
+  'BalatroRebalanced',
   'The Cracker Pack',
   'Sagatro',
 ]);
 const mods = preview.mods
   .filter((mod) => titles.has(mod.title))
+  .filter(
+    (mod) =>
+      !removals.revocations.some(
+        (removal) =>
+          [mod.id, mod.metadataId, ...(mod.legacyIds ?? [])].some(
+            (id) => id?.toLowerCase() === removal.modId.toLowerCase(),
+          ) ||
+          (!!removal.packageId && removal.packageId === mod.thunderstore?.packageId) ||
+          sameRepository(removal.repositoryUrl, mod.repositoryUrl),
+      ),
+  )
   .map((mod) => ({
     ...mod,
     iconUrl: undefined,
   }));
 const localMods = mods
   .filter((mod) =>
-    ['Steamodded', 'Lovely', 'JokerDisplay', 'PlayLog', 'FoolsDisplay'].includes(mod.title),
+    ['Steamodded', 'Lovely', 'TargetedRerolls', 'Cryptid', 'FoolsDisplay'].includes(mod.title),
   )
   .map((mod) => ({
     id: mod.id,
     title: mod.title,
     version: mod.version,
-    state: mod.title === 'JokerDisplay' ? 'disabled' : 'installed',
-    disabled: mod.title === 'JokerDisplay',
+    state: mod.title === 'TargetedRerolls' ? 'disabled' : 'installed',
+    disabled: mod.title === 'TargetedRerolls',
     managed: true,
     canAdopt: false,
     canDisable: mod.title !== 'Lovely',
@@ -115,7 +136,7 @@ const snapshot = {
         name: 'Just the essentials',
         selection: localMods.map((mod) => ({
           id: mod.id,
-          enabled: ['Lovely', 'Steamodded', 'JokerDisplay'].includes(mod.title),
+          enabled: ['Lovely', 'Steamodded', 'TargetedRerolls'].includes(mod.title),
         })),
       },
     ],
@@ -258,7 +279,14 @@ try {
             status: 'review',
             token: '11111111-1111-4111-8111-111111111111',
             name: 'Shared run',
-            mods: [{ title: 'JokerDisplay', version: '2.0.4', enabled: true, status: 'download' }],
+            mods: state.localMods
+              .filter((mod) => mod.disabled)
+              .map((mod) => ({
+                title: mod.title,
+                version: mod.version,
+                enabled: true,
+                status: 'download',
+              })),
             blockers: [],
             warnings: [],
           },
@@ -289,9 +317,9 @@ try {
             name: state.profiles.items.find((p) => p.id === id).name,
             token: '44444444-4444-4444-8444-444444444444',
             expiresAt: '2026-10-12T12:05:00Z',
-            enable: state.localMods.filter((m) => m.title === 'JokerDisplay').map((m) => m.id),
+            enable: state.localMods.filter((m) => m.disabled).map((m) => m.id),
             disable: state.localMods
-              .filter((m) => ['PlayLog', 'FoolsDisplay'].includes(m.title))
+              .filter((m) => ['Cryptid', 'FoolsDisplay'].includes(m.title))
               .map((m) => m.id),
             retained: state.localMods
               .filter((m) => ['Lovely', 'Steamodded'].includes(m.title))
