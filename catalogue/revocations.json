@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "revision": 2,
-  "generatedAt": "2026-11-05T00:00:00Z",
+  "revision": 3,
+  "generatedAt": "2026-11-05T15:14:33Z",
   "revocations": [
     {
       "modId": "JokerDisplay",
@@ -9,6 +9,24 @@
       "repositoryUrl": "https://github.com/nh6574/JokerDisplay",
       "reason": "author-request",
       "effectiveAt": "2026-11-05T00:00:00Z"
+    },
+    {
+      "modId": "thunderstore/nh6574-JoyousSpring",
+      "repositoryUrl": "https://github.com/nh6574/JoyousSpring",
+      "reason": "author-request",
+      "effectiveAt": "2026-11-05T15:14:33Z"
+    },
+    {
+      "modId": "thunderstore/nh6574-PlayLog",
+      "repositoryUrl": "https://github.com/nh6574/PlayLog",
+      "reason": "author-request",
+      "effectiveAt": "2026-11-05T15:14:33Z"
+    },
+    {
+      "modId": "Repertorium",
+      "repositoryUrl": "https://github.com/nh6574/Repertorium",
+      "reason": "author-request",
+      "effectiveAt": "2026-11-05T15:14:33Z"
     }
   ]
 }

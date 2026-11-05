@@ -16,6 +16,7 @@ import { DownloadService } from '../electron/services/network';
 import { UserError } from '../electron/services/errors';
 import { inspectMetadata } from '../electron/services/metadata';
 import { mod, put, setup, zip } from './helpers';
+import bundledRevocations from '../catalogue/revocations.json';
 
 const roots: string[] = [];
 
@@ -49,7 +50,7 @@ function remoteTrust(
 }
 const revocations = {
   schemaVersion: 1,
-  revision: 2,
+  revision: bundledRevocations.revision + 1,
   generatedAt: '2026-10-01T00:00:00Z',
   revocations: [
     { modId: 'test-mod', reason: 'author-request', effectiveAt: '2026-10-01T00:00:00Z' },
