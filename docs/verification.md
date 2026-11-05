@@ -68,7 +68,8 @@ isolated data. See [Contributing](../CONTRIBUTING.md) for packaging commands and
 
 Packaging and publication are conditional on `scripts/release-scope.mjs`. PRs run
 the full shared checks and production compilation without producing installers.
-On main, docs, website, test-only and fixture-only changes also skip packaging.
+On main, docs, website, tests, fixtures, workflow YAML, release/version automation
+and live restriction feeds also skip packaging.
 `release-scope.test.mjs` verifies PR exclusion, mixed changes, deleted/renamed inputs,
 initial pushes and explicit tag/manual packaging. Website browser checks run
 in the shared job independently of desktop packaging.

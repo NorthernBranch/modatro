@@ -13,18 +13,12 @@ const desktopFiles = new Set([
   'vite.config.ts',
   'LICENSE',
   'catalogue/overrides.json',
-  'catalogue/revocations.json',
-  'catalogue/blocked-releases.json',
   'scripts/build-electron.mjs',
-  'scripts/build-version.mjs',
   'scripts/package-desktop.mjs',
-  'scripts/release.mjs',
-  'scripts/release-scope.mjs',
-  '.github/workflows/build.yml',
 ]);
 
 export function affectsDesktop(file) {
-  if (/\.md$/i.test(file)) return false;
+  if (/\.md$/i.test(file) || file === 'build/version.json') return false;
   return desktopFiles.has(file) || /^(?:src|electron|public|build)\//.test(file);
 }
 

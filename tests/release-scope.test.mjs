@@ -25,6 +25,14 @@ it.each([
   'electron/README.md',
   'scripts/screenshots.mjs',
   '.github/CODEOWNERS',
+  '.github/workflows/build.yml',
+  '.github/workflows/other.yml',
+  'scripts/build-version.mjs',
+  'scripts/release.mjs',
+  'scripts/release-scope.mjs',
+  'catalogue/revocations.json',
+  'catalogue/blocked-releases.json',
+  'build/version.json',
 ])('checks without packaging for %s', (file) => {
   expect(affectsDesktop(file)).toBe(false);
   expect(packagingScope('push', 'refs/heads/main', [file])).toBe(false);
@@ -35,27 +43,49 @@ it.each([
   'electron/main.ts',
   'public/icon.svg',
   'build/entitlements.mac.beta.plist',
-  'build/version.json',
   'package.json',
   'pnpm-lock.yaml',
   'index.html',
   'tsconfig.json',
   'vite.config.ts',
   'catalogue/overrides.json',
-  'catalogue/revocations.json',
-  'catalogue/blocked-releases.json',
   'scripts/package-desktop.mjs',
   'scripts/build-electron.mjs',
-  '.github/workflows/build.yml',
 ])('packages a desktop input change to %s', (file) => expect(affectsDesktop(file)).toBe(true));
 
 it('handles mixed changes, explicit version tags and manual packaging', () => {
   expect(packagingScope('push', 'refs/heads/main', ['README.md', 'electron/main.ts'])).toBe(true);
+  expect(
+    packagingScope('push', 'refs/heads/main', [
+      '.github/workflows/build.yml',
+      'catalogue/revocations.json',
+      'src/App.tsx',
+    ]),
+  ).toBe(true);
   expect(packagingScope('pull_request', 'refs/pull/1/merge', ['docs/release.md'])).toBe(false);
   expect(packagingScope('pull_request', 'refs/pull/1/merge', ['electron/main.ts'])).toBe(false);
   expect(packagingScope('push', 'refs/heads/feature', ['electron/main.ts'])).toBe(false);
   expect(packagingScope('push', 'refs/tags/v1.0.0', [])).toBe(true);
   expect(packagingScope('workflow_dispatch', 'refs/heads/main', [])).toBe(true);
+});
+
+it('keeps release automation and policy-feed changes in checks-only mode through the workflow entry point', async () => {
+  const f = await fixture(
+    { before: 'a'.repeat(40) },
+    [
+      '.github/workflows/build.yml',
+      'scripts/release-scope.mjs',
+      'tests/release-scope.test.mjs',
+      'scripts/release.mjs',
+      'scripts/build-version.mjs',
+      'build/version.json',
+      'catalogue/revocations.json',
+      'catalogue/blocked-releases.json',
+      'docs/release.md',
+    ].join('\0'),
+  );
+  expect(await determinePackaging(f.env, f.git)).toBe(false);
+  expect(await fs.readFile(f.output, 'utf8')).toBe('package_desktop=false\n');
 });
 
 async function fixture(event, changes = '') {
