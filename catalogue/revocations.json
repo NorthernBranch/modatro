@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "revision": 2,
-  "generatedAt": "2026-11-05T00:00:00Z",
+  "revision": 3,
+  "generatedAt": "2026-11-05T15:20:24Z",
   "revocations": [
     {
       "modId": "JokerDisplay",
@@ -9,6 +9,34 @@
       "repositoryUrl": "https://github.com/nh6574/JokerDisplay",
       "reason": "author-request",
       "effectiveAt": "2026-11-05T00:00:00Z"
+    },
+    {
+      "modId": "thunderstore/nh6574-JoyousSpring",
+      "packageId": "083bff45-48f3-4aeb-8166-7956fd90d832",
+      "repositoryUrl": "https://github.com/nh6574/JoyousSpring",
+      "reason": "author-request",
+      "effectiveAt": "2026-11-05T15:14:33Z"
+    },
+    {
+      "modId": "thunderstore/nh6574-PlayLog",
+      "packageId": "3df378e0-5354-405e-908f-bb34632638e4",
+      "repositoryUrl": "https://github.com/nh6574/PlayLog",
+      "reason": "author-request",
+      "effectiveAt": "2026-11-05T15:14:33Z"
+    },
+    {
+      "modId": "thunderstore/nh6574-Ns_Repertorium",
+      "packageId": "ef18592b-7f8f-4eb6-9ea4-fdf96871429c",
+      "repositoryUrl": "https://github.com/nh6574/Repertorium",
+      "reason": "author-request",
+      "effectiveAt": "2026-11-05T15:14:33Z"
+    },
+    {
+      "modId": "thunderstore/MetaNite64-Stakes_Redux",
+      "packageId": "b6a077c6-4586-46f6-9fae-2a3405da0d20",
+      "repositoryUrl": "https://github.com/MetaNite64/Stakes-Redux",
+      "reason": "author-request",
+      "effectiveAt": "2026-11-05T15:20:24Z"
     }
   ]
 }

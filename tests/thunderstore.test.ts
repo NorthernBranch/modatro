@@ -19,6 +19,7 @@ import { GameDetectionService } from '../electron/services/detection';
 import { errorReply, UserError } from '../electron/services/errors';
 import { ModSchema } from '../src/shared/model';
 import { mod, put, setup, thunderstorePackage, zip, policyResponse } from './helpers';
+import bundledRevocations from '../catalogue/revocations.json';
 const roots: string[] = [];
 afterEach(async () => {
   vi.restoreAllMocks();
@@ -43,7 +44,7 @@ it('retains author removals across registry package renames using the package UU
   const original = definition();
   const trust = remoteTrust(f, async (url) => ({
     schemaVersion: 1,
-    revision: 2,
+    revision: bundledRevocations.revision + 1,
     generatedAt: '2026-10-01T00:00:00Z',
     ...(url.endsWith('revocations.json')
       ? {
@@ -74,7 +75,7 @@ it('blocks a registry release by package version even when its runtime version d
   const entry = definition();
   const trust = remoteTrust(f, async (url) => ({
     schemaVersion: 1,
-    revision: 2,
+    revision: bundledRevocations.revision + 1,
     generatedAt: '2026-10-01T00:00:00Z',
     ...(url.endsWith('revocations.json')
       ? { revocations: [] }
