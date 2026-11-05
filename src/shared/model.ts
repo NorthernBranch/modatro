@@ -475,6 +475,7 @@ export interface FileConflict {
   canRestore: boolean;
 }
 export interface AppError {
+  code?: 'game-process-check';
   compatibility?: import('./compatibility').CompatibilityConflict[];
   message: string;
   details?: string;
