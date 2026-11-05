@@ -1,6 +1,14 @@
 {
   "schemaVersion": 1,
-  "revision": 1,
-  "generatedAt": "2026-10-01T00:00:00Z",
-  "revocations": []
+  "revision": 2,
+  "generatedAt": "2026-11-05T00:00:00Z",
+  "revocations": [
+    {
+      "modId": "JokerDisplay",
+      "packageId": "16da1074-2334-41b9-bdae-c0e106d57a97",
+      "repositoryUrl": "https://github.com/nh6574/JokerDisplay",
+      "reason": "author-request",
+      "effectiveAt": "2026-11-05T00:00:00Z"
+    }
+  ]
 }

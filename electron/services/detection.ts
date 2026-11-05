@@ -245,50 +245,85 @@ export class LaunchService {
     private platform: NodeJS.Platform = process.platform,
     private run = exec,
   ) {}
+  private async windowsRunning(): Promise<boolean> {
+    try {
+      const { stdout } = await this.run(
+        'tasklist.exe',
+        ['/FO', 'CSV', '/NH', '/FI', 'IMAGENAME eq Balatro.exe'],
+        { timeout: 15000, windowsHide: true },
+      );
+      return /"Balatro\.exe"/i.test(stdout);
+    } catch (tasklistError) {
+      try {
+        const { stdout, stderr } = await this.run(
+          path.win32.join(
+            process.env.SystemRoot ?? 'C:\\Windows',
+            'System32',
+            'WindowsPowerShell',
+            'v1.0',
+            'powershell.exe',
+          ),
+          [
+            '-NoLogo',
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            "$ErrorActionPreference = 'Stop'; [Console]::Write([System.Diagnostics.Process]::GetProcessesByName('Balatro').Length)",
+          ],
+          { timeout: 10000, windowsHide: true },
+        );
+        const count = stdout.trim();
+        if (stderr.trim() || !/^\d+$/.test(count) || !Number.isSafeInteger(Number(count)))
+          throw new Error('The fallback process check did not return a valid process count.');
+        return Number(count) > 0;
+      } catch (fallbackError) {
+        throw new AggregateError(
+          [tasklistError, fallbackError],
+          'Both Windows process checks failed.',
+        );
+      }
+    }
+  }
   async assertClosed(): Promise<void> {
     try {
-      const { stdout } =
+      const running =
         this.platform === 'win32'
-          ? await this.run(
-              'tasklist.exe',
-              ['/FO', 'CSV', '/NH', '/FI', 'IMAGENAME eq Balatro.exe'],
-              {
-                timeout: 15000,
-                windowsHide: true,
-              },
-            )
-          : await this.run('/bin/ps', ['-axo', 'comm='], { timeout: 5000 });
-      if (
-        this.platform === 'win32'
-          ? /"Balatro\.exe"/i.test(stdout)
-          : /Balatro\.app\/Contents\/MacOS\/love|(?:^|\/)Balatro(?:\.exe)?(?:\s|$)/im.test(stdout)
-      )
+          ? await this.windowsRunning()
+          : /Balatro\.app\/Contents\/MacOS\/love|(?:^|\/)Balatro(?:\.exe)?(?:\s|$)/im.test(
+              (await this.run('/bin/ps', ['-axo', 'comm='], { timeout: 5000 })).stdout,
+            );
+      if (running)
         throw new UserError(
           'Close Balatro before changing mods or prerequisites, then check again.',
           undefined,
           undefined,
-          { retryable: true },
+          { retryable: true, code: 'game-process-check' },
         );
     } catch (e) {
       if (e instanceof UserError) throw e;
-      const failure = e as NodeJS.ErrnoException & {
-        stderr?: string;
-        killed?: boolean;
-        signal?: string;
-      };
+      const details = (e instanceof AggregateError ? e.errors : [e])
+        .map((error) => {
+          const failure = error as NodeJS.ErrnoException & {
+            stderr?: string;
+            killed?: boolean;
+            signal?: string;
+          };
+          return [
+            String(error),
+            failure.code !== undefined ? `Code: ${failure.code}` : '',
+            failure.killed ? 'Process check was terminated (possibly timed out).' : '',
+            failure.signal ? `Signal: ${failure.signal}` : '',
+            failure.stderr?.trim(),
+          ]
+            .filter(Boolean)
+            .join('\n');
+        })
+        .join('\n\n');
       throw new UserError(
         'Modatro could not check whether Balatro is running. File changes are paused; try again.',
         undefined,
-        [
-          String(e),
-          failure.code !== undefined ? `Code: ${failure.code}` : '',
-          failure.killed ? 'Process check was terminated (possibly timed out).' : '',
-          failure.signal ? `Signal: ${failure.signal}` : '',
-          failure.stderr?.trim(),
-        ]
-          .filter(Boolean)
-          .join('\n'),
-        { retryable: true },
+        details,
+        { retryable: true, code: 'game-process-check' },
       );
     }
   }

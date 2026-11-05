@@ -1613,6 +1613,7 @@ export function App() {
               </button>
             ) : null}
             {api.releaseOptions &&
+              error.code !== 'game-process-check' &&
               conflictAction &&
               ['install', 'update'].includes(conflictAction.action) && (
                 <button

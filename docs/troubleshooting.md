@@ -364,6 +364,8 @@ to finish before launching.
 
 If Modatro says it **could not check whether Balatro is running**, the process check
 failed; it does not mean the game is open. On Windows, Modatro checks only
-`Balatro.exe` and allows up to 15 seconds. Retry with **Check again**. If it keeps
+`Balatro.exe` and allows up to 15 seconds. If that command fails, a separate
+PowerShell/.NET check runs with a 10-second timeout. An unreadable result keeps
+file changes paused. Retry with **Check again**. If it keeps
 failing, include the expanded **Technical details** in your report; file changes
 remain paused until the check succeeds.

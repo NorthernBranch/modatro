@@ -7,6 +7,7 @@ export class UserError extends Error {
     public readonly context?: Pick<
       AppError,
       | 'requirements'
+      | 'code'
       | 'retryable'
       | 'confirmation'
       | 'unverifiedPrerequisites'

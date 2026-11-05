@@ -19,6 +19,49 @@ describe('game process safety check', () => {
     const run = vi.fn().mockResolvedValue({ stdout: '"Balatro.exe","1234","Console"', stderr: '' });
     await expect(new LaunchService('win32', run).assertClosed()).rejects.toThrow('Close Balatro');
   });
+  it.each(['0', '1', '2'])(
+    'uses an independent Windows fallback after a timeout, count %s',
+    async (count) => {
+      const run = vi
+        .fn()
+        .mockRejectedValueOnce(
+          Object.assign(new Error('tasklist timed out'), { killed: true, signal: 'SIGTERM' }),
+        )
+        .mockResolvedValueOnce({ stdout: count, stderr: '' });
+      const result = new LaunchService('win32', run).assertClosed();
+      if (count === '0') await expect(result).resolves.toBeUndefined();
+      else await expect(result).rejects.toThrow('Close Balatro');
+      expect(run).toHaveBeenCalledTimes(2);
+      expect(run.mock.calls[1]![0]).toMatch(/WindowsPowerShell\\v1\.0\\powershell\.exe$/);
+      expect(run.mock.calls[1]![1]).toEqual([
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        expect.stringContaining("GetProcessesByName('Balatro')"),
+      ]);
+      expect(run.mock.calls[1]![2]).toEqual({ timeout: 10000, windowsHide: true });
+    },
+  );
+  it.each([
+    { stdout: '', stderr: '' },
+    { stdout: 'invalid', stderr: '' },
+    { stdout: '-1', stderr: '' },
+    { stdout: '0', stderr: 'Access denied' },
+    { stdout: '999999999999999999999', stderr: '' },
+  ])('blocks uncertain fallback results: %j', async (reply) => {
+    const run = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('tasklist failed'))
+      .mockResolvedValueOnce(reply);
+    const error = await new LaunchService('win32', run)
+      .assertClosed()
+      .catch((error: unknown) => error);
+    expect(error).toMatchObject({
+      context: { retryable: true, code: 'game-process-check' },
+      details: expect.stringContaining('tasklist failed'),
+    });
+  });
 
   it.each([
     { code: 'ENOENT', stderr: 'Command unavailable' },

@@ -2414,9 +2414,16 @@ test('game-running failures offer Check again and preserve duplicate-click prote
   await page.evaluate(() =>
     window.requestsTest.finish('action', {
       ok: false,
-      error: { message: 'Close Balatro before changing mods.', retryable: true },
+      error: {
+        message: 'Close Balatro before changing mods.',
+        retryable: true,
+        code: 'game-process-check',
+      },
     }),
   );
+  await expect(
+    page.getByRole('button', { name: 'Choose another version or build', exact: true }),
+  ).toHaveCount(0);
   await page.getByRole('button', { name: 'Check again', exact: true }).click();
   expect(await page.evaluate(() => window.requestsTest.calls.action)).toBe(2);
   await page.evaluate(() => window.requestsTest.finish('action'));
