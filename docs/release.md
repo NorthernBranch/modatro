@@ -136,10 +136,11 @@ packaged startup. Publication waits for every platform and checks the installer
 hashes and macOS signing reports before publishing a draft release. The publisher
 uses Node built-ins and restored artifacts without installing app dependencies.
 
-Documentation, website, test-only and fixture-only changes run checks without a
-desktop release. Sources, shipped assets, dependency files, policy feeds and packaging
-configuration are release inputs; `scripts/release-scope.mjs` includes deletions and
-renames when checking the diff.
+Sources, shipped assets, dependency files, catalogue overrides and app build/packaging
+configuration trigger desktop releases. Documentation, website, tests, fixtures,
+workflow YAML, release/version automation and live removal/release-block feeds run
+checks only. Existing apps fetch those feeds independently. `scripts/release-scope.mjs`
+includes deletions and renames when checking the diff.
 
 Release runs stay serialized so each build can use the previous published version.
 The publisher skips a second automatic release for an already-published commit;
