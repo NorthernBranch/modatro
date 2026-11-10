@@ -35,7 +35,7 @@ export function CreatorSettings({
     <>
       <section className="settings-section">
         <h2>Balatro saves</h2>
-        <p>{SAVE_NOTICE}</p>
+        <p className="settings-notice">{SAVE_NOTICE}</p>
         <p className="muted-text">{SAVE_GUIDANCE}</p>
         <SettingsRow
           title="Save-backup reminder"

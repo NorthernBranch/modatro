@@ -105,6 +105,10 @@
   margin-top: 10px;
   max-width: 90ch;
 }
+.save-notice .icon-button {
+  padding: 0 6px;
+  line-height: 20px;
+}
 .creator-disclaimer {
   padding: 16px 20px;
   margin: 20px 0 24px;
@@ -658,6 +662,7 @@ svg {
   font-weight: 750;
   letter-spacing: -1.5px;
   text-decoration: none;
+  white-space: nowrap;
   margin: 8px 8px 42px;
 }
 .brand-mark {
@@ -1815,6 +1820,10 @@ details > p {
 .prerequisite-actions {
   margin-top: auto;
   padding-top: 22px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 .installed-list {
   display: flex;
@@ -1898,6 +1907,11 @@ details > p {
 }
 .settings-section > h2 svg {
   color: var(--accent);
+}
+.settings-notice {
+  font-size: 12px;
+  line-height: 1.8;
+  margin-bottom: 6px;
 }
 .settings-row {
   display: flex;
@@ -2122,20 +2136,38 @@ details > p {
 .local-row-info details code {
   overflow-wrap: anywhere;
 }
-.detail-install > div:first-child {
+.detail-install-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-bottom: 14px;
+}
+.detail-install .muted-text {
+  margin-bottom: 10px;
+}
+.detail-install details {
+  margin-bottom: 14px;
+}
+.detail-install-note {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 11px;
   color: var(--muted);
 }
-.detail-install > div:first-child svg {
+.detail-install-note svg {
+  flex: none;
   color: var(--accent);
 }
 .detail-actions {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-top: 20px;
+}
+.detail-actions > :last-child {
+  margin-left: auto;
 }
 .install-reason {
   color: var(--amber);
@@ -2359,6 +2391,10 @@ details > p {
   .main-shell {
     margin-left: 200px;
     width: calc(100% - 200px);
+  }
+  .brand {
+    font-size: 24px;
+    margin-inline: 4px;
   }
   .main-content {
     padding: 25px;
@@ -2615,6 +2651,12 @@ details > p {
 }
 .mod-index-settings {
   margin: 16px 0;
+}
+.mod-index-settings label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 7px;
 }
 .mod-index-settings form {
   display: flex;
