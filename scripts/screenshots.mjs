@@ -225,7 +225,9 @@ try {
     if (server.exitCode !== null) throw new Error(`Screenshot server stopped: ${serverOutput}`);
     try {
       // Wait for our server, not an unrelated process already using this port.
-      ready = serverOutput.includes('Local:') && (await fetch(url)).ok;
+      // Strip colour codes, which split the text when FORCE_COLOR is set.
+      ready =
+        serverOutput.replace(/\x1b\[[0-9;]*m/g, '').includes('Local:') && (await fetch(url)).ok;
     } catch {
       /* Wait for Vite. */
     }
