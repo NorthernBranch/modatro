@@ -1096,14 +1096,39 @@ export function App() {
             </button>
           </section>
           <div className="detail-install">
-            {api.releaseOptions && (
-              <button
-                className="button button-secondary"
-                disabled={configuring}
-                onClick={() => setVersionsFor(selected.id)}
-              >
-                Versions and builds
-              </button>
+            {(api.releaseOptions || api.previewPlan) && (
+              <div className="detail-install-tools">
+                {api.releaseOptions && (
+                  <button
+                    className="button button-secondary"
+                    disabled={configuring}
+                    onClick={() => setVersionsFor(selected.id)}
+                  >
+                    Versions and builds
+                  </button>
+                )}
+                {api.previewPlan && (
+                  <AsyncButton
+                    className="text-button"
+                    pending={requests.isPending('plan')}
+                    pendingLabel="Inspecting download…"
+                    disabled={configuring || !!eligibility(selected, snapshot)}
+                    onClick={() =>
+                      void run(
+                        'plan',
+                        'Inspecting install plan',
+                        () => api.previewPlan!(selected.id),
+                        { group: 'configuration' },
+                      ).then((reply) => {
+                        setProgress(undefined);
+                        if (reply?.ok) setInspectedPlan(reply.value);
+                      })
+                    }
+                  >
+                    Preview file changes
+                  </AsyncButton>
+                )}
+              </div>
             )}
             {selected.downloadProvider === 'github' &&
               selected.thunderstore &&
@@ -1114,49 +1139,26 @@ export function App() {
             {selected.deprecated && (
               <p className="muted-text">Deprecated · Existing installations remain manageable.</p>
             )}
-            {api.previewPlan && (
-              <>
-                <AsyncButton
-                  className="text-button"
-                  pending={requests.isPending('plan')}
-                  pendingLabel="Inspecting download…"
-                  disabled={configuring || !!eligibility(selected, snapshot)}
-                  onClick={() =>
-                    void run(
-                      'plan',
-                      'Inspecting install plan',
-                      () => api.previewPlan!(selected.id),
-                      { group: 'configuration' },
-                    ).then((reply) => {
-                      setProgress(undefined);
-                      if (reply?.ok) setInspectedPlan(reply.value);
-                    })
-                  }
-                >
-                  Preview file changes
-                </AsyncButton>
-                {inspectedPlan?.modId === selected.id && (
-                  <details key={inspectedPlan.modId}>
-                    <summary>
-                      File changes · Create {inspectedPlan.create.length} · Replace{' '}
-                      {inspectedPlan.replace.length} · Remove {inspectedPlan.remove.length}
-                    </summary>
-                    <ul>
-                      {(['create', 'replace', 'remove'] as const).flatMap((operation) =>
-                        inspectedPlan[operation].map((file) => (
-                          <li key={`${operation}:${file.root}:${file.path}`}>
-                            <code>
-                              {operation}: {file.root}/{file.path}
-                            </code>
-                          </li>
-                        )),
-                      )}
-                    </ul>
-                  </details>
-                )}
-              </>
+            {api.previewPlan && inspectedPlan?.modId === selected.id && (
+              <details key={inspectedPlan.modId}>
+                <summary>
+                  File changes · Create {inspectedPlan.create.length} · Replace{' '}
+                  {inspectedPlan.replace.length} · Remove {inspectedPlan.remove.length}
+                </summary>
+                <ul>
+                  {(['create', 'replace', 'remove'] as const).flatMap((operation) =>
+                    inspectedPlan[operation].map((file) => (
+                      <li key={`${operation}:${file.root}:${file.path}`}>
+                        <code>
+                          {operation}: {file.root}/{file.path}
+                        </code>
+                      </li>
+                    )),
+                  )}
+                </ul>
+              </details>
             )}
-            <div>
+            <div className="detail-install-note">
               <ShieldCheck size={17} />
               <span>
                 {['game-replacement', 'lovely-injector'].includes(selected.installation.type)
