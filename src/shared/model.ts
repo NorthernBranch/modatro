@@ -25,6 +25,21 @@ export const SafeName = z
       !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(v),
     'Unsafe filename',
   );
+// Archive paths allow punctuation and unicode; SafeName stays for IDs and folders
+const UNSAFE_PATH_CHARACTERS =
+  /[\p{Cc}<>:"|?*\\\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069\ud800-\udfff]/u;
+export const PathSegment = z
+  .string()
+  .min(1)
+  .max(255)
+  .refine(
+    (v) =>
+      !UNSAFE_PATH_CHARACTERS.test(v) &&
+      !/^\.+$/.test(v) &&
+      !/[. ]$/.test(v) &&
+      !/^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(?: *\.|$)/i.test(v),
+    'Unsafe path segment',
+  );
 export const RelativePath = z
   .string()
   .min(1)
@@ -34,7 +49,7 @@ export const RelativePath = z
       !v.includes('\\') &&
       !v.includes('\0') &&
       !v.startsWith('/') &&
-      v.split('/').every((s) => SafeName.safeParse(s).success),
+      v.split('/').every((s) => PathSegment.safeParse(s).success),
     'Unsafe relative path',
   );
 // Native catalogue identities may be author/slug; filesystem names remain separate.

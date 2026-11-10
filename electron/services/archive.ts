@@ -75,9 +75,10 @@ export class ArchiveService {
         void (async () => {
           signal.throwIfAborted();
           const name = validateArchiveEntry(entry);
-          if (names.has(name.toLowerCase()))
+          const key = name.normalize('NFC').toLowerCase();
+          if (names.has(key))
             throw new UserError('This archive contains duplicate or case-conflicting paths.');
-          names.add(name.toLowerCase());
+          names.add(key);
           count++;
           declared += entry.uncompressedSize;
           if (count > ARCHIVE_LIMITS.count || declared > ARCHIVE_LIMITS.totalBytes)

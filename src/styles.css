@@ -320,7 +320,7 @@
   display: grid;
   justify-items: center;
   gap: 12px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
 }
 .creator-card-preview canvas {
@@ -677,7 +677,7 @@ svg {
   color: var(--accent);
 }
 .sidebar-label {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 650;
   letter-spacing: 1.7px;
   color: var(--faint);
@@ -733,7 +733,7 @@ svg {
 .nav-count {
   background: var(--accent);
   color: var(--accent-text);
-  font-size: 10px;
+  font-size: 11px;
   min-width: 19px;
   height: 18px;
   display: grid;
@@ -778,14 +778,14 @@ svg {
 }
 .game-panel-top div > span {
   display: block;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--muted);
 }
 .game-panel button {
   display: flex;
   justify-content: space-between;
   width: 100%;
-  font-size: 10px;
+  font-size: 11px;
   padding: 10px 0;
   border-top: 1px solid var(--border);
   color: var(--accent);
@@ -799,7 +799,7 @@ svg {
   gap: 7px;
   padding: 0 6px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 .safety-note svg {
   color: var(--faint);
@@ -879,7 +879,7 @@ svg {
   gap: 6px;
   align-items: center;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 .status-dot {
   height: 5px;
@@ -922,7 +922,7 @@ svg {
 }
 .launch-button {
   padding: 9px 13px;
-  font-size: 10px;
+  font-size: 11px;
 }
 .button-secondary,
 .filter-button {
@@ -937,7 +937,7 @@ svg {
   border-color: #3f573a;
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 5%, transparent);
-  font-size: 10px;
+  font-size: 11px;
   padding: 7px 10px;
 }
 .button-install:hover {
@@ -945,13 +945,13 @@ svg {
 }
 .button-installed {
   color: var(--accent);
-  font-size: 10px;
+  font-size: 11px;
   padding: 7px 10px;
 }
 .button-progress {
   color: var(--accent);
   border-color: var(--border);
-  font-size: 10px;
+  font-size: 11px;
 }
 .button-danger {
   background: #8e4036;
@@ -963,7 +963,7 @@ svg {
   gap: 5px;
   align-items: center;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   padding: 5px 0;
 }
 .text-button:hover {
@@ -1015,14 +1015,14 @@ svg {
   color: var(--accent);
   letter-spacing: 1.8px;
   font-weight: 600;
-  font-size: 9px;
+  font-size: 11px;
   display: flex;
   align-items: center;
   gap: 6px;
 }
 .hero .eyebrow {
   color: #c6e2b9;
-  font-size: 8px;
+  font-size: 11px;
 }
 .eyebrow > span {
   width: 4px;
@@ -1041,7 +1041,7 @@ svg {
   color: #b3e99b;
 }
 .hero p {
-  font-size: 11px;
+  font-size: 13px;
   color: #bfd0bc;
   line-height: 1.8;
 }
@@ -1049,7 +1049,7 @@ svg {
   margin-top: 23px;
   background: #c1eca9;
   color: #243622;
-  font-size: 10px;
+  font-size: 11px;
   padding: 11px 13px;
 }
 .hero-art {
@@ -1169,7 +1169,7 @@ svg {
   bottom: 15px;
   width: 100%;
   text-align: center;
-  font-size: 6px;
+  font-size: 11px;
   letter-spacing: 1.2px;
   color: #4b6945;
 }
@@ -1192,7 +1192,7 @@ svg {
   position: absolute;
   bottom: 7px;
   left: 60px;
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.6px;
   color: #d3dcc1;
   display: flex;
@@ -1218,7 +1218,7 @@ svg {
   gap: 9px;
 }
 .count-pill {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   background: var(--panel);
   border: 1px solid var(--border);
@@ -1233,7 +1233,7 @@ svg {
   margin-top: 8px;
 }
 .refresh-button {
-  font-size: 10px;
+  font-size: 11px;
 }
 .catalogue-controls {
   display: flex;
@@ -1272,7 +1272,7 @@ svg {
   color: var(--faint);
 }
 .search-field kbd {
-  font-size: 9px;
+  font-size: 11px;
   color: var(--faint);
   white-space: nowrap;
   border: 1px solid var(--border);
@@ -1325,7 +1325,7 @@ svg {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 8px 11px;
-  font-size: 10px;
+  font-size: 11px;
   white-space: nowrap;
   transition: 0.15s;
 }
@@ -1343,7 +1343,7 @@ svg {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--faint);
   margin: 10px 1px 15px;
 }
@@ -1351,7 +1351,7 @@ svg {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 8px;
+  font-size: 11px;
 }
 .mod-grid {
   display: grid;
@@ -1434,7 +1434,7 @@ svg {
 }
 .art-spark {
   position: absolute;
-  font-size: 8px;
+  font-size: 11px;
   right: 5px;
   bottom: 3px;
   opacity: 0.45;
@@ -1444,7 +1444,7 @@ svg {
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 4px 6px;
-  font-size: 8px;
+  font-size: 11px;
   white-space: nowrap;
 }
 .mod-title-row {
@@ -1472,7 +1472,7 @@ svg {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--faint);
   margin-top: 6px;
 }
@@ -1481,13 +1481,13 @@ svg {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 8px;
+  font-size: 11px;
   color: var(--muted);
 }
 .mod-description {
   margin-top: 13px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.8;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1503,7 +1503,7 @@ svg {
   align-items: center;
 }
 .requirement-badges span {
-  font-size: 8px;
+  font-size: 11px;
   color: var(--muted);
   display: inline-flex;
   gap: 4px;
@@ -1512,13 +1512,6 @@ svg {
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 3px 5px;
-}
-.requirement-badges .no-requirements {
-  background: none;
-  border: 0;
-  padding: 0;
-  font-size: 8px;
-  color: var(--faint);
 }
 .card-footer {
   border-top: 1px solid var(--border);
@@ -1529,7 +1522,7 @@ svg {
   min-height: 53px;
 }
 .card-footer .text-button {
-  font-size: 9px;
+  font-size: 11px;
 }
 .catalogue-footer {
   display: flex;
@@ -1538,7 +1531,7 @@ svg {
   gap: 7px;
   margin: 26px 0 6px;
   color: var(--faint);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.6;
   text-align: center;
 }
@@ -1770,7 +1763,7 @@ select {
   margin: 13px 0 14px;
 }
 .state-badge {
-  font-size: 9px;
+  font-size: 11px;
   color: var(--muted);
   background: var(--bg);
   border: 1px solid var(--border);
@@ -1851,7 +1844,7 @@ details > p {
   cursor: default;
 }
 .local-row-info p {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
   display: flex;
   gap: 8px;
@@ -1944,7 +1937,7 @@ details > p {
 }
 .settings-inline-note {
   color: var(--faint);
-  font-size: 10px;
+  font-size: 11px;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -2027,7 +2020,7 @@ details > p {
   min-width: 0;
 }
 .detail-intro .eyebrow {
-  font-size: 8px;
+  font-size: 11px;
   line-height: 1.7;
 }
 .detail-author {
@@ -2095,7 +2088,7 @@ details > p {
 }
 .requirement-row span:not(.requirement-symbol) {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 .detail-requirements > .text-button {
   margin-top: 13px;
@@ -2133,7 +2126,7 @@ details > p {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
 }
 .detail-install > div:first-child svg {
@@ -2258,7 +2251,7 @@ details > p {
   font-family: monospace;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: 10px;
+  font-size: 11px;
 }
 .replacement-files {
   font-size: 12px;
@@ -2328,7 +2321,7 @@ details > p {
 .operation-toast span {
   display: block;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   margin-top: 5px;
 }
 .spin {
@@ -2383,7 +2376,7 @@ details > p {
     margin-right: 6px;
   }
   .hero p {
-    font-size: 10px;
+    font-size: 11px;
   }
   .desktop-break {
     display: none;
@@ -2460,7 +2453,7 @@ details > p {
     font-size: 36px;
   }
   .hero .eyebrow {
-    font-size: 7px;
+    font-size: 11px;
   }
   .topbar-actions {
     gap: 10px;
@@ -2516,7 +2509,7 @@ details > p {
     justify-content: flex-end;
   }
   .preview-label {
-    font-size: 8px;
+    font-size: 11px;
   }
   .section-heading {
     gap: 10px;
@@ -2525,7 +2518,7 @@ details > p {
     font-size: 18px;
   }
   .section-heading p {
-    font-size: 10px;
+    font-size: 11px;
   }
   .refresh-button {
     font-size: 0;
@@ -2545,7 +2538,7 @@ details > p {
     padding: 0 10px;
   }
   .search-field input {
-    font-size: 10px;
+    font-size: 11px;
   }
   .search-field kbd {
     display: none;
@@ -2567,7 +2560,7 @@ details > p {
     bottom: 15px;
   }
   .notification p {
-    font-size: 10px;
+    font-size: 11px;
   }
   .about-links {
     flex-direction: column;
@@ -2852,7 +2845,7 @@ details > p {
 }
 .profile-unsaved {
   color: var(--accent);
-  font-size: 10px;
+  font-size: 11px;
 }
 .feature-actions {
   display: flex;

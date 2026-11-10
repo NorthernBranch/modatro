@@ -138,6 +138,7 @@ export function zip(
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50);
     local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0x800, 6);
     local.writeUInt32LE(checksum, 14);
     local.writeUInt32LE(data.length, 18);
     local.writeUInt32LE(entry.uncompressedSize ?? data.length, 22);
@@ -147,6 +148,7 @@ export function zip(
     directory.writeUInt32LE(0x02014b50);
     directory.writeUInt16LE(0x0314, 4);
     directory.writeUInt16LE(20, 6);
+    directory.writeUInt16LE(0x800, 8);
     directory.writeUInt32LE(checksum, 16);
     directory.writeUInt32LE(data.length, 20);
     directory.writeUInt32LE(entry.uncompressedSize ?? data.length, 24);

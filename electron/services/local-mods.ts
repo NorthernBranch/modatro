@@ -59,6 +59,7 @@ async function emptyDirectoryTree(directory: string) {
 export class InstalledModsService {
   latest = new Map<string, { version?: string; error?: string }>();
   private latestCheck?: Promise<void>;
+  private hashes = new Map<string, { size: number; mtimeMs: number; ino: number; hash: string }>();
   constructor(
     private storage: Storage,
     private logger: Logger,
@@ -80,6 +81,8 @@ export class InstalledModsService {
       detected = new Map<string, { version?: string; installed: boolean }>();
     const integrity = new Map<string, string[]>();
     const missing = new Map<string, number>();
+    const previousHashes = this.hashes;
+    const currentHashes: typeof this.hashes = new Map();
     const verified = await fileBatches(
       state.installations.flatMap((record) =>
         record.files.map((file) => ({ id: record.modId, file })),
@@ -92,14 +95,32 @@ export class InstalledModsService {
           if (!(await exists(dest))) {
             problem = `${file.path} is missing.`;
             absent = true;
-          } else if ((await hashFile(dest)) !== file.installedHash)
-            problem = `${file.path} has changed outside Modatro.`;
+          } else {
+            // skip rereading files whose size, mtime and inode are unchanged
+            const stat = await fs.lstat(dest);
+            const known = previousHashes.get(dest);
+            const hash =
+              known &&
+              known.size === stat.size &&
+              known.mtimeMs === stat.mtimeMs &&
+              known.ino === stat.ino
+                ? known.hash
+                : await hashFile(dest);
+            currentHashes.set(dest, {
+              size: stat.size,
+              mtimeMs: stat.mtimeMs,
+              ino: stat.ino,
+              hash,
+            });
+            if (hash !== file.installedHash) problem = `${file.path} has changed outside Modatro.`;
+          }
         } catch {
           problem = `${file.path} cannot be verified.`;
         }
         return { id, problem, absent };
       },
     );
+    this.hashes = currentHashes;
     for (const { id, problem, absent } of verified) {
       if (problem) integrity.set(id, [...(integrity.get(id) ?? []), problem]);
       if (absent) missing.set(id, (missing.get(id) ?? 0) + 1);
