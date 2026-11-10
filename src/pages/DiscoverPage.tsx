@@ -342,10 +342,8 @@ export function DiscoverPage({
         <div className="results-line">
           <span>
             {query
-              ? `${visible.length} results for “${query}”`
-              : category === 'All mods'
-                ? `${visible.length} mods`
-                : `${visible.length} ${category.toLowerCase()} mods`}
+              ? `${visible.length} ${visible.length === 1 ? 'result' : 'results'} for “${query}”`
+              : `${visible.length} ${category === 'All mods' ? '' : `${category.toLowerCase()} `}${visible.length === 1 ? 'mod' : 'mods'}`}
           </span>
           <span>
             {snapshot?.preview
