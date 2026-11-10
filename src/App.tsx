@@ -198,7 +198,10 @@ export function App() {
       setSetup(true);
       setupOpened.current = true;
     }
-    const mode = snapshot?.settings.theme ?? api.initialTheme ?? 'dark';
+  }, [snapshot]);
+  const theme = snapshot?.settings.theme;
+  useEffect(() => {
+    const mode = theme ?? api.initialTheme ?? 'dark';
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     const update = () => {
       document.documentElement.dataset.theme =
@@ -207,7 +210,7 @@ export function App() {
     update();
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
-  }, [snapshot]);
+  }, [theme]);
   useEffect(() => {
     const listener = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'k') {

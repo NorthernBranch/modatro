@@ -1,21 +1,19 @@
 import {
   ArrowUpRight,
-  ChevronRight,
   ExternalLink,
   Grid2X2,
   Info,
-  Layers3,
   List,
   RefreshCw,
   Search,
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
-  Star,
 } from 'lucide-react';
 import {
   useRef,
   useMemo,
+  useDeferredValue,
   useEffect,
   useState,
   type Dispatch,
@@ -25,11 +23,11 @@ import {
 } from 'react';
 import { AsyncButton } from '../components/AsyncButton';
 import { api } from '../api';
-import { ModArt } from '../components/ModArt';
+import { ModCard } from '../components/ModCard';
 import { EmptyState } from '../components/PageElements';
 import type { AppError, ModDefinition, Snapshot } from '../shared/model';
 import { plainText } from '../shared/presentation';
-import { allowedDescription, approvalLabel } from '../shared/trust';
+import { allowedDescription } from '../shared/trust';
 interface Props {
   snapshot?: Snapshot;
   searchRef: RefObject<HTMLInputElement | null>;
@@ -65,8 +63,22 @@ export function DiscoverPage({
       ),
     [snapshot?.catalogue.mods, snapshot?.localMods],
   );
-  const installed = snapshot?.localMods ?? [];
-  const updates = installed.filter((m) => m.state === 'update-available');
+  const installed = useMemo(() => snapshot?.localMods ?? [], [snapshot?.localMods]);
+  const installedIds = useMemo(() => new Set(installed.map((m) => m.id)), [installed]);
+  const updateIds = useMemo(
+    () => new Set(installed.filter((m) => m.state === 'update-available').map((m) => m.id)),
+    [installed],
+  );
+  const searchText = useMemo(
+    () =>
+      new Map(
+        mods.map((mod) => [
+          mod.id,
+          `${mod.title} ${mod.author} ${plainText(allowedDescription(mod))}`.toLowerCase(),
+        ]),
+      ),
+    [mods],
+  );
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All mods');
   const [filter, setFilter] = useState('all');
@@ -75,7 +87,10 @@ export function DiscoverPage({
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [sort, setSort] = useState('default');
   const [stars, setStars] = useState<Record<string, number>>({});
-  const catalogueKey = mods.map((mod) => `${mod.id}:${mod.repositoryUrl ?? ''}`).join('|');
+  const catalogueKey = useMemo(
+    () => mods.map((mod) => `${mod.id}:${mod.repositoryUrl ?? ''}`).join('|'),
+    [mods],
+  );
   useEffect(() => {
     let cancelled = false;
     setStars({});
@@ -94,47 +109,45 @@ export function DiscoverPage({
   const [limit, setLimit] = useState(60);
   useEffect(() => setLimit(60), [query, category, author, filter, sort]);
   const catalogueRef = useRef<HTMLElement>(null);
-  const visible = mods.filter(
-    (mod) =>
-      (!query ||
-        `${mod.title} ${mod.author} ${plainText(allowedDescription(mod))}`
-          .toLowerCase()
-          .includes(query.toLowerCase())) &&
-      (category === 'All mods' || mod.categories.includes(category)) &&
-      (author === 'all' || mod.author === author) &&
-      (filter === 'all' ||
-        (filter === 'installed'
-          ? installed.some((m) => m.id === mod.id)
-          : filter === 'updates'
-            ? updates.some((m) => m.id === mod.id)
-            : !installed.some((m) => m.id === mod.id))),
-  );
-  const categories = [
-    'All mods',
-    ...[...new Set(mods.flatMap((m) => m.categories))].sort((a, b) => a.localeCompare(b)),
-  ];
-  if (sort === 'popular')
-    visible.sort(
-      (a, b) => (stars[b.id] ?? -1) - (stars[a.id] ?? -1) || a.title.localeCompare(b.title),
+  const needle = useDeferredValue(query.trim().toLowerCase());
+  const visible = useMemo(() => {
+    const result = mods.filter(
+      (mod) =>
+        (!needle || searchText.get(mod.id)?.includes(needle)) &&
+        (category === 'All mods' || mod.categories.includes(category)) &&
+        (author === 'all' || mod.author === author) &&
+        (filter === 'all' ||
+          (filter === 'installed'
+            ? installedIds.has(mod.id)
+            : filter === 'updates'
+              ? updateIds.has(mod.id)
+              : !installedIds.has(mod.id))),
     );
-  if (sort === 'name') visible.sort((a, b) => a.title.localeCompare(b.title));
+    if (sort === 'popular')
+      result.sort(
+        (a, b) => (stars[b.id] ?? -1) - (stars[a.id] ?? -1) || a.title.localeCompare(b.title),
+      );
+    if (sort === 'name') result.sort((a, b) => a.title.localeCompare(b.title));
+    return result;
+  }, [mods, searchText, needle, category, author, filter, installedIds, updateIds, sort, stars]);
+  const categories = useMemo(
+    () => [
+      'All mods',
+      ...[...new Set(mods.flatMap((m) => m.categories))].sort((a, b) => a.localeCompare(b)),
+    ],
+    [mods],
+  );
+  const authors = useMemo(() => [...new Set(mods.map((m) => m.author))].sort(), [mods]);
   return (
     <>
       <section className="hero">
         <div className="hero-copy">
-          <div className="eyebrow">
-            <span />A NEW HAND. A NEW POSSIBILITY.
-          </div>
           <h1>
             Make the game
             <br />
             your own<span>.</span>
           </h1>
-          <p>
-            Fresh jokers. New possibilities. One place for all your mods.
-            <br className="desktop-break" />
-            Your next favourite run starts here.
-          </p>
+          <p>Find, install and manage your Balatro mods in one place.</p>
           <button
             className="button hero-button"
             onClick={() =>
@@ -184,7 +197,6 @@ export function DiscoverPage({
             <h2>
               Discover mods<span className="count-pill">{mods.length}</span>
             </h2>
-            <p>A whole new way to play your favourite game.</p>
           </div>
           <button
             className="text-button refresh-button"
@@ -299,7 +311,7 @@ export function DiscoverPage({
               Creator
               <select value={author} onChange={(e) => setAuthor(e.target.value)}>
                 <option value="all">All creators</option>
-                {[...new Set(mods.map((m) => m.author))].sort().map((a) => (
+                {authors.map((a) => (
                   <option key={a}>{a}</option>
                 ))}
               </select>
@@ -332,8 +344,8 @@ export function DiscoverPage({
             {query
               ? `${visible.length} results for “${query}”`
               : category === 'All mods'
-                ? 'A little of everything. A lot of possibilities.'
-                : `Explore ${category.toLowerCase()} mods`}
+                ? `${visible.length} mods`
+                : `${visible.length} ${category.toLowerCase()} mods`}
           </span>
           <span>
             {snapshot?.preview
@@ -358,77 +370,14 @@ export function DiscoverPage({
         ) : visible.length ? (
           <div className={view === 'grid' ? 'mod-grid' : 'mod-list'}>
             {visible.slice(0, limit).map((mod) => (
-              <article className={`mod-card ${view === 'list' ? 'list-card' : ''}`} key={mod.id}>
-                <button
-                  className="card-main"
-                  onClick={() => setSelected(mod)}
-                  aria-label={`Details for ${mod.title}`}
-                >
-                  <div className="card-top">
-                    <ModArt mod={mod} />
-                    <span className="category-tag">{mod.categories[0] ?? 'Miscellaneous'}</span>
-                  </div>
-                  <div className="mod-title-row">
-                    <h3>{mod.title}</h3>
-                    {mod.repositoryUrl?.startsWith('https://github.com/') && (
-                      <span
-                        className="github-stars"
-                        title={
-                          stars[mod.id] === undefined
-                            ? 'GitHub star count unavailable'
-                            : `${stars[mod.id]!.toLocaleString()} GitHub stars`
-                        }
-                        aria-label={
-                          stars[mod.id] === undefined
-                            ? 'GitHub stars unavailable'
-                            : `${stars[mod.id]} GitHub stars`
-                        }
-                      >
-                        <Star size={12} aria-hidden="true" />
-                        {stars[mod.id] === undefined
-                          ? '—'
-                          : Intl.NumberFormat(undefined, {
-                              notation: 'compact',
-                              maximumFractionDigits: 1,
-                            }).format(stars[mod.id]!)}
-                      </span>
-                    )}
-                    <ArrowUpRight size={16} />
-                  </div>
-                  <div className="mod-author">
-                    by {mod.author}
-                    <span title={`Version ${mod.version}`}>{mod.version}</span>
-                  </div>
-
-                  <p className="mod-description">
-                    {plainText(allowedDescription(mod)) ||
-                      'Explore this community-made addition to Balatro.'}
-                  </p>
-                  <span className="muted-text">{approvalLabel(mod)}</span>
-                  {mod.deprecated && (
-                    <span className="state-badge missing">Installed · Deprecated</span>
-                  )}
-                  <div className="requirement-badges">
-                    {mod.prerequisites.length ? (
-                      mod.prerequisites.slice(0, 2).map((p) => (
-                        <span key={`${p.id}:${p.versionConstraint}`}>
-                          <Layers3 size={11} />
-                          {p.displayName}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="no-requirements">No catalogue prerequisites</span>
-                    )}
-                  </div>
-                </button>
-                <div className="card-footer">
-                  <button className="text-button" onClick={() => setSelected(mod)}>
-                    View details
-                    <ChevronRight size={13} />
-                  </button>
-                  {buttonFor(mod, true)}
-                </div>
-              </article>
+              <ModCard
+                key={mod.id}
+                mod={mod}
+                list={view === 'list'}
+                stars={stars[mod.id]}
+                onSelect={setSelected}
+                action={buttonFor(mod, true)}
+              />
             ))}
           </div>
         ) : (

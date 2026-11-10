@@ -28,9 +28,8 @@ export function PrerequisitesPage({
   return (
     <>
       <PageHeading
-        eyebrow="THE FOUNDATION"
         title="A little setup. A lot more game."
-        description="Everything your mods need, with nothing left to guess."
+        description="Check that the loaders your mods rely on are installed and up to date."
       />
       <ExistingInstallNotice />
       {snapshot && (

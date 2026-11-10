@@ -53,12 +53,11 @@ export function InstalledPage({
   return (
     <>
       <PageHeading
-        eyebrow="YOUR COLLECTION"
         title={page === 'installed' ? 'Your mods, all together.' : 'Keep your next run fresh.'}
         description={
           page === 'installed'
-            ? 'Manage your collection. Keep the good stuff. Try something new.'
-            : 'New versions, with the same care for your game files.'
+            ? 'Enable, disable, update or remove the mods you have installed.'
+            : 'Newer versions of your installed mods. Replaced files are backed up first.'
         }
         action={
           <AsyncButton

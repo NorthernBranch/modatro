@@ -80,7 +80,6 @@ export function TroubleshootingPage({
     return (
       <>
         <PageHeading
-          eyebrow="HELP WITH YOUR SETUP"
           title="Troubleshooting"
           description="Setup checks and support reports are available in the desktop application."
         />
@@ -89,9 +88,8 @@ export function TroubleshootingPage({
   return (
     <>
       <PageHeading
-        eyebrow="HELP WITH YOUR SETUP"
         title="Understand your setup."
-        description="Read-only checks, clear evidence, and a support report you control."
+        description="Read-only checks and a support report you can review before sharing."
       />
       <div className="troubleshooting-layout">
         <div className="feature-actions troubleshooting-actions">

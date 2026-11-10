@@ -246,7 +246,8 @@ aliases are resolved to their actual spelling without folding distinct paths on
 case-sensitive filesystems.
 
 Relative paths reject traversal, absolute and drive paths, reserved Windows names
-and alternate data streams. ZIP extraction also checks duplicate paths, case collisions,
+and alternate data streams. File and folder names inside archives may contain ordinary
+punctuation and non-ASCII letters; mod IDs and install folder names stay restricted. ZIP extraction also checks duplicate paths, case collisions,
 CRC integrity, file counts, sizes and expansion ratios. Download redirects are checked
 against the appropriate HTTPS GitHub or Thunderstore transport allowlist.
 

@@ -63,9 +63,8 @@ export function SettingsPage({
   return (
     <>
       <PageHeading
-        eyebrow="MAKE YOURSELF AT HOME"
         title="Just the way you like it."
-        description="Your installation, your preferences, and a little peace of mind."
+        description="Your Balatro installation, appearance, mod sources and storage."
       />
       {snapshot && (
         <div className="settings-layout">
