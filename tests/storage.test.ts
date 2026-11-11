@@ -16,6 +16,50 @@ afterEach(async () => {
 });
 
 describe('application storage startup', () => {
+  it('starts new installations on Match system and keeps it after a restart', async () => {
+    const directory = await root();
+    const storage = new Storage(directory);
+    await storage.initialize();
+    expect(storage.state.settings.theme).toBe('system');
+    const restarted = new Storage(directory);
+    await restarted.initialize();
+    expect(restarted.safetyError).toBeUndefined();
+    expect(restarted.state.settings.theme).toBe('system');
+  });
+  it('keeps the dark theme for existing installations with an explicit setting', async () => {
+    const directory = await root();
+    await put(
+      path.join(directory, 'data', 'state.json'),
+      JSON.stringify({
+        schemaVersion: 2,
+        settings: { theme: 'dark', setupComplete: true },
+        installations: [],
+      }),
+    );
+    const storage = new Storage(directory);
+    await storage.initialize();
+    expect(storage.safetyError).toBeUndefined();
+    expect(storage.state.settings.theme).toBe('dark');
+  });
+  it('keeps the dark theme for existing installations saved without a theme', async () => {
+    const directory = await root();
+    await put(
+      path.join(directory, 'data', 'state.json'),
+      JSON.stringify({ schemaVersion: 2, settings: { setupComplete: true }, installations: [] }),
+    );
+    const storage = new Storage(directory);
+    await storage.initialize();
+    expect(storage.safetyError).toBeUndefined();
+    expect(storage.state.settings.theme).toBe('dark');
+  });
+  it('keeps the dark theme when existing records cannot be read', async () => {
+    const directory = await root();
+    await put(path.join(directory, 'data', 'state.json'), '{ not json');
+    const storage = new Storage(directory);
+    await storage.initialize();
+    expect(storage.safetyError).toBeDefined();
+    expect(storage.state.settings.theme).toBe('dark');
+  });
   it.each(['balatro', 'balatro-dark'] as const)(
     'preserves the saved %s preference across restarts',
     async (theme) => {
