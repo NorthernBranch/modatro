@@ -10,7 +10,8 @@ import { atomicWrite, canonicalDirectory, exists, readSmall, safeDestination } f
 export class Storage {
   state: AppState = {
     schemaVersion: 2,
-    settings: { theme: 'dark', setupComplete: false },
+    // New installations follow the system theme.
+    settings: { theme: 'system', setupComplete: false },
     installations: [],
   };
   safetyError?: string;
@@ -33,6 +34,8 @@ export class Storage {
     }
     const file = this.file('data/state.json');
     if (await exists(file)) {
+      // Existing installations keep the earlier dark default, even if their records are unreadable.
+      this.state.settings.theme = 'dark';
       try {
         const original = await readSmall(file, 20 * 1024 * 1024);
         this.state = StateSchema.parse(JSON.parse(original));
